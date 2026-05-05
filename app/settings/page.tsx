@@ -304,12 +304,18 @@ export default function SettingsPage() {
 
         <section className="rounded-2xl border border-[#d9e2ef] bg-white p-4 shadow-sm">
           <h2 className="mb-4 text-base font-bold text-[#0f172a]">分類</h2>
-          <div className="rounded-2xl bg-[#f8fafc] p-3">
-            <div className="grid gap-3 sm:grid-cols-[1fr_auto_auto]">
-              <label className="space-y-1">
+          <div className="rounded-2xl border border-[#d9e2ef] bg-[#f8fafc] p-3">
+            <div className="mb-3">
+              <h3 className="text-sm font-bold text-[#0f172a]">新しい分類を追加</h3>
+              <p className="mt-1 text-xs text-[#64748b]">
+                予定の左端に表示する色を登録できます。
+              </p>
+            </div>
+            <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_112px_96px] sm:items-end">
+              <label className="min-w-0 space-y-1">
                 <span className="text-xs font-bold text-[#64748b]">分類名</span>
                 <input
-                  className="h-11 w-full rounded-lg border border-[#cbd5e1] px-3 text-sm outline-none transition focus:border-[#0f766e] focus:ring-2 focus:ring-[#99f6e4]"
+                  className="h-11 w-full min-w-0 rounded-lg border border-[#cbd5e1] px-3 text-sm outline-none transition focus:border-[#0f766e] focus:ring-2 focus:ring-[#99f6e4]"
                   placeholder="例: 勤務"
                   value={categoryName}
                   onChange={(event) => setCategoryName(event.target.value)}
@@ -318,14 +324,14 @@ export default function SettingsPage() {
               <label className="space-y-1">
                 <span className="text-xs font-bold text-[#64748b]">色</span>
                 <input
-                  className="h-11 w-full rounded-lg border border-[#cbd5e1] bg-white px-2 sm:w-20"
+                  className="h-11 w-full rounded-lg border border-[#cbd5e1] bg-white px-2"
                   type="color"
                   value={categoryColor}
                   onChange={(event) => setCategoryColor(event.target.value)}
                 />
               </label>
               <button
-                className="h-11 self-end rounded-lg bg-[#0f766e] px-4 font-semibold text-white"
+                className="h-11 rounded-lg bg-[#0f766e] px-4 font-semibold text-white"
                 onClick={addCategory}
               >
                 追加
@@ -333,14 +339,21 @@ export default function SettingsPage() {
             </div>
           </div>
 
-          <div className="mt-4 grid gap-3">
+          <div className="mt-5">
+            <div className="mb-3">
+              <h3 className="text-sm font-bold text-[#0f172a]">登録済みの分類</h3>
+              <p className="mt-1 text-xs text-[#64748b]">
+                名前や色を変更できます。不要な分類は削除できます。
+              </p>
+            </div>
+          <div className="grid gap-3">
             {categories.map((category) => (
               <div key={category.id} className="rounded-2xl border border-[#d9e2ef] bg-white p-3 shadow-sm">
-                <div className="grid gap-3 sm:grid-cols-[1fr_auto_auto]">
-                  <label className="space-y-1">
+                <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_112px_96px] sm:items-end">
+                  <label className="min-w-0 space-y-1">
                     <span className="text-xs font-bold text-[#64748b]">分類名</span>
                     <input
-                      className="h-10 w-full rounded-lg border border-[#cbd5e1] px-3 text-sm"
+                      className="h-10 w-full min-w-0 rounded-lg border border-[#cbd5e1] px-3 text-sm"
                       value={category.name}
                       onChange={(event) =>
                         setCategories((current) =>
@@ -357,7 +370,7 @@ export default function SettingsPage() {
                   <label className="space-y-1">
                     <span className="text-xs font-bold text-[#64748b]">色</span>
                     <input
-                      className="h-10 w-full rounded-lg border border-[#cbd5e1] bg-white px-2 sm:w-20"
+                      className="h-10 w-full rounded-lg border border-[#cbd5e1] bg-white px-2"
                       type="color"
                       value={category.color}
                       onChange={(event) =>
@@ -366,7 +379,7 @@ export default function SettingsPage() {
                     />
                   </label>
                   <button
-                    className="h-10 self-end rounded-lg border border-[#fecdd3] px-3 py-2 text-sm font-semibold text-[#be123c]"
+                    className="h-10 rounded-lg border border-[#fecdd3] px-3 py-2 text-sm font-semibold text-[#be123c]"
                     onClick={() => deleteCategory(category)}
                   >
                     削除
@@ -379,6 +392,7 @@ export default function SettingsPage() {
                 分類はまだありません。SQL実行後に追加できます。
               </p>
             )}
+          </div>
           </div>
         </section>
 

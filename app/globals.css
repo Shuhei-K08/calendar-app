@@ -32,6 +32,12 @@ select {
   max-width: 100%;
 }
 
+input,
+textarea,
+select {
+  min-width: 0;
+}
+
 button,
 a {
   transition: background-color 160ms ease, border-color 160ms ease, color 160ms ease,
@@ -453,7 +459,7 @@ button,
     gap: 6px;
     margin-bottom: 8px;
     margin-top: 8px;
-    order: 2;
+    order: 1;
   }
 
   .calendar-shell .rbc-month-view,
@@ -461,7 +467,7 @@ button,
   .calendar-shell .rbc-agenda-view {
     flex: 1 1 auto;
     min-height: 0;
-    order: 1;
+    order: 2;
   }
 
   .calendar-shell .rbc-toolbar-label {
@@ -474,7 +480,12 @@ button,
     display: grid;
     gap: 6px;
     grid-template-columns: repeat(auto-fit, minmax(58px, 1fr));
+    order: 2;
     width: 100%;
+  }
+
+  .calendar-shell .rbc-btn-group:last-child {
+    order: 3;
   }
 
   .calendar-shell .rbc-btn-group button {
@@ -495,5 +506,19 @@ button,
   .calendar-shell .rbc-event {
     font-size: 11px;
     padding: 2px 4px 2px 5px;
+  }
+
+  input,
+  textarea,
+  select {
+    font-size: 16px !important;
+  }
+
+  input[type="datetime-local"] {
+    appearance: none;
+    min-width: 0;
+    padding-left: 8px;
+    padding-right: 8px;
+    width: 100%;
   }
 }

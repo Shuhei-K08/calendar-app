@@ -990,6 +990,13 @@ export default function Home() {
                 noEventsInRange: "この期間の予定はまだありません",
                 showMore: (total) => `+${total}件`,
               }}
+              formats={{
+                monthHeaderFormat: "yyyy年M月",
+                dayHeaderFormat: "M月d日 EEEE",
+                weekdayFormat: "EEE",
+                dayRangeHeaderFormat: ({ start, end }) =>
+                  `${format(start, "yyyy年M月d日", { locale: ja })} - ${format(end, "M月d日", { locale: ja })}`,
+              }}
               eventPropGetter={(event) => ({
                 className: event.isShared ? "shared-event" : "own-event",
                 style: {
@@ -1009,6 +1016,11 @@ export default function Home() {
                     <button
                       className="calendar-date-button"
                       type="button"
+                      onPointerUp={(event) => {
+                        event.preventDefault();
+                        event.stopPropagation();
+                        openDateForRegistration(date);
+                      }}
                       onClick={(event) => {
                         event.preventDefault();
                         event.stopPropagation();

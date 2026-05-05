@@ -44,6 +44,12 @@ declare module "react-big-calendar" {
       noEventsInRange?: string;
       showMore?: (total: number) => string;
     };
+    formats?: {
+      monthHeaderFormat?: string;
+      dayHeaderFormat?: string;
+      dayRangeHeaderFormat?: ({ start, end }: { start: Date; end: Date }) => string;
+      weekdayFormat?: string;
+    };
     eventPropGetter?: (event: TEvent) => {
       className?: string;
       style?: React.CSSProperties;
