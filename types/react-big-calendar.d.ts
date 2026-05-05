@@ -48,6 +48,14 @@ declare module "react-big-calendar" {
       className?: string;
       style?: React.CSSProperties;
     };
+    components?: {
+      month?: {
+        dateHeader?: React.ComponentType<{
+          date: Date;
+          label: string;
+        }>;
+      };
+    };
     onNavigate?: (date: Date) => void;
     onView?: (view: View) => void;
     onDrillDown?: (date: Date) => void;

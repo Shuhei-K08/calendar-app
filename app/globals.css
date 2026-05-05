@@ -126,12 +126,22 @@ a:active {
   border-radius: 10px;
   color: #334155;
   display: inline-flex;
-  font-size: 14px;
+  flex: 0 0 auto;
+  font-size: 13px;
   font-weight: 700;
-  gap: 8px;
+  gap: 7px;
   justify-content: center;
-  padding: 8px 10px;
+  padding: 7px 9px;
   transition: background-color 160ms ease, border-color 160ms ease;
+  white-space: nowrap;
+}
+
+header h1,
+button,
+.top-nav-link,
+.mobile-nav-link,
+.sharecal-logo-text span {
+  white-space: nowrap;
 }
 
 .sharecal-logo {
@@ -199,14 +209,14 @@ a:active {
   border-radius: 999px;
   color: #075985;
   display: inline-flex;
-  height: 26px;
+  height: 24px;
   padding: 5px;
   stroke: currentColor;
   stroke-linecap: round;
   stroke-linejoin: round;
   stroke-width: 1.9;
   fill: none;
-  width: 26px;
+  width: 24px;
 }
 
 .mobile-nav-link {
@@ -318,6 +328,23 @@ a:active {
   justify-content: center;
   cursor: pointer;
   touch-action: manipulation;
+}
+
+.calendar-date-button {
+  align-items: center;
+  border-radius: 999px;
+  display: inline-flex;
+  min-height: 28px;
+  min-width: 28px;
+  justify-content: center;
+  padding: 0 6px;
+  touch-action: manipulation;
+}
+
+.calendar-date-button:hover,
+.calendar-date-button:focus {
+  background: #e0f2fe;
+  color: #075985;
 }
 
 .calendar-shell .rbc-now > a {

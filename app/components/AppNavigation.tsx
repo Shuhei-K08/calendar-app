@@ -58,19 +58,12 @@ const SettingsIcon = () => (
   </svg>
 );
 
-const RequestsIcon = () => (
-  <svg className="nav-svg" viewBox="0 0 24 24" aria-hidden="true">
-    <path d="M5 5h14v14H5V5ZM8 9h8M8 13h5M16 13l1.5 1.5L20 11" />
-  </svg>
-);
-
 const items = [
   { href: "/", label: "予定", desktopLabel: "カレンダー", icon: <CalendarIcon /> },
   { href: "/patterns", label: "定型", desktopLabel: "定型予定", icon: <PatternIcon /> },
   { href: "/todos", label: "TODO", desktopLabel: "TODO", icon: <TodoIcon /> },
   { href: "/connect", label: "共有", desktopLabel: "つながる", icon: <ConnectIcon /> },
   { href: "/profile", label: "自分", desktopLabel: "プロフィール", icon: <ProfileIcon /> },
-  { href: "/requests", label: "申請", desktopLabel: "申請一覧", icon: <RequestsIcon /> },
   { href: "/settings", label: "設定", desktopLabel: "設定", icon: <SettingsIcon /> },
 ];
 
@@ -89,7 +82,7 @@ export function DesktopNavigation() {
 
 export function MobileNavigation() {
   return (
-    <nav className="fixed inset-x-3 bottom-3 z-40 grid grid-cols-7 rounded-2xl border border-[#d9e2ef] bg-white/95 p-2 text-center text-[10px] font-semibold text-[#334155] shadow-xl backdrop-blur sm:hidden">
+    <nav className="fixed inset-x-3 bottom-3 z-40 grid grid-cols-6 rounded-2xl border border-[#d9e2ef] bg-white/95 p-2 text-center text-[10px] font-semibold text-[#334155] shadow-xl backdrop-blur sm:hidden">
       {items.map((item) => (
         <Link key={item.href} className="mobile-nav-link" href={item.href} aria-label={item.desktopLabel}>
           {item.icon}

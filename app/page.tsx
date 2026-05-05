@@ -849,6 +849,13 @@ export default function Home() {
 
   const selectedDayDate = dayDetail?.date ?? calendarDate;
   const selectedDayEvents = dayDetail?.events ?? getEventsOnDate(events, selectedDayDate);
+  const openDateForRegistration = (date: Date) => {
+    setDayDetail({
+      date,
+      events: getEventsOnDate(events, date),
+    });
+    openEventModal(date);
+  };
 
   if (loading) {
     return <LoadingScreen />;
@@ -996,12 +1003,25 @@ export default function Home() {
               onNavigate={(date) => setCalendarDate(date)}
               onView={(view) => setCalendarView(view)}
               longPressThreshold={350}
+              components={{
+                month: {
+                  dateHeader: ({ date, label }) => (
+                    <button
+                      className="calendar-date-button"
+                      type="button"
+                      onClick={(event) => {
+                        event.preventDefault();
+                        event.stopPropagation();
+                        openDateForRegistration(date);
+                      }}
+                    >
+                      {label}
+                    </button>
+                  ),
+                },
+              }}
               onDrillDown={(date) => {
-                setDayDetail({
-                  date,
-                  events: getEventsOnDate(events, date),
-                });
-                openEventModal(date);
+                openDateForRegistration(date);
               }}
               onShowMore={(shownEvents, date) => {
                 setDayDetail({
@@ -1015,11 +1035,7 @@ export default function Home() {
                   ? slotInfo.slots[0]
                   : slotInfo.start;
 
-                setDayDetail({
-                  date,
-                  events: getEventsOnDate(events, date),
-                });
-                openEventModal(date);
+                openDateForRegistration(date);
               }}
               onSelectEvent={(event) => setDetailEvent(event)}
             />
