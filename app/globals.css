@@ -134,6 +134,53 @@ a:active {
   transition: background-color 160ms ease, border-color 160ms ease;
 }
 
+.sharecal-logo {
+  align-items: center;
+  display: inline-flex;
+  gap: 10px;
+  min-width: 0;
+}
+
+.sharecal-logo-mark {
+  background: linear-gradient(135deg, #e0f2fe, #ccfbf1);
+  border: 1px solid #bae6fd;
+  border-radius: 16px;
+  color: #0f766e;
+  flex: 0 0 auto;
+  height: 46px;
+  padding: 7px;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 2;
+  fill: rgb(255 255 255 / 74%);
+  width: 46px;
+}
+
+.sharecal-logo-mark path {
+  fill: none;
+}
+
+.sharecal-logo-text {
+  display: grid;
+  line-height: 1.05;
+}
+
+.sharecal-logo-text span {
+  color: #0f172a;
+  font-size: 24px;
+  font-weight: 950;
+  letter-spacing: 0;
+}
+
+.sharecal-logo-text small {
+  color: #64748b;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
 .top-nav-link:hover {
   background: #f8fafc;
   border-color: #94a3b8;
@@ -364,11 +411,30 @@ a:active {
 }
 
 @media (max-width: 640px) {
+  .sharecal-logo-mark {
+    height: 40px;
+    width: 40px;
+  }
+
+  .sharecal-logo-text span {
+    font-size: 20px;
+  }
+
   .calendar-shell .rbc-toolbar {
     align-items: stretch;
     flex-direction: column;
     gap: 6px;
     margin-bottom: 8px;
+    margin-top: 8px;
+    order: 2;
+  }
+
+  .calendar-shell .rbc-month-view,
+  .calendar-shell .rbc-time-view,
+  .calendar-shell .rbc-agenda-view {
+    flex: 1 1 auto;
+    min-height: 0;
+    order: 1;
   }
 
   .calendar-shell .rbc-toolbar-label {

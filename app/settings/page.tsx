@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import { DesktopNavigation, MobileNavigation } from "@/app/components/AppNavigation";
 
@@ -57,6 +58,7 @@ type Category = {
 };
 
 export default function SettingsPage() {
+  const router = useRouter();
   const [settings, setSettings] = useState<CalendarSettings>(() => {
     if (typeof window === "undefined") return defaultSettings;
     const saved = window.localStorage.getItem("calendar_settings");
@@ -171,6 +173,11 @@ export default function SettingsPage() {
     }
 
     await fetchCategories();
+  };
+
+  const logout = async () => {
+    await supabase.auth.signOut();
+    router.push("/login");
   };
 
   return (
@@ -294,58 +301,74 @@ export default function SettingsPage() {
 
         <section className="rounded-2xl border border-[#d9e2ef] bg-white p-4 shadow-sm">
           <h2 className="mb-4 text-base font-bold text-[#0f172a]">分類</h2>
-          <div className="grid gap-3 sm:grid-cols-[1fr_auto_auto]">
-            <input
-              className="h-11 rounded-lg border border-[#cbd5e1] px-3 text-sm outline-none transition focus:border-[#0f766e] focus:ring-2 focus:ring-[#99f6e4]"
-              placeholder="分類名 例: 勤務"
-              value={categoryName}
-              onChange={(event) => setCategoryName(event.target.value)}
-            />
-            <input
-              className="h-11 w-full rounded-lg border border-[#cbd5e1] bg-white px-2 sm:w-20"
-              type="color"
-              value={categoryColor}
-              onChange={(event) => setCategoryColor(event.target.value)}
-            />
-            <button
-              className="h-11 rounded-lg bg-[#0f766e] px-4 font-semibold text-white"
-              onClick={addCategory}
-            >
-              追加
-            </button>
+          <div className="rounded-2xl bg-[#f8fafc] p-3">
+            <div className="grid gap-3 sm:grid-cols-[1fr_auto_auto]">
+              <label className="space-y-1">
+                <span className="text-xs font-bold text-[#64748b]">分類名</span>
+                <input
+                  className="h-11 w-full rounded-lg border border-[#cbd5e1] px-3 text-sm outline-none transition focus:border-[#0f766e] focus:ring-2 focus:ring-[#99f6e4]"
+                  placeholder="例: 勤務"
+                  value={categoryName}
+                  onChange={(event) => setCategoryName(event.target.value)}
+                />
+              </label>
+              <label className="space-y-1">
+                <span className="text-xs font-bold text-[#64748b]">色</span>
+                <input
+                  className="h-11 w-full rounded-lg border border-[#cbd5e1] bg-white px-2 sm:w-20"
+                  type="color"
+                  value={categoryColor}
+                  onChange={(event) => setCategoryColor(event.target.value)}
+                />
+              </label>
+              <button
+                className="h-11 self-end rounded-lg bg-[#0f766e] px-4 font-semibold text-white"
+                onClick={addCategory}
+              >
+                追加
+              </button>
+            </div>
           </div>
 
-          <div className="mt-4 grid gap-2">
+          <div className="mt-4 grid gap-3">
             {categories.map((category) => (
-              <div key={category.id} className="grid gap-2 rounded-xl bg-[#f8fafc] p-3 sm:grid-cols-[1fr_auto_auto]">
-                <input
-                  className="h-10 rounded-lg border border-[#cbd5e1] px-3 text-sm"
-                  value={category.name}
-                  onChange={(event) =>
-                    setCategories((current) =>
-                      current.map((item) =>
-                        item.id === category.id
-                          ? { ...item, name: event.target.value }
-                          : item,
-                      ),
-                    )
-                  }
-                  onBlur={(event) => updateCategory(category, { name: event.target.value })}
-                />
-                <input
-                  className="h-10 w-full rounded-lg border border-[#cbd5e1] bg-white px-2 sm:w-20"
-                  type="color"
-                  value={category.color}
-                  onChange={(event) =>
-                    updateCategory(category, { color: event.target.value })
-                  }
-                />
-                <button
-                  className="rounded-lg border border-[#fecdd3] px-3 py-2 text-sm font-semibold text-[#be123c]"
-                  onClick={() => deleteCategory(category)}
-                >
-                  削除
-                </button>
+              <div key={category.id} className="rounded-2xl border border-[#d9e2ef] bg-white p-3 shadow-sm">
+                <div className="grid gap-3 sm:grid-cols-[1fr_auto_auto]">
+                  <label className="space-y-1">
+                    <span className="text-xs font-bold text-[#64748b]">分類名</span>
+                    <input
+                      className="h-10 w-full rounded-lg border border-[#cbd5e1] px-3 text-sm"
+                      value={category.name}
+                      onChange={(event) =>
+                        setCategories((current) =>
+                          current.map((item) =>
+                            item.id === category.id
+                              ? { ...item, name: event.target.value }
+                              : item,
+                          ),
+                        )
+                      }
+                      onBlur={(event) => updateCategory(category, { name: event.target.value })}
+                    />
+                  </label>
+                  <label className="space-y-1">
+                    <span className="text-xs font-bold text-[#64748b]">色</span>
+                    <input
+                      className="h-10 w-full rounded-lg border border-[#cbd5e1] bg-white px-2 sm:w-20"
+                      type="color"
+                      value={category.color}
+                      onChange={(event) =>
+                        updateCategory(category, { color: event.target.value })
+                      }
+                    />
+                  </label>
+                  <button
+                    className="h-10 self-end rounded-lg border border-[#fecdd3] px-3 py-2 text-sm font-semibold text-[#be123c]"
+                    onClick={() => deleteCategory(category)}
+                  >
+                    削除
+                  </button>
+                </div>
               </div>
             ))}
             {categories.length === 0 && (
@@ -377,6 +400,19 @@ export default function SettingsPage() {
               チュートリアルを再表示
             </button>
           </div>
+        </section>
+
+        <section className="rounded-2xl border border-[#fecdd3] bg-white p-4 shadow-sm">
+          <h2 className="text-base font-bold text-[#0f172a]">アカウント</h2>
+          <p className="mt-1 text-sm text-[#64748b]">
+            この端末からログアウトします。予定や設定は保存されたままです。
+          </p>
+          <button
+            className="mt-4 h-11 w-full rounded-lg bg-[#be123c] px-4 font-semibold text-white"
+            onClick={logout}
+          >
+            ログアウト
+          </button>
         </section>
       </div>
       <MobileNavigation />

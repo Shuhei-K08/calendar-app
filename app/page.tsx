@@ -7,7 +7,7 @@ import { format, getDay, parse, startOfWeek } from "date-fns";
 import { ja } from "date-fns/locale/ja";
 import "react-big-calendar/lib/css/react-big-calendar.css";
 import { supabase } from "@/lib/supabase";
-import { DesktopNavigation, MobileNavigation } from "@/app/components/AppNavigation";
+import { DesktopNavigation, MobileNavigation, ShareCalLogo } from "@/app/components/AppNavigation";
 
 const locales = { ja };
 const localizer = dateFnsLocalizer({
@@ -847,11 +847,6 @@ export default function Home() {
     setDetailEvent(null);
   };
 
-  const logout = async () => {
-    await supabase.auth.signOut();
-    router.push("/login");
-  };
-
   const selectedDayDate = dayDetail?.date ?? calendarDate;
   const selectedDayEvents = dayDetail?.events ?? getEventsOnDate(events, selectedDayDate);
 
@@ -863,20 +858,10 @@ export default function Home() {
     <main className="min-h-screen bg-[var(--app-bg)] px-4 pb-24 pt-4 text-[#172033] sm:px-6 sm:pb-4 lg:px-8">
       <div className="mx-auto flex max-w-7xl flex-col gap-5">
         <header className="flex flex-col gap-3 rounded-2xl border border-[#d9e2ef] bg-white/95 p-3 shadow-sm sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[#64748b]">
-              Shared Schedule
-            </p>
-            <h1 className="mt-0.5 text-xl font-bold tracking-tight text-[#0f172a] sm:text-2xl">
-              カレンダー
-            </h1>
-          </div>
+          <ShareCalLogo />
 
           <div className="hidden sm:flex sm:flex-wrap sm:items-center sm:gap-2">
             <DesktopNavigation />
-            <button className="rounded-lg border border-[#cbd5e1] px-3 py-2 text-sm font-medium text-[#334155] transition hover:border-[#94a3b8] hover:bg-[#f8fafc]" onClick={logout}>
-              ログアウト
-            </button>
           </div>
         </header>
 
@@ -1018,7 +1003,7 @@ export default function Home() {
                 });
               }}
               onSelectSlot={(slotInfo) => {
-                if (slotInfo.action !== "click" && slotInfo.action !== "doubleClick") return;
+                if (slotInfo.action === "select") return;
                 const date = Array.isArray(slotInfo.slots)
                   ? slotInfo.slots[0]
                   : slotInfo.start;

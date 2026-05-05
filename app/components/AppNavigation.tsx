@@ -2,6 +2,25 @@
 
 import Link from "next/link";
 
+export function ShareCalLogo({ compact = false }: { compact?: boolean }) {
+  return (
+    <div className="sharecal-logo" aria-label="ShareCal">
+      <svg className="sharecal-logo-mark" viewBox="0 0 48 48" aria-hidden="true">
+        <rect x="7" y="10" width="27" height="29" rx="8" />
+        <rect x="14" y="7" width="27" height="29" rx="8" />
+        <path d="M20 16h15M20 22h9M20 29h12" />
+        <path d="M13 20h4M13 27h4" />
+      </svg>
+      {!compact && (
+        <span className="sharecal-logo-text">
+          <span>ShareCal</span>
+          <small>shared calendar</small>
+        </span>
+      )}
+    </div>
+  );
+}
+
 const CalendarIcon = () => (
   <svg className="nav-svg" viewBox="0 0 24 24" aria-hidden="true">
     <path d="M7 3v3M17 3v3M4 9h16M6 5h12a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2Z" />
