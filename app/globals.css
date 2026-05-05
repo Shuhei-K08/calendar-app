@@ -4,8 +4,9 @@
   --background: #f5f7fb;
   --foreground: #172033;
   --app-bg: #f5f7fb;
-  --own-event: #2563eb;
-  --shared-event: #f59e0b;
+  --own-event-bg: #e0f2fe;
+  --shared-event-bg: #fef3c7;
+  --uncategorized-event: #22c8d6;
 }
 
 @theme inline {
@@ -25,6 +26,156 @@ button,
 a,
 input {
   -webkit-tap-highlight-color: transparent;
+}
+
+button,
+a {
+  transition: background-color 160ms ease, border-color 160ms ease, color 160ms ease,
+    box-shadow 160ms ease, transform 120ms ease, filter 120ms ease;
+}
+
+button:not(:disabled):active,
+a:active {
+  filter: saturate(1.08) brightness(0.96);
+  transform: translateY(1px) scale(0.985);
+}
+
+.loading-screen {
+  align-items: center;
+  background:
+    linear-gradient(135deg, rgb(224 242 254 / 80%), rgb(240 253 250 / 55%)),
+    #f5f7fb;
+  display: flex;
+  min-height: 100vh;
+  justify-content: center;
+  padding: 24px;
+}
+
+.loading-card {
+  background: rgb(255 255 255 / 86%);
+  border: 1px solid #d9e2ef;
+  border-radius: 28px;
+  box-shadow: 0 24px 70px rgb(15 23 42 / 12%);
+  padding: 28px;
+  width: min(100%, 360px);
+}
+
+.loading-orbit {
+  align-items: center;
+  background: #e0f2fe;
+  border-radius: 999px;
+  display: flex;
+  height: 56px;
+  justify-content: center;
+  margin-bottom: 18px;
+  position: relative;
+  width: 56px;
+}
+
+.loading-orbit::before {
+  animation: spin 900ms linear infinite;
+  border: 3px solid #bae6fd;
+  border-top-color: #0f766e;
+  border-radius: 999px;
+  content: "";
+  inset: -5px;
+  position: absolute;
+}
+
+.loading-orbit span {
+  background: #0f766e;
+  border-radius: 8px;
+  height: 24px;
+  width: 24px;
+}
+
+.loading-line {
+  animation: pulse 1.2s ease-in-out infinite;
+  background: linear-gradient(90deg, #e2e8f0, #f8fafc, #e2e8f0);
+  background-size: 200% 100%;
+  border-radius: 999px;
+  height: 10px;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes pulse {
+  0%,
+  100% {
+    background-position: 0% 0;
+    opacity: 0.65;
+  }
+
+  50% {
+    background-position: 100% 0;
+    opacity: 1;
+  }
+}
+
+.top-nav-link {
+  align-items: center;
+  border: 1px solid #cbd5e1;
+  border-radius: 10px;
+  color: #334155;
+  display: inline-flex;
+  font-size: 14px;
+  font-weight: 700;
+  gap: 8px;
+  justify-content: center;
+  padding: 8px 10px;
+  transition: background-color 160ms ease, border-color 160ms ease;
+}
+
+.top-nav-link:hover {
+  background: #f8fafc;
+  border-color: #94a3b8;
+}
+
+.top-nav-link:active,
+.mobile-nav-link:active {
+  background: #ccfbf1;
+  border-color: #5eead4;
+  color: #0f766e;
+}
+
+.nav-svg {
+  align-items: center;
+  background: #e0f2fe;
+  border-radius: 999px;
+  color: #075985;
+  display: inline-flex;
+  height: 26px;
+  padding: 5px;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.9;
+  fill: none;
+  width: 26px;
+}
+
+.mobile-nav-link {
+  align-items: center;
+  border-radius: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  justify-content: center;
+  min-width: 0;
+  padding: 5px 2px;
+}
+
+.mobile-nav-link:active {
+  background: #ecfdf5;
+}
+
+.mobile-nav-link .nav-svg {
+  height: 24px;
+  width: 24px;
 }
 
 .calendar-shell .rbc-calendar {
@@ -114,33 +265,39 @@ input {
 }
 
 .calendar-shell .rbc-event {
-  background: #2563eb;
+  background: var(--own-event-bg);
   border: 0;
   border-radius: 7px;
-  color: #ffffff;
+  color: #075985 !important;
   font-size: 12px;
   font-weight: 700;
   padding: 3px 6px;
 }
 
 .calendar-shell .rbc-event.own-event {
-  background: var(--own-event);
+  background: var(--own-event-bg);
+  color: #075985 !important;
 }
 
 .calendar-shell .rbc-event.shared-event {
-  background: var(--shared-event);
-  color: #111827;
+  background: var(--shared-event-bg);
+  color: #92400e !important;
 }
 
 .calendar-shell .rbc-overlay .rbc-event.own-event,
 .calendar-shell .rbc-overlay .own-event {
-  background: var(--own-event);
+  background: var(--own-event-bg);
+  color: #075985 !important;
 }
 
 .calendar-shell .rbc-overlay .rbc-event.shared-event,
 .calendar-shell .rbc-overlay .shared-event {
-  background: var(--shared-event);
-  color: #111827;
+  background: var(--shared-event-bg);
+  color: #92400e !important;
+}
+
+.calendar-shell .rbc-event-content {
+  color: inherit !important;
 }
 
 .calendar-shell .rbc-time-view .rbc-event {
@@ -181,20 +338,27 @@ input {
   .calendar-shell .rbc-toolbar {
     align-items: stretch;
     flex-direction: column;
+    gap: 8px;
   }
 
   .calendar-shell .rbc-toolbar-label {
     order: -1;
-    text-align: left;
+    font-size: 16px;
+    text-align: center;
   }
 
   .calendar-shell .rbc-btn-group {
     display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 6px;
+    grid-template-columns: repeat(auto-fit, minmax(58px, 1fr));
+    width: 100%;
   }
 
   .calendar-shell .rbc-btn-group button {
-    padding: 9px 6px;
+    border-radius: 999px;
+    font-size: 12px;
+    min-width: 0;
+    padding: 8px 4px;
   }
 
   .calendar-shell .rbc-header {
@@ -207,6 +371,6 @@ input {
 
   .calendar-shell .rbc-event {
     font-size: 11px;
-    padding: 2px 4px;
+    padding: 2px 4px 2px 5px;
   }
 }

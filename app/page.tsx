@@ -62,6 +62,68 @@ const DEFAULT_PATTERNS = [
   { id: "default-off", label: "休み", title: "休み", start_time: "00:00", end_time: "23:59", next_day_end: false },
 ];
 
+const CalendarIcon = () => (
+  <svg className="nav-svg" viewBox="0 0 24 24" aria-hidden="true">
+    <path d="M7 3v3M17 3v3M4 9h16M6 5h12a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2Z" />
+  </svg>
+);
+
+const PatternIcon = () => (
+  <svg className="nav-svg" viewBox="0 0 24 24" aria-hidden="true">
+    <path d="M5 5h6v6H5V5ZM13 5h6v6h-6V5ZM5 13h6v6H5v-6ZM13 13h6v6h-6v-6Z" />
+  </svg>
+);
+
+const TodoIcon = () => (
+  <svg className="nav-svg" viewBox="0 0 24 24" aria-hidden="true">
+    <path d="m5 12 3 3 5-6M5 6h14M14 12h5M14 18h5" />
+  </svg>
+);
+
+const ConnectIcon = () => (
+  <svg className="nav-svg" viewBox="0 0 24 24" aria-hidden="true">
+    <path d="M9 12a4 4 0 1 1 6 3.46M7 17a4 4 0 0 1 4-4h2M16 17l2 2 4-5M4 19a5 5 0 0 1 5-5" />
+  </svg>
+);
+
+const ProfileIcon = () => (
+  <svg className="nav-svg" viewBox="0 0 24 24" aria-hidden="true">
+    <path d="M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8ZM4 20a8 8 0 0 1 16 0" />
+  </svg>
+);
+
+const SettingsIcon = () => (
+  <svg className="nav-svg" viewBox="0 0 24 24" aria-hidden="true">
+    <path d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z" />
+    <path d="M19 13.5v-3l-2.05-.5a7.8 7.8 0 0 0-.68-1.64l1.1-1.8-2.12-2.12-1.8 1.1A7.8 7.8 0 0 0 11.8 4.9L11.3 3h-3l-.5 1.9a7.8 7.8 0 0 0-1.64.68l-1.8-1.1-2.12 2.12 1.1 1.8A7.8 7.8 0 0 0 2.7 10L1 10.5v3l1.7.5a7.8 7.8 0 0 0 .68 1.64l-1.1 1.8 2.12 2.12 1.8-1.1a7.8 7.8 0 0 0 1.64.68l.5 1.86h3l.5-1.86a7.8 7.8 0 0 0 1.64-.68l1.8 1.1 2.12-2.12-1.1-1.8a7.8 7.8 0 0 0 .68-1.64l2.02-.5Z" />
+  </svg>
+);
+
+const RequestsIcon = () => (
+  <svg className="nav-svg" viewBox="0 0 24 24" aria-hidden="true">
+    <path d="M5 5h14v14H5V5ZM8 9h8M8 13h5M16 13l1.5 1.5L20 11" />
+  </svg>
+);
+
+const LoadingScreen = () => (
+  <main className="loading-screen">
+    <div className="loading-card" aria-live="polite">
+      <div className="loading-orbit" aria-hidden="true">
+        <span />
+      </div>
+      <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#64748b]">
+        Preparing calendar
+      </p>
+      <p className="mt-2 text-lg font-black text-[#0f172a]">予定を読み込んでいます</p>
+      <div className="mt-5 grid gap-2">
+        <div className="loading-line w-44" />
+        <div className="loading-line w-56" />
+        <div className="loading-line w-36" />
+      </div>
+    </div>
+  </main>
+);
+
 type CalendarEvent = Event & {
   id?: string;
   title: string;
@@ -115,6 +177,11 @@ type ScheduleCategory = {
   color: string;
 };
 
+type SharedNotification = {
+  title: string;
+  ownerName: string;
+};
+
 type EventForm = {
   title: string;
   start: string;
@@ -162,6 +229,12 @@ export default function Home() {
     date: Date;
     events: CalendarEvent[];
   } | null>(null);
+  const [isDayEventsOpen, setIsDayEventsOpen] = useState(false);
+  const [notificationPermission, setNotificationPermission] = useState<
+    NotificationPermission | "unsupported"
+  >("unsupported");
+  const [sharedNotification, setSharedNotification] =
+    useState<SharedNotification | null>(null);
 
   const fetchConnections = useCallback(async (userId: string) => {
     const { data: acceptedConnections, error } = await supabase
@@ -263,6 +336,40 @@ export default function Home() {
       .order("created_at", { ascending: true });
 
     return seededCategories ?? [];
+  }, []);
+
+  const notifyNewSharedEvents = useCallback((shared: CalendarEvent[], userId: string) => {
+    if (typeof window === "undefined") return;
+
+    const storageKey = `calendar_seen_shared_events_${userId}`;
+    const currentIds = shared.map((event) => event.id).filter(Boolean) as string[];
+    const saved = window.localStorage.getItem(storageKey);
+
+    if (!saved) {
+      window.localStorage.setItem(storageKey, JSON.stringify(currentIds));
+      return;
+    }
+
+    const seenIds = new Set(JSON.parse(saved) as string[]);
+    const newEvents = shared.filter((event) => event.id && !seenIds.has(event.id));
+
+    window.localStorage.setItem(storageKey, JSON.stringify(currentIds));
+
+    if (newEvents.length === 0) return;
+
+    const newest = newEvents[0];
+    setSharedNotification({
+      title: newest.title,
+      ownerName: newest.ownerName,
+    });
+
+    window.setTimeout(() => setSharedNotification(null), 6000);
+
+    if ("Notification" in window && Notification.permission === "granted") {
+      new Notification("予定が共有されました", {
+        body: `${newest.ownerName}さんから「${newest.title}」が共有されました`,
+      });
+    }
   }, []);
 
   const fetchEvents = useCallback(async () => {
@@ -431,7 +538,11 @@ export default function Home() {
     }));
 
     setEvents(formatted);
-  }, []);
+    notifyNewSharedEvents(
+      formatted.filter((event) => event.isShared),
+      user.id,
+    );
+  }, [notifyNewSharedEvents]);
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -450,12 +561,28 @@ export default function Home() {
   }, [detailEvent]);
 
   useEffect(() => {
+    if (typeof window === "undefined" || !("Notification" in window)) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setNotificationPermission(Notification.permission);
+  }, []);
+
+  useEffect(() => {
     const savedSettings = window.localStorage.getItem("calendar_settings");
     if (savedSettings) {
       const settings = JSON.parse(savedSettings);
       document.documentElement.style.setProperty("--app-bg", settings.background ?? "#f5f7fb");
-      document.documentElement.style.setProperty("--own-event", settings.ownEvent ?? "#2563eb");
-      document.documentElement.style.setProperty("--shared-event", settings.sharedEvent ?? "#f59e0b");
+      document.documentElement.style.setProperty(
+        "--own-event-bg",
+        settings.ownEventBackground ?? settings.ownEvent ?? "#e0f2fe",
+      );
+      document.documentElement.style.setProperty(
+        "--shared-event-bg",
+        settings.sharedEventBackground ?? settings.sharedEvent ?? "#fef3c7",
+      );
+      document.documentElement.style.setProperty(
+        "--uncategorized-event",
+        settings.unclassifiedEvent ?? settings.ownEvent ?? "#22c8d6",
+      );
     }
 
     const checkUser = async () => {
@@ -492,8 +619,24 @@ export default function Home() {
       setLoading(false);
     };
 
-    checkUser();
+    void checkUser();
+    const intervalId = window.setInterval(() => {
+      void fetchEvents();
+    }, 30000);
+
+    return () => window.clearInterval(intervalId);
   }, [fetchCategories, fetchConnections, fetchEvents, fetchPatterns, router]);
+
+  const requestNotificationPermission = async () => {
+    if (typeof window === "undefined" || !("Notification" in window)) {
+      setNotificationPermission("unsupported");
+      alert("このブラウザでは通知が使えません。");
+      return;
+    }
+
+    const permission = await Notification.requestPermission();
+    setNotificationPermission(permission);
+  };
 
   const openEventModal = (date = new Date()) => {
     setEventForm(createBlankForm(date));
@@ -703,7 +846,7 @@ export default function Home() {
   const selectedDayEvents = dayDetail?.events ?? getEventsOnDate(events, selectedDayDate);
 
   if (loading) {
-    return <div className="min-h-screen bg-[#f5f7fb] p-6 text-[#1e293b]">Loading...</div>;
+    return <LoadingScreen />;
   }
 
   return (
@@ -720,23 +863,29 @@ export default function Home() {
           </div>
 
           <nav className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:items-center">
-            <Link className="rounded-lg border border-[#cbd5e1] px-3 py-2 text-center text-sm font-medium text-[#334155] transition hover:border-[#94a3b8] hover:bg-[#f8fafc]" href="/patterns">
-              パターン
+            <Link className="top-nav-link" href="/patterns" aria-label="パターン">
+              <PatternIcon />
+              <span className="hidden sm:inline">パターン</span>
             </Link>
-            <Link className="rounded-lg border border-[#cbd5e1] px-3 py-2 text-center text-sm font-medium text-[#334155] transition hover:border-[#94a3b8] hover:bg-[#f8fafc]" href="/settings">
-              設定
+            <Link className="top-nav-link" href="/settings" aria-label="設定">
+              <SettingsIcon />
+              <span className="hidden sm:inline">設定</span>
             </Link>
-            <Link className="rounded-lg border border-[#cbd5e1] px-3 py-2 text-center text-sm font-medium text-[#334155] transition hover:border-[#94a3b8] hover:bg-[#f8fafc]" href="/todos">
-              TODO
+            <Link className="top-nav-link" href="/todos" aria-label="TODO">
+              <TodoIcon />
+              <span className="hidden sm:inline">TODO</span>
             </Link>
-            <Link className="rounded-lg border border-[#cbd5e1] px-3 py-2 text-center text-sm font-medium text-[#334155] transition hover:border-[#94a3b8] hover:bg-[#f8fafc]" href="/profile">
-              プロフィール
+            <Link className="top-nav-link" href="/profile" aria-label="プロフィール">
+              <ProfileIcon />
+              <span className="hidden sm:inline">プロフィール</span>
             </Link>
-            <Link className="rounded-lg border border-[#cbd5e1] px-3 py-2 text-center text-sm font-medium text-[#334155] transition hover:border-[#94a3b8] hover:bg-[#f8fafc]" href="/connect">
-              つながる
+            <Link className="top-nav-link" href="/connect" aria-label="つながる">
+              <ConnectIcon />
+              <span className="hidden sm:inline">つながる</span>
             </Link>
-            <Link className="rounded-lg border border-[#cbd5e1] px-3 py-2 text-center text-sm font-medium text-[#334155] transition hover:border-[#94a3b8] hover:bg-[#f8fafc]" href="/requests">
-              申請一覧
+            <Link className="top-nav-link" href="/requests" aria-label="申請一覧">
+              <RequestsIcon />
+              <span className="hidden sm:inline">申請一覧</span>
             </Link>
             <button className="rounded-lg border border-[#cbd5e1] px-3 py-2 text-sm font-medium text-[#334155] transition hover:border-[#94a3b8] hover:bg-[#f8fafc]" onClick={logout}>
               ログアウト
@@ -744,21 +893,25 @@ export default function Home() {
           </nav>
         </header>
 
-        <section className="rounded-2xl border border-[#d9e2ef] bg-white p-4 shadow-sm">
-          <div className="flex flex-wrap gap-3 text-sm">
-            <span className="inline-flex items-center gap-2 rounded-full bg-[#e0f2fe] px-3 py-1 font-medium text-[#075985]">
-              <span className="h-2.5 w-2.5 rounded-full bg-[var(--own-event)]" />
-              自分の予定
-            </span>
-            <span className="inline-flex items-center gap-2 rounded-full bg-[#fef3c7] px-3 py-1 font-medium text-[#92400e]">
-              <span className="h-2.5 w-2.5 rounded-full bg-[var(--shared-event)]" />
-              共有された予定
-            </span>
-          </div>
-        </section>
+        {notificationPermission === "default" && (
+          <section className="flex flex-col gap-3 rounded-2xl border border-[#bae6fd] bg-[#f0f9ff] p-4 shadow-sm sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="text-sm font-bold text-[#075985]">共有通知を受け取る</p>
+              <p className="mt-1 text-sm text-[#475569]">
+                新しく予定が共有された時に、画面上とブラウザ通知で知らせます。
+              </p>
+            </div>
+            <button
+              className="h-10 rounded-lg bg-[#0f766e] px-4 text-sm font-bold text-white"
+              onClick={requestNotificationPermission}
+            >
+              通知を許可
+            </button>
+          </section>
+        )}
 
         <section className="rounded-2xl border border-[#d9e2ef] bg-white p-4 shadow-sm">
-          <div className="mb-3 flex items-center justify-between gap-3">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[#64748b]">
                 Day Events
@@ -766,26 +919,42 @@ export default function Home() {
               <h2 className="text-lg font-bold text-[#0f172a]">
                 {format(selectedDayDate, "M月d日", { locale: ja })} の予定
               </h2>
+              <p className="mt-1 text-sm text-[#64748b]">
+                {selectedDayEvents.length}件
+              </p>
             </div>
-            <button
-              className="rounded-lg bg-[#0f766e] px-3 py-2 text-sm font-semibold text-white"
-              onClick={() => openEventModal(selectedDayDate)}
-            >
-              追加
-            </button>
+            <div className="flex gap-2">
+              <button
+                className="h-10 rounded-lg border border-[#cbd5e1] px-3 text-sm font-semibold text-[#334155]"
+                onClick={() => setIsDayEventsOpen((current) => !current)}
+              >
+                {isDayEventsOpen ? "閉じる" : "表示"}
+              </button>
+              <button
+                className="h-10 rounded-lg bg-[#0f766e] px-3 text-sm font-semibold text-white"
+                onClick={() => openEventModal(selectedDayDate)}
+              >
+                追加
+              </button>
+            </div>
           </div>
 
-          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+          {isDayEventsOpen && (
+          <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
             {selectedDayEvents.map((event) => (
               <button
                 key={`${event.id}-${event.start.toISOString()}`}
                 className={`rounded-xl border p-3 text-left transition hover:border-[#0f766e] ${
                   event.isShared
-                    ? "border-[#fde68a] bg-[#fffbeb]"
-                    : "border-[#bfdbfe] bg-[#eff6ff]"
+                    ? "border-[#fde68a] text-[#92400e]"
+                    : "border-[#bfdbfe] text-[#075985]"
                 }`}
                 style={{
-                  borderLeft: `8px solid ${event.categoryColor ?? (event.isShared ? "var(--shared-event)" : "var(--own-event)")}`,
+                  backgroundColor: event.isShared
+                    ? "var(--shared-event-bg)"
+                    : "var(--own-event-bg)",
+                  borderLeft: `8px solid ${event.categoryColor ?? "var(--uncategorized-event)"}`,
+                  color: event.isShared ? "#92400e" : "#075985",
                 }}
                 onClick={() => setDetailEvent(event)}
               >
@@ -807,6 +976,7 @@ export default function Home() {
               <p className="text-sm text-[#64748b]">この日の予定はありません。</p>
             )}
           </div>
+          )}
         </section>
 
         <section className="rounded-2xl border border-[#d9e2ef] bg-white p-3 shadow-sm sm:p-4">
@@ -836,8 +1006,11 @@ export default function Home() {
               eventPropGetter={(event) => ({
                 className: event.isShared ? "shared-event" : "own-event",
                 style: {
-                  backgroundColor: event.categoryColor ?? undefined,
-                  borderLeft: event.isShared ? "4px solid var(--shared-event)" : "4px solid var(--own-event)",
+                  backgroundColor: event.isShared
+                    ? "var(--shared-event-bg)"
+                    : "var(--own-event-bg)",
+                  borderLeft: `5px solid ${event.categoryColor ?? "var(--uncategorized-event)"}`,
+                  color: event.isShared ? "#92400e" : "#075985",
                 },
               })}
               onNavigate={(date) => setCalendarDate(date)}
@@ -847,12 +1020,17 @@ export default function Home() {
                   date,
                   events: shownEvents as CalendarEvent[],
                 });
+                setIsDayEventsOpen(true);
               }}
               onSelectSlot={(slotInfo) => {
                 const date = Array.isArray(slotInfo.slots)
                   ? slotInfo.slots[0]
                   : slotInfo.start;
 
+                setDayDetail({
+                  date,
+                  events: getEventsOnDate(events, date),
+                });
                 openEventModal(date);
               }}
               onSelectEvent={(event) => setDetailEvent(event)}
@@ -862,9 +1040,9 @@ export default function Home() {
       </div>
 
       {isEventModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-end bg-[#0f172a]/40 p-3 sm:items-center sm:justify-center">
-          <div className="max-h-[92vh] w-full overflow-y-auto rounded-2xl bg-white p-4 shadow-2xl sm:max-w-2xl sm:p-6">
-            <div className="mb-4 flex items-start justify-between gap-4">
+        <div className="fixed inset-0 z-50 flex items-start bg-[#0f172a]/40 p-3 pt-4 sm:items-center sm:justify-center">
+          <div className="max-h-[88vh] w-full overflow-y-auto rounded-2xl bg-white p-4 shadow-2xl sm:max-w-2xl sm:p-6">
+            <div className="sticky top-0 z-10 -mx-4 -mt-4 mb-4 flex items-start justify-between gap-4 border-b border-[#e2e8f0] bg-white px-4 py-4 sm:-mx-6 sm:-mt-6 sm:px-6">
               <div>
                 <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[#64748b]">
                   New Schedule
@@ -1013,9 +1191,9 @@ export default function Home() {
       )}
 
       {detailEvent && (
-        <div className="fixed inset-0 z-50 flex items-end bg-[#0f172a]/40 p-3 sm:items-center sm:justify-center">
-          <div className="w-full rounded-2xl bg-white p-4 shadow-2xl sm:max-w-lg sm:p-6">
-            <div className="mb-4 flex items-start justify-between gap-4">
+        <div className="fixed inset-0 z-50 flex items-start bg-[#0f172a]/40 p-3 pt-4 sm:items-center sm:justify-center">
+          <div className="max-h-[88vh] w-full overflow-y-auto rounded-2xl bg-white p-4 shadow-2xl sm:max-w-lg sm:p-6">
+            <div className="sticky top-0 z-10 -mx-4 -mt-4 mb-4 flex items-start justify-between gap-4 border-b border-[#e2e8f0] bg-white px-4 py-4 sm:-mx-6 sm:-mt-6 sm:px-6">
               <div>
                 <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[#64748b]">
                   Schedule Detail
@@ -1189,13 +1367,39 @@ export default function Home() {
           </div>
         </div>
       )}
+      {sharedNotification && (
+        <div className="fixed right-4 top-4 z-[60] max-w-sm rounded-2xl border border-[#bae6fd] bg-white p-4 text-[#172033] shadow-2xl">
+          <p className="text-sm font-black text-[#075985]">予定が共有されました</p>
+          <p className="mt-1 text-sm text-[#475569]">
+            {sharedNotification.ownerName}さんから「{sharedNotification.title}」
+          </p>
+        </div>
+      )}
       <nav className="fixed inset-x-3 bottom-3 z-40 grid grid-cols-6 rounded-2xl border border-[#d9e2ef] bg-white/95 p-2 text-center text-[10px] font-semibold text-[#334155] shadow-xl backdrop-blur sm:hidden">
-        <Link className="rounded-xl px-2 py-2" href="/">カレンダー</Link>
-        <Link className="rounded-xl px-2 py-2" href="/patterns">パターン</Link>
-        <Link className="rounded-xl px-2 py-2" href="/todos">TODO</Link>
-        <Link className="rounded-xl px-2 py-2" href="/connect">共有</Link>
-        <Link className="rounded-xl px-2 py-2" href="/profile">プロフィール</Link>
-        <Link className="rounded-xl px-2 py-2" href="/settings">設定</Link>
+        <Link className="mobile-nav-link" href="/" aria-label="カレンダー">
+          <CalendarIcon />
+          <span>予定</span>
+        </Link>
+        <Link className="mobile-nav-link" href="/patterns" aria-label="パターン">
+          <PatternIcon />
+          <span>型</span>
+        </Link>
+        <Link className="mobile-nav-link" href="/todos" aria-label="TODO">
+          <TodoIcon />
+          <span>TODO</span>
+        </Link>
+        <Link className="mobile-nav-link" href="/connect" aria-label="つながる">
+          <ConnectIcon />
+          <span>共有</span>
+        </Link>
+        <Link className="mobile-nav-link" href="/profile" aria-label="プロフィール">
+          <ProfileIcon />
+          <span>自分</span>
+        </Link>
+        <Link className="mobile-nav-link" href="/settings" aria-label="設定">
+          <SettingsIcon />
+          <span>設定</span>
+        </Link>
       </nav>
     </main>
   );

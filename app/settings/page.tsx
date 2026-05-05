@@ -6,8 +6,9 @@ import { supabase } from "@/lib/supabase";
 
 const defaultSettings = {
   background: "#f5f7fb",
-  ownEvent: "#2563eb",
-  sharedEvent: "#f59e0b",
+  ownEventBackground: "#e0f2fe",
+  sharedEventBackground: "#fef3c7",
+  unclassifiedEvent: "#22c8d6",
 };
 
 type CalendarSettings = typeof defaultSettings;
@@ -23,7 +24,17 @@ export default function SettingsPage() {
     if (typeof window === "undefined") return defaultSettings;
     const saved = window.localStorage.getItem("calendar_settings");
     if (saved) {
-      return { ...defaultSettings, ...JSON.parse(saved) };
+      const parsed = JSON.parse(saved);
+      return {
+        ...defaultSettings,
+        ...parsed,
+        ownEventBackground:
+          parsed.ownEventBackground ?? parsed.ownEvent ?? defaultSettings.ownEventBackground,
+        sharedEventBackground:
+          parsed.sharedEventBackground ?? parsed.sharedEvent ?? defaultSettings.sharedEventBackground,
+        unclassifiedEvent:
+          parsed.unclassifiedEvent ?? parsed.ownEvent ?? defaultSettings.unclassifiedEvent,
+      };
     }
     return defaultSettings;
   });
@@ -57,8 +68,12 @@ export default function SettingsPage() {
   const save = () => {
     window.localStorage.setItem("calendar_settings", JSON.stringify(settings));
     document.documentElement.style.setProperty("--app-bg", settings.background);
-    document.documentElement.style.setProperty("--own-event", settings.ownEvent);
-    document.documentElement.style.setProperty("--shared-event", settings.sharedEvent);
+    document.documentElement.style.setProperty("--own-event-bg", settings.ownEventBackground);
+    document.documentElement.style.setProperty("--shared-event-bg", settings.sharedEventBackground);
+    document.documentElement.style.setProperty(
+      "--uncategorized-event",
+      settings.unclassifiedEvent,
+    );
     alert("設定を保存しました");
   };
 
@@ -146,22 +161,41 @@ export default function SettingsPage() {
               />
             </label>
             <label className="flex items-center justify-between gap-4 rounded-xl bg-[#f8fafc] p-3">
-              <span className="font-semibold text-[#334155]">自分の予定色</span>
+              <span className="font-semibold text-[#334155]">自分の予定の塗り色</span>
               <input
                 type="color"
-                value={settings.ownEvent}
+                value={settings.ownEventBackground}
                 onChange={(event) =>
-                  setSettings((current) => ({ ...current, ownEvent: event.target.value }))
+                  setSettings((current) => ({
+                    ...current,
+                    ownEventBackground: event.target.value,
+                  }))
                 }
               />
             </label>
             <label className="flex items-center justify-between gap-4 rounded-xl bg-[#f8fafc] p-3">
-              <span className="font-semibold text-[#334155]">共有予定色</span>
+              <span className="font-semibold text-[#334155]">共有予定の塗り色</span>
               <input
                 type="color"
-                value={settings.sharedEvent}
+                value={settings.sharedEventBackground}
                 onChange={(event) =>
-                  setSettings((current) => ({ ...current, sharedEvent: event.target.value }))
+                  setSettings((current) => ({
+                    ...current,
+                    sharedEventBackground: event.target.value,
+                  }))
+                }
+              />
+            </label>
+            <label className="flex items-center justify-between gap-4 rounded-xl bg-[#f8fafc] p-3">
+              <span className="font-semibold text-[#334155]">未分類の予定色</span>
+              <input
+                type="color"
+                value={settings.unclassifiedEvent}
+                onChange={(event) =>
+                  setSettings((current) => ({
+                    ...current,
+                    unclassifiedEvent: event.target.value,
+                  }))
                 }
               />
             </label>
