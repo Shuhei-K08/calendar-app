@@ -203,7 +203,10 @@ export default function Home() {
     if (!savedSettings) return true;
     return JSON.parse(savedSettings).notificationsEnabled ?? true;
   });
-  const [showNotificationPrompt, setShowNotificationPrompt] = useState(true);
+  const [showNotificationPrompt, setShowNotificationPrompt] = useState(() => {
+    if (typeof window === "undefined") return true;
+    return window.localStorage.getItem("sharecal_notification_prompt_dismissed") !== "true";
+  });
   const [sharedNotification, setSharedNotification] =
     useState<SharedNotification | null>(null);
   const [showTutorial, setShowTutorial] = useState(false);
@@ -877,7 +880,10 @@ export default function Home() {
             <button
               className="absolute right-3 top-3 flex h-8 w-8 items-center justify-center rounded-full border border-[#bae6fd] bg-white text-lg leading-none text-[#075985]"
               aria-label="通知案内を閉じる"
-              onClick={() => setShowNotificationPrompt(false)}
+              onClick={() => {
+                window.localStorage.setItem("sharecal_notification_prompt_dismissed", "true");
+                setShowNotificationPrompt(false);
+              }}
             >
               ×
             </button>

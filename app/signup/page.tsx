@@ -5,6 +5,9 @@ import { supabase } from "@/lib/supabase";
 import { useRouter } from "next/navigation";
 import { ShareCalLogo } from "@/app/components/AppNavigation";
 
+const appUrl =
+  process.env.NEXT_PUBLIC_SITE_URL ?? "https://calendar-app-alpha-nine.vercel.app";
+
 export default function SignupPage() {
   const router = useRouter();
 
@@ -27,7 +30,7 @@ export default function SignupPage() {
       email,
       password,
       options: {
-        emailRedirectTo: `${window.location.origin}/login`,
+        emailRedirectTo: `${appUrl}/auth/confirmed`,
       },
     });
 
