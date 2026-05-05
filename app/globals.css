@@ -454,12 +454,7 @@ button,
   }
 
   .calendar-shell .rbc-toolbar {
-    align-items: stretch;
-    flex-direction: column;
-    gap: 6px;
-    margin-bottom: 8px;
-    margin-top: 8px;
-    order: 1;
+    display: contents;
   }
 
   .calendar-shell .rbc-month-view,
@@ -471,7 +466,8 @@ button,
   }
 
   .calendar-shell .rbc-toolbar-label {
-    order: -1;
+    margin-bottom: 8px;
+    order: 1;
     font-size: 14px;
     text-align: center;
   }
@@ -480,12 +476,14 @@ button,
     display: grid;
     gap: 6px;
     grid-template-columns: repeat(auto-fit, minmax(58px, 1fr));
-    order: 2;
+    margin-top: 8px;
+    order: 3;
     width: 100%;
   }
 
   .calendar-shell .rbc-btn-group:last-child {
-    order: 3;
+    margin-top: 6px;
+    order: 4;
   }
 
   .calendar-shell .rbc-btn-group button {

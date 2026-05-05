@@ -15,8 +15,17 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "ShareCal",
   description: "勤務予定を共有できるカレンダーアプリ ShareCal",
+  applicationName: "ShareCal",
+  manifest: "/manifest.webmanifest",
+  appleWebApp: {
+    capable: true,
+    title: "ShareCal",
+    statusBarStyle: "default",
+  },
   icons: {
     icon: "/icon.svg",
+    shortcut: "/icon.svg",
+    apple: "/icon.svg",
   },
 };
 
