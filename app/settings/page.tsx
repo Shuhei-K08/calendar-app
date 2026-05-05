@@ -1,8 +1,8 @@
 "use client";
 
-import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
+import { DesktopNavigation, MobileNavigation } from "@/app/components/AppNavigation";
 
 const defaultSettings = {
   designTheme: "clean",
@@ -174,18 +174,16 @@ export default function SettingsPage() {
   };
 
   return (
-    <main className="min-h-screen bg-[#f5f7fb] px-4 py-4 text-[#172033] sm:px-6">
-      <div className="mx-auto flex max-w-xl flex-col gap-4">
-        <header className="flex items-center justify-between rounded-2xl border border-[#d9e2ef] bg-white p-4 shadow-sm">
+    <main className="min-h-screen bg-[#f5f7fb] px-4 pb-24 pt-4 text-[#172033] sm:px-6 sm:pb-4">
+      <div className="mx-auto flex max-w-4xl flex-col gap-4">
+        <header className="flex flex-col gap-3 rounded-2xl border border-[#d9e2ef] bg-white p-4 shadow-sm sm:flex-row sm:items-center sm:justify-between">
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[#64748b]">
               Settings
             </p>
             <h1 className="mt-1 text-2xl font-bold text-[#0f172a]">設定</h1>
           </div>
-          <Link className="rounded-lg border border-[#cbd5e1] px-3 py-2 text-sm text-[#334155]" href="/">
-            戻る
-          </Link>
+          <DesktopNavigation />
         </header>
 
         <section className="rounded-2xl border border-[#d9e2ef] bg-white p-4 shadow-sm">
@@ -360,12 +358,17 @@ export default function SettingsPage() {
 
         <section className="rounded-2xl border border-[#d9e2ef] bg-white p-4 shadow-sm">
           <h2 className="mb-3 text-base font-bold text-[#0f172a]">使い方</h2>
-          <div className="grid gap-3 text-sm text-[#475569]">
-            <p>カレンダーの日付を押すと、その日の予定を登録できます。</p>
-            <p>よく使う勤務や休みは「定型予定」に登録しておくと、予定登録時にすぐ入力できます。</p>
-            <p>予定ごとに共有相手を選ぶと、相手のカレンダーに共有予定として表示されます。</p>
+          <div className="grid gap-3 text-sm text-[#475569] sm:grid-cols-2">
+            <p className="rounded-xl bg-[#f8fafc] p-3">カレンダーの日付を押すと、その日の予定を登録できます。</p>
+            <p className="rounded-xl bg-[#f8fafc] p-3">予定を押すと詳細を確認でき、作成した予定はタイトル・時間・メモ・分類を編集できます。</p>
+            <p className="rounded-xl bg-[#f8fafc] p-3">よく使う勤務や休みは「定型予定」に登録しておくと、登録画面でワンタップ入力できます。</p>
+            <p className="rounded-xl bg-[#f8fafc] p-3">「つながる」で共有IDを使って接続すると、予定ごとに共有相手を選べます。</p>
+            <p className="rounded-xl bg-[#f8fafc] p-3">共有された予定は色と共有元の名前で見分けられます。自分が共有している相手も詳細で確認できます。</p>
+            <p className="rounded-xl bg-[#f8fafc] p-3">TODOでは期限日時と通知日時を設定できます。通知はこの設定画面でオン/オフできます。</p>
+            <p className="rounded-xl bg-[#f8fafc] p-3">分類を作ると、予定の左端の色で勤務・私用・重要などを見分けられます。</p>
+            <p className="rounded-xl bg-[#f8fafc] p-3">デザインテーマや予定色は設定画面からいつでも変更できます。</p>
             <button
-              className="h-10 rounded-lg border border-[#cbd5e1] px-4 text-sm font-bold text-[#334155]"
+              className="h-10 rounded-lg border border-[#cbd5e1] px-4 text-sm font-bold text-[#334155] sm:col-span-2"
               onClick={() => {
                 window.localStorage.removeItem("calendar_tutorial_seen");
                 alert("カレンダー画面を開くとチュートリアルを再表示します。");
@@ -376,6 +379,7 @@ export default function SettingsPage() {
           </div>
         </section>
       </div>
+      <MobileNavigation />
     </main>
   );
 }

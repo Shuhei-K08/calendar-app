@@ -25,8 +25,11 @@ body {
 
 button,
 a,
-input {
+input,
+textarea,
+select {
   -webkit-tap-highlight-color: transparent;
+  max-width: 100%;
 }
 
 button,
@@ -167,7 +170,7 @@ a:active {
   gap: 3px;
   justify-content: center;
   min-width: 0;
-  padding: 5px 2px;
+  padding: 5px 1px;
 }
 
 .mobile-nav-link:active {
@@ -175,8 +178,16 @@ a:active {
 }
 
 .mobile-nav-link .nav-svg {
-  height: 24px;
-  width: 24px;
+  height: 22px;
+  padding: 4px;
+  width: 22px;
+}
+
+.mobile-nav-link span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  width: 100%;
 }
 
 .calendar-shell .rbc-calendar {
@@ -356,12 +367,13 @@ a:active {
   .calendar-shell .rbc-toolbar {
     align-items: stretch;
     flex-direction: column;
-    gap: 8px;
+    gap: 6px;
+    margin-bottom: 8px;
   }
 
   .calendar-shell .rbc-toolbar-label {
     order: -1;
-    font-size: 16px;
+    font-size: 14px;
     text-align: center;
   }
 
@@ -376,7 +388,7 @@ a:active {
     border-radius: 999px;
     font-size: 12px;
     min-width: 0;
-    padding: 8px 4px;
+    padding: 7px 4px;
   }
 
   .calendar-shell .rbc-header {

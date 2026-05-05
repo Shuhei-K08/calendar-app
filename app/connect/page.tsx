@@ -1,8 +1,8 @@
 "use client";
 
-import Link from "next/link";
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
+import { DesktopNavigation, MobileNavigation } from "@/app/components/AppNavigation";
 
 export default function ConnectPage() {
   const [code, setCode] = useState("");
@@ -84,14 +84,12 @@ export default function ConnectPage() {
   };
 
   return (
-    <main className="min-h-screen bg-[#f5f7fb] px-4 py-4 text-[#172033] sm:px-6">
-      <div className="mx-auto flex max-w-md flex-col gap-4">
+    <main className="min-h-screen bg-[#f5f7fb] px-4 pb-24 pt-4 text-[#172033] sm:px-6 sm:pb-4">
+      <div className="mx-auto flex max-w-3xl flex-col gap-4">
         <header className="rounded-2xl border border-[#d9e2ef] bg-white p-4 shadow-sm">
-          <div className="flex items-center justify-between gap-3">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <h1 className="text-2xl font-bold text-[#0f172a]">つながる</h1>
-            <Link className="rounded-lg border border-[#cbd5e1] px-3 py-2 text-sm text-[#334155]" href="/">
-              戻る
-            </Link>
+            <DesktopNavigation />
           </div>
         </header>
 
@@ -131,6 +129,7 @@ export default function ConnectPage() {
         </button>
       </section>
       </div>
+      <MobileNavigation />
     </main>
   );
 }

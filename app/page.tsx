@@ -1,13 +1,13 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Calendar, dateFnsLocalizer, Event, View } from "react-big-calendar";
 import { format, getDay, parse, startOfWeek } from "date-fns";
 import { ja } from "date-fns/locale/ja";
 import "react-big-calendar/lib/css/react-big-calendar.css";
 import { supabase } from "@/lib/supabase";
+import { DesktopNavigation, MobileNavigation } from "@/app/components/AppNavigation";
 
 const locales = { ja };
 const localizer = dateFnsLocalizer({
@@ -68,49 +68,6 @@ const DESIGN_THEMES = {
   sky: { background: "#eef6ff", accent: "#2563eb" },
   rose: { background: "#fff7f7", accent: "#e11d48" },
 };
-
-const CalendarIcon = () => (
-  <svg className="nav-svg" viewBox="0 0 24 24" aria-hidden="true">
-    <path d="M7 3v3M17 3v3M4 9h16M6 5h12a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2Z" />
-  </svg>
-);
-
-const PatternIcon = () => (
-  <svg className="nav-svg" viewBox="0 0 24 24" aria-hidden="true">
-    <path d="M5 5h6v6H5V5ZM13 5h6v6h-6V5ZM5 13h6v6H5v-6ZM13 13h6v6h-6v-6Z" />
-  </svg>
-);
-
-const TodoIcon = () => (
-  <svg className="nav-svg" viewBox="0 0 24 24" aria-hidden="true">
-    <path d="m5 12 3 3 5-6M5 6h14M14 12h5M14 18h5" />
-  </svg>
-);
-
-const ConnectIcon = () => (
-  <svg className="nav-svg" viewBox="0 0 24 24" aria-hidden="true">
-    <path d="M9 12a4 4 0 1 1 6 3.46M7 17a4 4 0 0 1 4-4h2M16 17l2 2 4-5M4 19a5 5 0 0 1 5-5" />
-  </svg>
-);
-
-const ProfileIcon = () => (
-  <svg className="nav-svg" viewBox="0 0 24 24" aria-hidden="true">
-    <path d="M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8ZM4 20a8 8 0 0 1 16 0" />
-  </svg>
-);
-
-const SettingsIcon = () => (
-  <svg className="nav-svg" viewBox="0 0 24 24" aria-hidden="true">
-    <path d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z" />
-    <path d="M19 13.5v-3l-2.05-.5a7.8 7.8 0 0 0-.68-1.64l1.1-1.8-2.12-2.12-1.8 1.1A7.8 7.8 0 0 0 11.8 4.9L11.3 3h-3l-.5 1.9a7.8 7.8 0 0 0-1.64.68l-1.8-1.1-2.12 2.12 1.1 1.8A7.8 7.8 0 0 0 2.7 10L1 10.5v3l1.7.5a7.8 7.8 0 0 0 .68 1.64l-1.1 1.8 2.12 2.12 1.8-1.1a7.8 7.8 0 0 0 1.64.68l.5 1.86h3l.5-1.86a7.8 7.8 0 0 0 1.64-.68l1.8 1.1 2.12-2.12-1.1-1.8a7.8 7.8 0 0 0 .68-1.64l2.02-.5Z" />
-  </svg>
-);
-
-const RequestsIcon = () => (
-  <svg className="nav-svg" viewBox="0 0 24 24" aria-hidden="true">
-    <path d="M5 5h14v14H5V5ZM8 9h8M8 13h5M16 13l1.5 1.5L20 11" />
-  </svg>
-);
 
 const LoadingScreen = () => (
   <main className="loading-screen">
@@ -905,45 +862,22 @@ export default function Home() {
   return (
     <main className="min-h-screen bg-[var(--app-bg)] px-4 pb-24 pt-4 text-[#172033] sm:px-6 sm:pb-4 lg:px-8">
       <div className="mx-auto flex max-w-7xl flex-col gap-5">
-        <header className="flex flex-col gap-4 rounded-2xl border border-[#d9e2ef] bg-white/95 p-4 shadow-sm sm:flex-row sm:items-center sm:justify-between">
+        <header className="flex flex-col gap-3 rounded-2xl border border-[#d9e2ef] bg-white/95 p-3 shadow-sm sm:flex-row sm:items-center sm:justify-between">
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[#64748b]">
               Shared Schedule
             </p>
-            <h1 className="mt-1 text-2xl font-bold tracking-tight text-[#0f172a]">
+            <h1 className="mt-0.5 text-xl font-bold tracking-tight text-[#0f172a] sm:text-2xl">
               カレンダー
             </h1>
           </div>
 
-          <nav className="hidden gap-2 sm:flex sm:flex-wrap sm:items-center">
-            <Link className="top-nav-link" href="/patterns" aria-label="パターン">
-              <PatternIcon />
-              <span className="hidden sm:inline">定型予定</span>
-            </Link>
-            <Link className="top-nav-link" href="/settings" aria-label="設定">
-              <SettingsIcon />
-              <span className="hidden sm:inline">設定</span>
-            </Link>
-            <Link className="top-nav-link" href="/todos" aria-label="TODO">
-              <TodoIcon />
-              <span className="hidden sm:inline">TODO</span>
-            </Link>
-            <Link className="top-nav-link" href="/profile" aria-label="プロフィール">
-              <ProfileIcon />
-              <span className="hidden sm:inline">プロフィール</span>
-            </Link>
-            <Link className="top-nav-link" href="/connect" aria-label="つながる">
-              <ConnectIcon />
-              <span className="hidden sm:inline">つながる</span>
-            </Link>
-            <Link className="top-nav-link" href="/requests" aria-label="申請一覧">
-              <RequestsIcon />
-              <span className="hidden sm:inline">申請一覧</span>
-            </Link>
+          <div className="hidden sm:flex sm:flex-wrap sm:items-center sm:gap-2">
+            <DesktopNavigation />
             <button className="rounded-lg border border-[#cbd5e1] px-3 py-2 text-sm font-medium text-[#334155] transition hover:border-[#94a3b8] hover:bg-[#f8fafc]" onClick={logout}>
               ログアウト
             </button>
-          </nav>
+          </div>
         </header>
 
         {notificationsEnabled && showNotificationPrompt && notificationPermission === "default" && (
@@ -970,7 +904,7 @@ export default function Home() {
           </section>
         )}
 
-        <section className="rounded-2xl border border-[#d9e2ef] bg-white p-4 shadow-sm">
+        <section className="rounded-2xl border border-[#d9e2ef] bg-white p-3 shadow-sm">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[#64748b]">
@@ -1039,8 +973,8 @@ export default function Home() {
           )}
         </section>
 
-        <section className="rounded-2xl border border-[#d9e2ef] bg-white p-3 shadow-sm sm:p-4">
-          <div className="calendar-shell h-[72vh] min-h-[540px] sm:h-[700px]">
+        <section className="rounded-2xl border border-[#d9e2ef] bg-white p-2 shadow-sm sm:p-3">
+          <div className="calendar-shell h-[calc(100vh-255px)] min-h-[430px] sm:h-[calc(100vh-205px)] sm:min-h-[560px]">
             <Calendar<CalendarEvent>
               localizer={localizer}
               events={events}
@@ -1052,7 +986,7 @@ export default function Home() {
               view={calendarView}
               dayLayoutAlgorithm="no-overlap"
               popup
-              selectable
+              selectable="ignoreEvents"
               messages={{
                 today: "今日",
                 previous: "前へ",
@@ -1076,22 +1010,15 @@ export default function Home() {
               })}
               onNavigate={(date) => setCalendarDate(date)}
               onView={(view) => setCalendarView(view)}
-              longPressThreshold={10}
-              onDrillDown={(date) => {
-                setDayDetail({
-                  date,
-                  events: getEventsOnDate(events, date),
-                });
-                openEventModal(date);
-              }}
+              longPressThreshold={350}
               onShowMore={(shownEvents, date) => {
                 setDayDetail({
                   date,
                   events: shownEvents as CalendarEvent[],
                 });
-                setIsDayEventsOpen(true);
               }}
               onSelectSlot={(slotInfo) => {
+                if (slotInfo.action !== "click" && slotInfo.action !== "doubleClick") return;
                 const date = Array.isArray(slotInfo.slots)
                   ? slotInfo.slots[0]
                   : slotInfo.start;
@@ -1109,8 +1036,8 @@ export default function Home() {
       </div>
 
       {isEventModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-start bg-[#0f172a]/40 p-3 pt-4 sm:items-center sm:justify-center">
-          <div className="max-h-[88vh] w-full overflow-y-auto rounded-2xl bg-white p-4 shadow-2xl sm:max-w-2xl sm:p-6">
+        <div className="fixed inset-0 z-50 flex items-start overflow-hidden bg-[#0f172a]/40 p-3 pt-4 sm:items-center sm:justify-center">
+          <div className="max-h-[88vh] w-full max-w-full overflow-y-auto overflow-x-hidden rounded-2xl bg-white p-4 shadow-2xl sm:max-w-2xl sm:p-6">
             <div className="mb-4 flex items-start justify-between gap-4 border-b border-[#e2e8f0] bg-white pb-4">
               <div>
                 <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[#64748b]">
@@ -1277,8 +1204,8 @@ export default function Home() {
       )}
 
       {detailEvent && (
-        <div className="fixed inset-0 z-50 flex items-start bg-[#0f172a]/40 p-3 pt-4 sm:items-center sm:justify-center">
-          <div className="max-h-[88vh] w-full overflow-y-auto rounded-2xl bg-white p-4 shadow-2xl sm:max-w-lg sm:p-6">
+        <div className="fixed inset-0 z-50 flex items-start overflow-hidden bg-[#0f172a]/40 p-3 pt-4 sm:items-center sm:justify-center">
+          <div className="max-h-[88vh] w-full max-w-full overflow-y-auto overflow-x-hidden rounded-2xl bg-white p-4 shadow-2xl sm:max-w-lg sm:p-6">
             <div className="mb-4 flex items-start justify-between gap-4 border-b border-[#e2e8f0] bg-white pb-4">
               <div>
                 <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[#64748b]">
@@ -1503,32 +1430,7 @@ export default function Home() {
           </div>
         </div>
       )}
-      <nav className="fixed inset-x-3 bottom-3 z-40 grid grid-cols-6 rounded-2xl border border-[#d9e2ef] bg-white/95 p-2 text-center text-[10px] font-semibold text-[#334155] shadow-xl backdrop-blur sm:hidden">
-        <Link className="mobile-nav-link" href="/" aria-label="カレンダー">
-          <CalendarIcon />
-          <span>予定</span>
-        </Link>
-        <Link className="mobile-nav-link" href="/patterns" aria-label="パターン">
-          <PatternIcon />
-          <span>定型</span>
-        </Link>
-        <Link className="mobile-nav-link" href="/todos" aria-label="TODO">
-          <TodoIcon />
-          <span>TODO</span>
-        </Link>
-        <Link className="mobile-nav-link" href="/connect" aria-label="つながる">
-          <ConnectIcon />
-          <span>共有</span>
-        </Link>
-        <Link className="mobile-nav-link" href="/profile" aria-label="プロフィール">
-          <ProfileIcon />
-          <span>自分</span>
-        </Link>
-        <Link className="mobile-nav-link" href="/settings" aria-label="設定">
-          <SettingsIcon />
-          <span>設定</span>
-        </Link>
-      </nav>
+      <MobileNavigation />
     </main>
   );
 }

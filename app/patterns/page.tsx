@@ -1,8 +1,8 @@
 "use client";
 
-import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
+import { DesktopNavigation, MobileNavigation } from "@/app/components/AppNavigation";
 
 type Pattern = {
   id: string;
@@ -157,7 +157,7 @@ export default function PatternsPage() {
   };
 
   return (
-    <main className="min-h-screen bg-[#f5f7fb] px-4 py-4 text-[#172033] sm:px-6 lg:px-8">
+    <main className="min-h-screen bg-[#f5f7fb] px-4 pb-24 pt-4 text-[#172033] sm:px-6 sm:pb-4 lg:px-8">
       <div className="mx-auto flex max-w-5xl flex-col gap-5">
         <header className="flex flex-col gap-4 rounded-2xl border border-[#d9e2ef] bg-white p-4 shadow-sm sm:flex-row sm:items-center sm:justify-between">
           <div>
@@ -166,12 +166,7 @@ export default function PatternsPage() {
             </p>
             <h1 className="mt-1 text-2xl font-bold text-[#0f172a]">定型予定</h1>
           </div>
-          <Link
-            className="rounded-lg border border-[#cbd5e1] px-3 py-2 text-center text-sm font-medium text-[#334155]"
-            href="/"
-          >
-            カレンダーへ
-          </Link>
+          <DesktopNavigation />
         </header>
 
         <section className="rounded-2xl border border-[#d9e2ef] bg-white p-4 shadow-sm">
@@ -251,10 +246,10 @@ export default function PatternsPage() {
             </button>
             {form.id && (
               <button
-                className="h-11 rounded-lg border border-[#cbd5e1] px-5 text-sm font-semibold text-[#334155]"
-                onClick={() => setForm(blankForm)}
-              >
-                新規登録に戻る
+              className="h-11 rounded-lg border border-[#cbd5e1] px-5 text-sm font-semibold text-[#334155]"
+              onClick={() => setForm(blankForm)}
+            >
+                編集をやめる
               </button>
             )}
           </div>
@@ -297,6 +292,7 @@ export default function PatternsPage() {
           </div>
         </section>
       </div>
+      <MobileNavigation />
     </main>
   );
 }

@@ -1,8 +1,8 @@
 "use client";
 
-import Link from "next/link";
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
+import { DesktopNavigation, MobileNavigation } from "@/app/components/AppNavigation";
 
 export default function ProfilePage() {
   const [email, setEmail] = useState("");
@@ -90,18 +90,16 @@ export default function ProfilePage() {
   };
 
   return (
-    <main className="min-h-screen bg-[#f5f7fb] px-4 py-4 text-[#172033] sm:px-6">
+    <main className="min-h-screen bg-[#f5f7fb] px-4 pb-24 pt-4 text-[#172033] sm:px-6 sm:pb-4">
       <div className="mx-auto flex max-w-xl flex-col gap-4">
-        <header className="flex items-center justify-between rounded-2xl border border-[#d9e2ef] bg-white p-4 shadow-sm">
+        <header className="flex flex-col gap-3 rounded-2xl border border-[#d9e2ef] bg-white p-4 shadow-sm sm:flex-row sm:items-center sm:justify-between">
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[#64748b]">
               Profile
             </p>
             <h1 className="mt-1 text-2xl font-bold text-[#0f172a]">プロフィール</h1>
           </div>
-          <Link className="rounded-lg border border-[#cbd5e1] px-3 py-2 text-sm text-[#334155]" href="/">
-            戻る
-          </Link>
+          <DesktopNavigation />
         </header>
 
         <section className="rounded-2xl border border-[#d9e2ef] bg-white p-4 shadow-sm">
@@ -157,6 +155,7 @@ export default function ProfilePage() {
           </button>
         </section>
       </div>
+      <MobileNavigation />
     </main>
   );
 }

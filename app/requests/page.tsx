@@ -1,8 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import Link from "next/link";
 import { supabase } from "@/lib/supabase";
+import { DesktopNavigation, MobileNavigation } from "@/app/components/AppNavigation";
 
 type Request = {
   id: string;
@@ -101,13 +101,11 @@ export default function RequestsPage() {
   };
 
   return (
-    <main className="min-h-screen bg-[#f5f7fb] px-4 py-4 text-[#172033] sm:px-6">
-      <div className="mx-auto max-w-md">
-      <header className="mb-4 flex items-center justify-between rounded-2xl border border-[#d9e2ef] bg-white p-4 shadow-sm">
+    <main className="min-h-screen bg-[#f5f7fb] px-4 pb-24 pt-4 text-[#172033] sm:px-6 sm:pb-4">
+      <div className="mx-auto max-w-3xl">
+      <header className="mb-4 flex flex-col gap-3 rounded-2xl border border-[#d9e2ef] bg-white p-4 shadow-sm sm:flex-row sm:items-center sm:justify-between">
         <h1 className="text-2xl font-bold text-[#0f172a]">申請一覧</h1>
-        <Link className="rounded-lg border border-[#cbd5e1] px-3 py-2 text-sm text-[#334155]" href="/">
-          戻る
-        </Link>
+        <DesktopNavigation />
       </header>
 
       <div className="space-y-3 rounded-2xl border border-[#d9e2ef] bg-white p-4 shadow-sm">
@@ -129,6 +127,7 @@ export default function RequestsPage() {
         )}
       </div>
       </div>
+      <MobileNavigation />
     </main>
   );
 }

@@ -31,7 +31,7 @@ declare module "react-big-calendar" {
     view?: View;
     dayLayoutAlgorithm?: "overlap" | "no-overlap";
     popup?: boolean;
-    selectable?: boolean;
+    selectable?: boolean | "ignoreEvents";
     longPressThreshold?: number;
     messages?: {
       today?: string;
