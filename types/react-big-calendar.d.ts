@@ -32,6 +32,7 @@ declare module "react-big-calendar" {
     dayLayoutAlgorithm?: "overlap" | "no-overlap";
     popup?: boolean;
     selectable?: boolean;
+    longPressThreshold?: number;
     messages?: {
       today?: string;
       previous?: string;
@@ -48,6 +49,7 @@ declare module "react-big-calendar" {
     };
     onNavigate?: (date: Date) => void;
     onView?: (view: View) => void;
+    onDrillDown?: (date: Date) => void;
     onShowMore?: (events: TEvent[], date: Date) => void;
     onSelectSlot?: (slotInfo: {
       start: Date;

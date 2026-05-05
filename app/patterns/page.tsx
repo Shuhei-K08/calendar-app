@@ -93,8 +93,8 @@ export default function PatternsPage() {
   }, [fetchPatterns]);
 
   const savePattern = async () => {
-    if (!form.label.trim() || !form.title.trim()) {
-      alert("表示名とタイトルを入力してください");
+    if (!form.label.trim()) {
+      alert("予定名を入力してください");
       return;
     }
 
@@ -111,7 +111,7 @@ export default function PatternsPage() {
 
     const payload = {
       label: form.label.trim(),
-      title: form.title.trim(),
+      title: form.label.trim(),
       start_time: form.start_time,
       end_time: form.end_time,
       next_day_end: form.next_day_end,
@@ -162,9 +162,9 @@ export default function PatternsPage() {
         <header className="flex flex-col gap-4 rounded-2xl border border-[#d9e2ef] bg-white p-4 shadow-sm sm:flex-row sm:items-center sm:justify-between">
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[#64748b]">
-              Schedule Patterns
+              Schedule Templates
             </p>
-            <h1 className="mt-1 text-2xl font-bold text-[#0f172a]">パターン管理</h1>
+            <h1 className="mt-1 text-2xl font-bold text-[#0f172a]">定型予定</h1>
           </div>
           <Link
             className="rounded-lg border border-[#cbd5e1] px-3 py-2 text-center text-sm font-medium text-[#334155]"
@@ -177,33 +177,29 @@ export default function PatternsPage() {
         <section className="rounded-2xl border border-[#d9e2ef] bg-white p-4 shadow-sm">
           {!schemaReady && (
             <div className="mb-4 rounded-xl border border-[#fde68a] bg-[#fffbeb] p-3 text-sm text-[#92400e]">
-              Supabase SQLをまだ実行していないため、パターン管理は使えません。
+              Supabase SQLをまだ実行していないため、定型予定は使えません。
             </div>
           )}
           <h2 className="mb-4 text-base font-semibold text-[#0f172a]">
-            {form.id ? "パターンを編集" : "パターンを追加"}
+            {form.id ? "定型予定を編集" : "定型予定を追加"}
           </h2>
+          <p className="mb-4 text-sm text-[#64748b]">
+            夜勤や休みなど、よく使う予定名と時間を保存しておくと登録画面でワンタップ入力できます。
+          </p>
 
           <div className="grid gap-3 sm:grid-cols-2">
-            <label className="space-y-1">
-              <span className="text-xs font-semibold text-[#64748b]">表示名</span>
+            <label className="space-y-1 sm:col-span-2">
+              <span className="text-xs font-semibold text-[#64748b]">予定名</span>
               <input
                 className="h-11 w-full rounded-lg border border-[#cbd5e1] px-3 text-sm outline-none transition focus:border-[#0f766e] focus:ring-2 focus:ring-[#99f6e4]"
-                placeholder="例: 夜勤"
+                placeholder="例: 夜勤、休み、通院"
                 value={form.label}
                 onChange={(event) =>
-                  setForm((current) => ({ ...current, label: event.target.value }))
-                }
-              />
-            </label>
-            <label className="space-y-1">
-              <span className="text-xs font-semibold text-[#64748b]">予定タイトル</span>
-              <input
-                className="h-11 w-full rounded-lg border border-[#cbd5e1] px-3 text-sm outline-none transition focus:border-[#0f766e] focus:ring-2 focus:ring-[#99f6e4]"
-                placeholder="例: 夜勤"
-                value={form.title}
-                onChange={(event) =>
-                  setForm((current) => ({ ...current, title: event.target.value }))
+                  setForm((current) => ({
+                    ...current,
+                    label: event.target.value,
+                    title: event.target.value,
+                  }))
                 }
               />
             </label>
@@ -273,7 +269,7 @@ export default function PatternsPage() {
                   <div>
                     <p className="font-semibold text-[#0f172a]">{pattern.label}</p>
                     <p className="mt-1 text-sm text-[#64748b]">
-                      {pattern.title} / {pattern.start_time.slice(0, 5)} -{" "}
+                      {pattern.start_time.slice(0, 5)} -{" "}
                       {pattern.next_day_end && "翌日"}
                       {pattern.end_time.slice(0, 5)}
                     </p>
@@ -296,7 +292,7 @@ export default function PatternsPage() {
               </div>
             ))}
             {patterns.length === 0 && (
-              <p className="text-sm text-[#64748b]">まだパターンはありません。</p>
+              <p className="text-sm text-[#64748b]">まだ定型予定はありません。</p>
             )}
           </div>
         </section>

@@ -40,7 +40,7 @@ const normalizeEventTimes = (form: EventForm) => {
 
   const startDate = new Date(form.start);
   startDate.setHours(0, 0, 0, 0);
-  const endDate = new Date(form.start);
+  const endDate = new Date(form.end || form.start);
   endDate.setHours(23, 59, 59, 999);
 
   return {
@@ -233,6 +233,13 @@ export default function Home() {
   const [notificationPermission, setNotificationPermission] = useState<
     NotificationPermission | "unsupported"
   >("unsupported");
+  const [notificationsEnabled] = useState(() => {
+    if (typeof window === "undefined") return true;
+    const savedSettings = window.localStorage.getItem("calendar_settings");
+    if (!savedSettings) return true;
+    return JSON.parse(savedSettings).notificationsEnabled ?? true;
+  });
+  const [showNotificationPrompt, setShowNotificationPrompt] = useState(true);
   const [sharedNotification, setSharedNotification] =
     useState<SharedNotification | null>(null);
 
@@ -340,6 +347,7 @@ export default function Home() {
 
   const notifyNewSharedEvents = useCallback((shared: CalendarEvent[], userId: string) => {
     if (typeof window === "undefined") return;
+    if (!notificationsEnabled) return;
 
     const storageKey = `calendar_seen_shared_events_${userId}`;
     const currentIds = shared.map((event) => event.id).filter(Boolean) as string[];
@@ -370,7 +378,7 @@ export default function Home() {
         body: `${newest.ownerName}さんから「${newest.title}」が共有されました`,
       });
     }
-  }, []);
+  }, [notificationsEnabled]);
 
   const fetchEvents = useCallback(async () => {
     const {
@@ -660,6 +668,22 @@ export default function Home() {
     }));
   };
 
+  const moveEndToNextDay = (target: "new" | "edit") => {
+    const form = target === "new" ? eventForm : editForm;
+    const start = new Date(form.start);
+    const end = new Date(form.end || form.start);
+    const nextEnd = new Date(start);
+    nextEnd.setDate(nextEnd.getDate() + 1);
+    nextEnd.setHours(end.getHours(), end.getMinutes(), 0, 0);
+
+    if (target === "new") {
+      setEventForm((current) => ({ ...current, end: formatDateTimeLocal(nextEnd) }));
+      return;
+    }
+
+    setEditForm((current) => ({ ...current, end: formatDateTimeLocal(nextEnd) }));
+  };
+
   const addEvent = async () => {
     if (!eventForm.title.trim()) return;
 
@@ -670,6 +694,10 @@ export default function Home() {
     if (!user) return;
 
     const { startAt, endAt } = normalizeEventTimes(eventForm);
+    if (new Date(endAt).getTime() <= new Date(startAt).getTime()) {
+      alert("終了日時は開始日時より後にしてください");
+      return;
+    }
     const eventPayload = {
       title: eventForm.title.trim(),
       start_at: startAt,
@@ -740,6 +768,10 @@ export default function Home() {
     if (!editForm.title.trim()) return;
 
     const { startAt, endAt } = normalizeEventTimes(editForm);
+    if (new Date(endAt).getTime() <= new Date(startAt).getTime()) {
+      alert("終了日時は開始日時より後にしてください");
+      return;
+    }
     const payload = {
       title: editForm.title.trim(),
       start_at: startAt,
@@ -862,10 +894,10 @@ export default function Home() {
             </h1>
           </div>
 
-          <nav className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:items-center">
+          <nav className="hidden gap-2 sm:flex sm:flex-wrap sm:items-center">
             <Link className="top-nav-link" href="/patterns" aria-label="パターン">
               <PatternIcon />
-              <span className="hidden sm:inline">パターン</span>
+              <span className="hidden sm:inline">定型予定</span>
             </Link>
             <Link className="top-nav-link" href="/settings" aria-label="設定">
               <SettingsIcon />
@@ -893,8 +925,15 @@ export default function Home() {
           </nav>
         </header>
 
-        {notificationPermission === "default" && (
-          <section className="flex flex-col gap-3 rounded-2xl border border-[#bae6fd] bg-[#f0f9ff] p-4 shadow-sm sm:flex-row sm:items-center sm:justify-between">
+        {notificationsEnabled && showNotificationPrompt && notificationPermission === "default" && (
+          <section className="relative flex flex-col gap-3 rounded-2xl border border-[#bae6fd] bg-[#f0f9ff] p-4 pr-12 shadow-sm sm:flex-row sm:items-center sm:justify-between">
+            <button
+              className="absolute right-3 top-3 flex h-8 w-8 items-center justify-center rounded-full border border-[#bae6fd] bg-white text-lg leading-none text-[#075985]"
+              aria-label="通知案内を閉じる"
+              onClick={() => setShowNotificationPrompt(false)}
+            >
+              ×
+            </button>
             <div>
               <p className="text-sm font-bold text-[#075985]">共有通知を受け取る</p>
               <p className="mt-1 text-sm text-[#475569]">
@@ -1015,6 +1054,14 @@ export default function Home() {
               })}
               onNavigate={(date) => setCalendarDate(date)}
               onView={(view) => setCalendarView(view)}
+              longPressThreshold={10}
+              onDrillDown={(date) => {
+                setDayDetail({
+                  date,
+                  events: getEventsOnDate(events, date),
+                });
+                openEventModal(date);
+              }}
               onShowMore={(shownEvents, date) => {
                 setDayDetail({
                   date,
@@ -1057,7 +1104,11 @@ export default function Home() {
               </button>
             </div>
 
-            <div className="mb-4 flex gap-2 overflow-x-auto pb-1">
+            <div className="mb-4 rounded-2xl border border-[#d9e2ef] bg-[#f8fafc] p-3">
+              <p className="mb-2 text-xs font-bold text-[#64748b]">
+                定型予定から入力
+              </p>
+              <div className="flex gap-2 overflow-x-auto pb-1">
               {patterns.map((pattern) => (
                 <button
                   key={pattern.id}
@@ -1067,6 +1118,12 @@ export default function Home() {
                   {pattern.label}
                 </button>
               ))}
+              {patterns.length === 0 && (
+                <p className="text-sm text-[#64748b]">
+                  よく使う予定を登録すると、ここからすぐ入力できます。
+                </p>
+              )}
+              </div>
             </div>
 
             <div className="grid gap-3 sm:grid-cols-2">
@@ -1129,6 +1186,13 @@ export default function Home() {
                     setEventForm((current) => ({ ...current, end: event.target.value }))
                   }
                 />
+                <button
+                  className="mt-2 rounded-lg border border-[#cbd5e1] px-3 py-2 text-xs font-bold text-[#334155]"
+                  type="button"
+                  onClick={() => moveEndToNextDay("new")}
+                >
+                  終了日を翌日にする
+                </button>
               </label>
               <label className="space-y-1 sm:col-span-2">
                 <span className="text-xs font-semibold text-[#64748b]">メモ</span>
@@ -1269,6 +1333,13 @@ export default function Home() {
                       setEditForm((current) => ({ ...current, end: event.target.value }))
                     }
                   />
+                  <button
+                    className="mt-2 rounded-lg border border-[#cbd5e1] px-3 py-2 text-xs font-bold text-[#334155]"
+                    type="button"
+                    onClick={() => moveEndToNextDay("edit")}
+                  >
+                    終了日を翌日にする
+                  </button>
                 </label>
                 <label className="space-y-1 sm:col-span-2">
                   <span className="text-xs font-semibold text-[#64748b]">メモ</span>
@@ -1382,7 +1453,7 @@ export default function Home() {
         </Link>
         <Link className="mobile-nav-link" href="/patterns" aria-label="パターン">
           <PatternIcon />
-          <span>型</span>
+          <span>定型</span>
         </Link>
         <Link className="mobile-nav-link" href="/todos" aria-label="TODO">
           <TodoIcon />

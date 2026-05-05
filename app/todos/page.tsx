@@ -58,7 +58,12 @@ export default function TodosPage() {
   }, [fetchTodos]);
 
   useEffect(() => {
-    if (!("Notification" in window)) return;
+    const savedSettings = window.localStorage.getItem("calendar_settings");
+    const notificationsEnabled = savedSettings
+      ? JSON.parse(savedSettings).notificationsEnabled ?? true
+      : true;
+
+    if (!notificationsEnabled || !("Notification" in window)) return;
     if (Notification.permission === "default") {
       void Notification.requestPermission();
     }
@@ -180,18 +185,24 @@ export default function TodosPage() {
               value={title}
               onChange={(event) => setTitle(event.target.value)}
             />
-            <input
-              className="h-11 rounded-lg border border-[#cbd5e1] px-3 text-sm outline-none focus:border-[#0f766e] focus:ring-2 focus:ring-[#99f6e4]"
-              type="datetime-local"
-              value={dueAt}
-              onChange={(event) => setDueAt(event.target.value)}
-            />
-            <input
-              className="h-11 rounded-lg border border-[#cbd5e1] px-3 text-sm outline-none focus:border-[#0f766e] focus:ring-2 focus:ring-[#99f6e4]"
-              type="datetime-local"
-              value={reminderAt}
-              onChange={(event) => setReminderAt(event.target.value)}
-            />
+            <label className="space-y-1">
+              <span className="text-xs font-semibold text-[#64748b]">期限日時</span>
+              <input
+                className="h-11 w-full rounded-lg border border-[#cbd5e1] px-3 text-sm outline-none focus:border-[#0f766e] focus:ring-2 focus:ring-[#99f6e4]"
+                type="datetime-local"
+                value={dueAt}
+                onChange={(event) => setDueAt(event.target.value)}
+              />
+            </label>
+            <label className="space-y-1">
+              <span className="text-xs font-semibold text-[#64748b]">通知日時</span>
+              <input
+                className="h-11 w-full rounded-lg border border-[#cbd5e1] px-3 text-sm outline-none focus:border-[#0f766e] focus:ring-2 focus:ring-[#99f6e4]"
+                type="datetime-local"
+                value={reminderAt}
+                onChange={(event) => setReminderAt(event.target.value)}
+              />
+            </label>
             <textarea
               className="min-h-24 rounded-lg border border-[#cbd5e1] p-3 text-sm outline-none focus:border-[#0f766e] focus:ring-2 focus:ring-[#99f6e4] sm:col-span-2"
               placeholder="メモ"

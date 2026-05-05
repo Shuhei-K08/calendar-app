@@ -257,6 +257,8 @@ a:active {
   min-width: 28px;
   align-items: center;
   justify-content: center;
+  cursor: pointer;
+  touch-action: manipulation;
 }
 
 .calendar-shell .rbc-now > a {

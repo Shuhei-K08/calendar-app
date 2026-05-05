@@ -9,6 +9,7 @@ const defaultSettings = {
   ownEventBackground: "#e0f2fe",
   sharedEventBackground: "#fef3c7",
   unclassifiedEvent: "#22c8d6",
+  notificationsEnabled: true,
 };
 
 type CalendarSettings = typeof defaultSettings;
@@ -187,14 +188,20 @@ export default function SettingsPage() {
               />
             </label>
             <label className="flex items-center justify-between gap-4 rounded-xl bg-[#f8fafc] p-3">
-              <span className="font-semibold text-[#334155]">未分類の予定色</span>
+              <span>
+                <span className="block font-semibold text-[#334155]">通知</span>
+                <span className="text-xs text-[#64748b]">
+                  共有予定とTODOリマインダーのブラウザ通知
+                </span>
+              </span>
               <input
-                type="color"
-                value={settings.unclassifiedEvent}
+                className="h-5 w-5 accent-[#0f766e]"
+                type="checkbox"
+                checked={settings.notificationsEnabled}
                 onChange={(event) =>
                   setSettings((current) => ({
                     ...current,
-                    unclassifiedEvent: event.target.value,
+                    notificationsEnabled: event.target.checked,
                   }))
                 }
               />
@@ -211,6 +218,19 @@ export default function SettingsPage() {
 
         <section className="rounded-2xl border border-[#d9e2ef] bg-white p-4 shadow-sm">
           <h2 className="mb-4 text-base font-bold text-[#0f172a]">分類</h2>
+          <label className="mb-3 flex items-center justify-between gap-4 rounded-xl bg-[#f8fafc] p-3">
+            <span className="font-semibold text-[#334155]">未分類の色</span>
+            <input
+              type="color"
+              value={settings.unclassifiedEvent}
+              onChange={(event) =>
+                setSettings((current) => ({
+                  ...current,
+                  unclassifiedEvent: event.target.value,
+                }))
+              }
+            />
+          </label>
           <div className="grid gap-3 sm:grid-cols-[1fr_auto_auto]">
             <input
               className="h-11 rounded-lg border border-[#cbd5e1] px-3 text-sm outline-none transition focus:border-[#0f766e] focus:ring-2 focus:ring-[#99f6e4]"
