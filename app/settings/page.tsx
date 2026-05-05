@@ -5,6 +5,7 @@ import { useCallback, useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 
 const defaultSettings = {
+  designTheme: "clean",
   background: "#f5f7fb",
   ownEventBackground: "#e0f2fe",
   sharedEventBackground: "#fef3c7",
@@ -13,6 +14,41 @@ const defaultSettings = {
 };
 
 type CalendarSettings = typeof defaultSettings;
+
+const designThemes = [
+  {
+    id: "clean",
+    name: "クリーン",
+    description: "今の見た目に近い、明るく見やすい配色",
+    background: "#f5f7fb",
+    accent: "#0f766e",
+    preview: ["#e0f2fe", "#fef3c7", "#ffffff"],
+  },
+  {
+    id: "mint",
+    name: "ミント",
+    description: "やわらかい緑で落ち着いた雰囲気",
+    background: "#f0fdfa",
+    accent: "#0d9488",
+    preview: ["#ccfbf1", "#fef3c7", "#ffffff"],
+  },
+  {
+    id: "sky",
+    name: "スカイ",
+    description: "青みを少し強めた、さわやかな配色",
+    background: "#eef6ff",
+    accent: "#2563eb",
+    preview: ["#dbeafe", "#fef9c3", "#ffffff"],
+  },
+  {
+    id: "rose",
+    name: "ローズ",
+    description: "少しあたたかい、やさしい配色",
+    background: "#fff7f7",
+    accent: "#e11d48",
+    preview: ["#ffe4e6", "#fef3c7", "#ffffff"],
+  },
+];
 
 type Category = {
   id: string;
@@ -67,8 +103,11 @@ export default function SettingsPage() {
   }, [fetchCategories]);
 
   const save = () => {
+    const selectedTheme =
+      designThemes.find((theme) => theme.id === settings.designTheme) ?? designThemes[0];
     window.localStorage.setItem("calendar_settings", JSON.stringify(settings));
-    document.documentElement.style.setProperty("--app-bg", settings.background);
+    document.documentElement.style.setProperty("--app-bg", selectedTheme.background);
+    document.documentElement.style.setProperty("--app-accent", selectedTheme.accent);
     document.documentElement.style.setProperty("--own-event-bg", settings.ownEventBackground);
     document.documentElement.style.setProperty("--shared-event-bg", settings.sharedEventBackground);
     document.documentElement.style.setProperty(
@@ -151,16 +190,42 @@ export default function SettingsPage() {
 
         <section className="rounded-2xl border border-[#d9e2ef] bg-white p-4 shadow-sm">
           <div className="grid gap-4">
-            <label className="flex items-center justify-between gap-4 rounded-xl bg-[#f8fafc] p-3">
-              <span className="font-semibold text-[#334155]">背景色</span>
-              <input
-                type="color"
-                value={settings.background}
-                onChange={(event) =>
-                  setSettings((current) => ({ ...current, background: event.target.value }))
-                }
-              />
-            </label>
+            <div>
+              <h2 className="mb-3 text-base font-bold text-[#0f172a]">デザイン</h2>
+              <div className="grid gap-3 sm:grid-cols-2">
+                {designThemes.map((theme) => (
+                  <button
+                    key={theme.id}
+                    className={`rounded-2xl border p-3 text-left transition ${
+                      settings.designTheme === theme.id
+                        ? "border-[#0f766e] bg-[#ecfdf5] shadow-sm"
+                        : "border-[#d9e2ef] bg-[#f8fafc]"
+                    }`}
+                    onClick={() =>
+                      setSettings((current) => ({
+                        ...current,
+                        designTheme: theme.id,
+                        background: theme.background,
+                      }))
+                    }
+                  >
+                    <span className="font-bold text-[#0f172a]">{theme.name}</span>
+                    <span className="mt-1 block text-xs text-[#64748b]">
+                      {theme.description}
+                    </span>
+                    <span className="mt-3 flex gap-2">
+                      {theme.preview.map((color) => (
+                        <span
+                          key={color}
+                          className="h-7 flex-1 rounded-lg border border-white shadow-sm"
+                          style={{ backgroundColor: color }}
+                        />
+                      ))}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </div>
             <label className="flex items-center justify-between gap-4 rounded-xl bg-[#f8fafc] p-3">
               <span className="font-semibold text-[#334155]">自分の予定の塗り色</span>
               <input
@@ -183,6 +248,19 @@ export default function SettingsPage() {
                   setSettings((current) => ({
                     ...current,
                     sharedEventBackground: event.target.value,
+                  }))
+                }
+              />
+            </label>
+            <label className="flex items-center justify-between gap-4 rounded-xl bg-[#f8fafc] p-3">
+              <span className="font-semibold text-[#334155]">未分類の予定色</span>
+              <input
+                type="color"
+                value={settings.unclassifiedEvent}
+                onChange={(event) =>
+                  setSettings((current) => ({
+                    ...current,
+                    unclassifiedEvent: event.target.value,
                   }))
                 }
               />
@@ -218,19 +296,6 @@ export default function SettingsPage() {
 
         <section className="rounded-2xl border border-[#d9e2ef] bg-white p-4 shadow-sm">
           <h2 className="mb-4 text-base font-bold text-[#0f172a]">分類</h2>
-          <label className="mb-3 flex items-center justify-between gap-4 rounded-xl bg-[#f8fafc] p-3">
-            <span className="font-semibold text-[#334155]">未分類の色</span>
-            <input
-              type="color"
-              value={settings.unclassifiedEvent}
-              onChange={(event) =>
-                setSettings((current) => ({
-                  ...current,
-                  unclassifiedEvent: event.target.value,
-                }))
-              }
-            />
-          </label>
           <div className="grid gap-3 sm:grid-cols-[1fr_auto_auto]">
             <input
               className="h-11 rounded-lg border border-[#cbd5e1] px-3 text-sm outline-none transition focus:border-[#0f766e] focus:ring-2 focus:ring-[#99f6e4]"
@@ -290,6 +355,24 @@ export default function SettingsPage() {
                 分類はまだありません。SQL実行後に追加できます。
               </p>
             )}
+          </div>
+        </section>
+
+        <section className="rounded-2xl border border-[#d9e2ef] bg-white p-4 shadow-sm">
+          <h2 className="mb-3 text-base font-bold text-[#0f172a]">使い方</h2>
+          <div className="grid gap-3 text-sm text-[#475569]">
+            <p>カレンダーの日付を押すと、その日の予定を登録できます。</p>
+            <p>よく使う勤務や休みは「定型予定」に登録しておくと、予定登録時にすぐ入力できます。</p>
+            <p>予定ごとに共有相手を選ぶと、相手のカレンダーに共有予定として表示されます。</p>
+            <button
+              className="h-10 rounded-lg border border-[#cbd5e1] px-4 text-sm font-bold text-[#334155]"
+              onClick={() => {
+                window.localStorage.removeItem("calendar_tutorial_seen");
+                alert("カレンダー画面を開くとチュートリアルを再表示します。");
+              }}
+            >
+              チュートリアルを再表示
+            </button>
           </div>
         </section>
       </div>

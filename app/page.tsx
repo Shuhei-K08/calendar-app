@@ -62,6 +62,13 @@ const DEFAULT_PATTERNS = [
   { id: "default-off", label: "休み", title: "休み", start_time: "00:00", end_time: "23:59", next_day_end: false },
 ];
 
+const DESIGN_THEMES = {
+  clean: { background: "#f5f7fb", accent: "#0f766e" },
+  mint: { background: "#f0fdfa", accent: "#0d9488" },
+  sky: { background: "#eef6ff", accent: "#2563eb" },
+  rose: { background: "#fff7f7", accent: "#e11d48" },
+};
+
 const CalendarIcon = () => (
   <svg className="nav-svg" viewBox="0 0 24 24" aria-hidden="true">
     <path d="M7 3v3M17 3v3M4 9h16M6 5h12a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2Z" />
@@ -242,6 +249,7 @@ export default function Home() {
   const [showNotificationPrompt, setShowNotificationPrompt] = useState(true);
   const [sharedNotification, setSharedNotification] =
     useState<SharedNotification | null>(null);
+  const [showTutorial, setShowTutorial] = useState(false);
 
   const fetchConnections = useCallback(async (userId: string) => {
     const { data: acceptedConnections, error } = await supabase
@@ -578,7 +586,11 @@ export default function Home() {
     const savedSettings = window.localStorage.getItem("calendar_settings");
     if (savedSettings) {
       const settings = JSON.parse(savedSettings);
-      document.documentElement.style.setProperty("--app-bg", settings.background ?? "#f5f7fb");
+      const theme =
+        DESIGN_THEMES[settings.designTheme as keyof typeof DESIGN_THEMES] ??
+        DESIGN_THEMES.clean;
+      document.documentElement.style.setProperty("--app-bg", theme.background);
+      document.documentElement.style.setProperty("--app-accent", theme.accent);
       document.documentElement.style.setProperty(
         "--own-event-bg",
         settings.ownEventBackground ?? settings.ownEvent ?? "#e0f2fe",
@@ -625,6 +637,9 @@ export default function Home() {
       setPatterns(userPatterns);
       setCategories(userCategories);
       setLoading(false);
+      if (!window.localStorage.getItem("calendar_tutorial_seen")) {
+        setShowTutorial(true);
+      }
     };
 
     void checkUser();
@@ -668,12 +683,18 @@ export default function Home() {
     }));
   };
 
-  const moveEndToNextDay = (target: "new" | "edit") => {
+  const isEndOnNextDay = (form: EventForm) => {
+    const start = new Date(form.start);
+    const end = new Date(form.end || form.start);
+    return format(start, "yyyy-MM-dd") !== format(end, "yyyy-MM-dd");
+  };
+
+  const toggleEndNextDay = (target: "new" | "edit") => {
     const form = target === "new" ? eventForm : editForm;
     const start = new Date(form.start);
     const end = new Date(form.end || form.start);
     const nextEnd = new Date(start);
-    nextEnd.setDate(nextEnd.getDate() + 1);
+    nextEnd.setDate(nextEnd.getDate() + (isEndOnNextDay(form) ? 0 : 1));
     nextEnd.setHours(end.getHours(), end.getMinutes(), 0, 0);
 
     if (target === "new") {
@@ -1040,6 +1061,7 @@ export default function Home() {
                 week: "週",
                 day: "日",
                 agenda: "一覧",
+                noEventsInRange: "この期間の予定はまだありません",
                 showMore: (total) => `+${total}件`,
               }}
               eventPropGetter={(event) => ({
@@ -1089,7 +1111,7 @@ export default function Home() {
       {isEventModalOpen && (
         <div className="fixed inset-0 z-50 flex items-start bg-[#0f172a]/40 p-3 pt-4 sm:items-center sm:justify-center">
           <div className="max-h-[88vh] w-full overflow-y-auto rounded-2xl bg-white p-4 shadow-2xl sm:max-w-2xl sm:p-6">
-            <div className="sticky top-0 z-10 -mx-4 -mt-4 mb-4 flex items-start justify-between gap-4 border-b border-[#e2e8f0] bg-white px-4 py-4 sm:-mx-6 sm:-mt-6 sm:px-6">
+            <div className="mb-4 flex items-start justify-between gap-4 border-b border-[#e2e8f0] bg-white pb-4">
               <div>
                 <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[#64748b]">
                   New Schedule
@@ -1108,7 +1130,7 @@ export default function Home() {
               <p className="mb-2 text-xs font-bold text-[#64748b]">
                 定型予定から入力
               </p>
-              <div className="flex gap-2 overflow-x-auto pb-1">
+              <div className="flex gap-2 overflow-x-auto px-1 py-1">
               {patterns.map((pattern) => (
                 <button
                   key={pattern.id}
@@ -1189,9 +1211,9 @@ export default function Home() {
                 <button
                   className="mt-2 rounded-lg border border-[#cbd5e1] px-3 py-2 text-xs font-bold text-[#334155]"
                   type="button"
-                  onClick={() => moveEndToNextDay("new")}
+                  onClick={() => toggleEndNextDay("new")}
                 >
-                  終了日を翌日にする
+                  {isEndOnNextDay(eventForm) ? "終了日を当日に戻す" : "終了日を翌日にする"}
                 </button>
               </label>
               <label className="space-y-1 sm:col-span-2">
@@ -1257,7 +1279,7 @@ export default function Home() {
       {detailEvent && (
         <div className="fixed inset-0 z-50 flex items-start bg-[#0f172a]/40 p-3 pt-4 sm:items-center sm:justify-center">
           <div className="max-h-[88vh] w-full overflow-y-auto rounded-2xl bg-white p-4 shadow-2xl sm:max-w-lg sm:p-6">
-            <div className="sticky top-0 z-10 -mx-4 -mt-4 mb-4 flex items-start justify-between gap-4 border-b border-[#e2e8f0] bg-white px-4 py-4 sm:-mx-6 sm:-mt-6 sm:px-6">
+            <div className="mb-4 flex items-start justify-between gap-4 border-b border-[#e2e8f0] bg-white pb-4">
               <div>
                 <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[#64748b]">
                   Schedule Detail
@@ -1336,9 +1358,9 @@ export default function Home() {
                   <button
                     className="mt-2 rounded-lg border border-[#cbd5e1] px-3 py-2 text-xs font-bold text-[#334155]"
                     type="button"
-                    onClick={() => moveEndToNextDay("edit")}
+                    onClick={() => toggleEndNextDay("edit")}
                   >
-                    終了日を翌日にする
+                    {isEndOnNextDay(editForm) ? "終了日を当日に戻す" : "終了日を翌日にする"}
                   </button>
                 </label>
                 <label className="space-y-1 sm:col-span-2">
@@ -1444,6 +1466,41 @@ export default function Home() {
           <p className="mt-1 text-sm text-[#475569]">
             {sharedNotification.ownerName}さんから「{sharedNotification.title}」
           </p>
+        </div>
+      )}
+      {showTutorial && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-[#0f172a]/45 p-4">
+          <div className="w-full max-w-lg rounded-3xl bg-white p-5 shadow-2xl sm:p-6">
+            <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#64748b]">
+              Quick Tutorial
+            </p>
+            <h2 className="mt-2 text-2xl font-black text-[#0f172a]">
+              最初にここだけ覚えれば大丈夫
+            </h2>
+            <div className="mt-5 grid gap-3 text-sm text-[#475569]">
+              <div className="rounded-2xl bg-[#f8fafc] p-3">
+                <p className="font-bold text-[#0f172a]">1. 日付を押して予定登録</p>
+                <p className="mt-1">カレンダーの日付を押すと、その日の登録画面が開きます。</p>
+              </div>
+              <div className="rounded-2xl bg-[#f8fafc] p-3">
+                <p className="font-bold text-[#0f172a]">2. 定型予定で時短</p>
+                <p className="mt-1">夜勤や休みは定型予定にしておくと、ワンタップで入力できます。</p>
+              </div>
+              <div className="rounded-2xl bg-[#f8fafc] p-3">
+                <p className="font-bold text-[#0f172a]">3. 必要な予定だけ共有</p>
+                <p className="mt-1">登録時や編集時に、共有する相手を選べます。</p>
+              </div>
+            </div>
+            <button
+              className="mt-5 h-11 w-full rounded-xl bg-[#0f766e] px-4 font-bold text-white"
+              onClick={() => {
+                window.localStorage.setItem("calendar_tutorial_seen", "true");
+                setShowTutorial(false);
+              }}
+            >
+              はじめる
+            </button>
+          </div>
         </div>
       )}
       <nav className="fixed inset-x-3 bottom-3 z-40 grid grid-cols-6 rounded-2xl border border-[#d9e2ef] bg-white/95 p-2 text-center text-[10px] font-semibold text-[#334155] shadow-xl backdrop-blur sm:hidden">

@@ -41,6 +41,7 @@ declare module "react-big-calendar" {
       week?: string;
       day?: string;
       agenda?: string;
+      noEventsInRange?: string;
       showMore?: (total: number) => string;
     };
     eventPropGetter?: (event: TEvent) => {

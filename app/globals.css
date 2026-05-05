@@ -4,6 +4,7 @@
   --background: #f5f7fb;
   --foreground: #172033;
   --app-bg: #f5f7fb;
+  --app-accent: #0f766e;
   --own-event-bg: #e0f2fe;
   --shared-event-bg: #fef3c7;
   --uncategorized-event: #22c8d6;
@@ -212,8 +213,8 @@ a:active {
 .calendar-shell .rbc-btn-group button:hover,
 .calendar-shell .rbc-btn-group button:focus,
 .calendar-shell .rbc-btn-group button.rbc-active {
-  background: #0f766e;
-  border-color: #0f766e;
+  background: var(--app-accent);
+  border-color: var(--app-accent);
   color: #ffffff;
   box-shadow: none;
 }
@@ -262,7 +263,7 @@ a:active {
 }
 
 .calendar-shell .rbc-now > a {
-  background: #0f766e;
+  background: var(--app-accent);
   color: #ffffff;
 }
 
@@ -317,7 +318,7 @@ a:active {
 }
 
 .calendar-shell .rbc-show-more {
-  color: #0f766e;
+  color: var(--app-accent);
   font-size: 12px;
   font-weight: 800;
 }
@@ -334,6 +335,21 @@ a:active {
   color: #0f172a;
   font-weight: 800;
   padding: 10px 12px;
+}
+
+.calendar-shell .rbc-agenda-empty {
+  align-items: center;
+  background: #f8fafc;
+  border: 1px dashed #cbd5e1;
+  border-radius: 18px;
+  color: #64748b;
+  display: flex;
+  font-size: 15px;
+  font-weight: 800;
+  justify-content: center;
+  margin: 20px;
+  min-height: 160px;
+  padding: 24px;
 }
 
 @media (max-width: 640px) {
