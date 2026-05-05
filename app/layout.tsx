@@ -13,8 +13,11 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "カレンダー",
-  description: "勤務予定を共有できるカレンダーアプリ",
+  title: "ShareCal",
+  description: "勤務予定を共有できるカレンダーアプリ ShareCal",
+  icons: {
+    icon: "/icon.svg",
+  },
 };
 
 export default function RootLayout({

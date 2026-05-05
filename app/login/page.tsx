@@ -3,19 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
-
-const LoginCalendarIcon = () => (
-  <svg className="h-7 w-7" viewBox="0 0 24 24" aria-hidden="true">
-    <path
-      d="M7 3v3M17 3v3M4 9h16M6 5h12a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2Z"
-      fill="none"
-      stroke="currentColor"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      strokeWidth="1.8"
-    />
-  </svg>
-);
+import { ShareCalLogo } from "@/app/components/AppNavigation";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -43,8 +31,8 @@ export default function LoginPage() {
         <section className="hidden lg:block">
           <div className="max-w-xl">
             <div className="mb-6 inline-flex items-center gap-3 rounded-full border border-[#bae6fd] bg-white/80 px-4 py-2 text-sm font-bold text-[#075985] shadow-sm">
-              <LoginCalendarIcon />
-              Shared Schedule
+              <ShareCalLogo compact />
+              ShareCal
             </div>
             <h1 className="text-5xl font-black leading-tight tracking-tight text-[#0f172a]">
               大切な予定を、ちょうどよく共有。
@@ -76,7 +64,7 @@ export default function LoginPage() {
         <section className="rounded-3xl border border-[#d9e2ef] bg-white p-5 shadow-[0_24px_70px_rgb(15_23_42_/_12%)] sm:p-8">
           <div className="mb-7 flex items-center gap-3">
             <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[#e0f2fe] text-[#075985]">
-              <LoginCalendarIcon />
+              <ShareCalLogo compact />
             </div>
             <div>
               <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#64748b]">

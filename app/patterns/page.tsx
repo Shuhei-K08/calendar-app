@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
-import { DesktopNavigation, MobileNavigation } from "@/app/components/AppNavigation";
+import { DesktopNavigation, MobileNavigation, ShareCalLogo } from "@/app/components/AppNavigation";
 
 type Pattern = {
   id: string;
@@ -160,11 +160,14 @@ export default function PatternsPage() {
     <main className="min-h-screen bg-[#f5f7fb] px-4 pb-24 pt-4 text-[#172033] sm:px-6 sm:pb-4 lg:px-8">
       <div className="mx-auto flex max-w-5xl flex-col gap-5">
         <header className="flex flex-col gap-4 rounded-2xl border border-[#d9e2ef] bg-white p-4 shadow-sm sm:flex-row sm:items-center sm:justify-between">
-          <div>
+          <div className="flex items-center gap-3">
+            <ShareCalLogo compact />
+            <div>
             <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[#64748b]">
               Schedule Templates
             </p>
             <h1 className="mt-1 text-2xl font-bold text-[#0f172a]">定型予定</h1>
+            </div>
           </div>
           <DesktopNavigation />
         </header>

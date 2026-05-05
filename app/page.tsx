@@ -996,6 +996,13 @@ export default function Home() {
               onNavigate={(date) => setCalendarDate(date)}
               onView={(view) => setCalendarView(view)}
               longPressThreshold={350}
+              onDrillDown={(date) => {
+                setDayDetail({
+                  date,
+                  events: getEventsOnDate(events, date),
+                });
+                openEventModal(date);
+              }}
               onShowMore={(shownEvents, date) => {
                 setDayDetail({
                   date,

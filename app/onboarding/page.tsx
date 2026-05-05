@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
+import { ShareCalLogo } from "@/app/components/AppNavigation";
 
 const generateShareCode = () => {
   return Math.random().toString(36).substring(2, 10).toUpperCase();
@@ -46,26 +47,36 @@ export default function OnboardingPage() {
   };
 
   return (
-    <main className="mx-auto max-w-md p-6">
-      <h1 className="mb-2 text-2xl font-bold">初期設定</h1>
-      <p className="mb-6 text-gray-600">
-        まずはアプリで表示するユーザー名を設定してください。
-      </p>
+    <main className="min-h-screen bg-[#eef7fb] px-4 py-8 text-[#172033]">
+      <div className="mx-auto max-w-md rounded-3xl border border-[#d9e2ef] bg-white p-5 shadow-[0_24px_70px_rgb(15_23_42_/_12%)] sm:p-8">
+        <div className="mb-6 flex items-center gap-3">
+          <ShareCalLogo compact />
+          <div>
+            <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#64748b]">
+              ShareCal setup
+            </p>
+            <h1 className="text-2xl font-black text-[#0f172a]">初期設定</h1>
+          </div>
+        </div>
+        <p className="mb-6 text-sm leading-6 text-[#64748b]">
+          まずはアプリで表示するユーザー名を設定してください。
+        </p>
 
       <div className="space-y-3">
         <input
-          className="w-full rounded border px-3 py-2"
+          className="h-12 w-full rounded-xl border border-[#cbd5e1] bg-[#f8fafc] px-4 text-sm outline-none transition focus:border-[#0f766e] focus:bg-white focus:ring-4 focus:ring-[#99f6e4]/50"
           placeholder="ユーザー名"
           value={username}
           onChange={(e) => setUsername(e.target.value)}
         />
 
         <button
-          className="w-full rounded bg-black px-4 py-2 text-white"
+          className="h-12 w-full rounded-xl bg-[#0f766e] px-4 font-bold text-white shadow-sm transition hover:bg-[#115e59]"
           onClick={saveProfile}
         >
           はじめる
         </button>
+      </div>
       </div>
     </main>
   );

@@ -3,19 +3,7 @@
 import { useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { useRouter } from "next/navigation";
-
-const SignupIcon = () => (
-  <svg className="h-7 w-7" viewBox="0 0 24 24" aria-hidden="true">
-    <path
-      d="M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8ZM4 20a8 8 0 0 1 16 0M18 8v6M15 11h6"
-      fill="none"
-      stroke="currentColor"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      strokeWidth="1.8"
-    />
-  </svg>
-);
+import { ShareCalLogo } from "@/app/components/AppNavigation";
 
 export default function SignupPage() {
   const router = useRouter();
@@ -58,8 +46,8 @@ export default function SignupPage() {
         <section className="hidden lg:block">
           <div className="max-w-xl">
             <div className="mb-6 inline-flex items-center gap-3 rounded-full border border-[#bae6fd] bg-white/80 px-4 py-2 text-sm font-bold text-[#075985] shadow-sm">
-              <SignupIcon />
-              Shared Schedule
+              <ShareCalLogo compact />
+              ShareCal
             </div>
             <h1 className="text-5xl font-black leading-tight tracking-tight text-[#0f172a]">
               共有カレンダーをはじめよう。
@@ -80,7 +68,7 @@ export default function SignupPage() {
         <section className="rounded-3xl border border-[#d9e2ef] bg-white p-5 shadow-[0_24px_70px_rgb(15_23_42_/_12%)] sm:p-8">
           <div className="mb-7 flex items-center gap-3">
             <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[#e0f2fe] text-[#075985]">
-              <SignupIcon />
+              <ShareCalLogo compact />
             </div>
             <div>
               <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#64748b]">
