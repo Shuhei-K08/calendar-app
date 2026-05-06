@@ -158,10 +158,11 @@ export default function AdminPage() {
                         {user.role === "admin" ? "管理者解除" : "管理者にする"}
                       </button>
                       <button
-                        className="h-10 rounded-lg bg-[#be123c] px-3 text-sm font-bold text-white"
+                        className="h-10 rounded-lg bg-[#be123c] px-3 text-sm font-bold text-white disabled:cursor-not-allowed disabled:opacity-50"
+                        disabled={user.role === "admin"}
                         onClick={() => runAction(user, "delete")}
                       >
-                        削除
+                        {user.role === "admin" ? "削除不可" : "削除"}
                       </button>
                     </div>
                   </div>

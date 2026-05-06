@@ -137,6 +137,34 @@ as $$
   );
 $$;
 
+create or replace function public.is_recurring_event_owner(target_event_id uuid, target_user_id uuid)
+returns boolean
+language sql
+security definer
+set search_path = public
+as $$
+  select exists (
+    select 1
+    from public.recurring_events re
+    where re.id = target_event_id
+      and re.user_id = target_user_id
+  );
+$$;
+
+create or replace function public.is_recurring_event_shared_with(target_event_id uuid, target_user_id uuid)
+returns boolean
+language sql
+security definer
+set search_path = public
+as $$
+  select exists (
+    select 1
+    from public.recurring_event_shares res
+    where res.recurring_event_id = target_event_id
+      and res.shared_with = target_user_id
+  );
+$$;
+
 create or replace function public.are_connected(left_user_id uuid, right_user_id uuid)
 returns boolean
 language sql
@@ -355,12 +383,7 @@ on public.recurring_events
 for select
 using (
   user_id = auth.uid()
-  or exists (
-    select 1
-    from public.recurring_event_shares res
-    where res.recurring_event_id = id
-      and res.shared_with = auth.uid()
-  )
+  or public.is_recurring_event_shared_with(id, auth.uid())
 );
 
 create policy "users can insert own recurring events"
@@ -388,12 +411,7 @@ create policy "recurring event owners can create shares"
 on public.recurring_event_shares
 for insert
 with check (
-  exists (
-    select 1
-    from public.recurring_events re
-    where re.id = recurring_event_id
-      and re.user_id = auth.uid()
-  )
+  public.is_recurring_event_owner(recurring_event_id, auth.uid())
   and public.are_connected(auth.uid(), shared_with)
 );
 
@@ -402,24 +420,14 @@ on public.recurring_event_shares
 for select
 using (
   shared_with = auth.uid()
-  or exists (
-    select 1
-    from public.recurring_events re
-    where re.id = recurring_event_id
-      and re.user_id = auth.uid()
-  )
+  or public.is_recurring_event_owner(recurring_event_id, auth.uid())
 );
 
 create policy "recurring event owners can delete shares"
 on public.recurring_event_shares
 for delete
 using (
-  exists (
-    select 1
-    from public.recurring_events re
-    where re.id = recurring_event_id
-      and re.user_id = auth.uid()
-  )
+  public.is_recurring_event_owner(recurring_event_id, auth.uid())
   or shared_with = auth.uid()
 );
 

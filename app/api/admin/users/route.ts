@@ -7,6 +7,8 @@ const getAdminEmails = () =>
     .map((email) => email.trim().toLowerCase())
     .filter(Boolean);
 
+const isAdminRole = (role?: string | null) => role === "admin" || role === "admine";
+
 const requireAdmin = async (request: Request) => {
   const admin = createSupabaseAdmin();
   if (!admin) {
@@ -35,7 +37,7 @@ const requireAdmin = async (request: Request) => {
     .eq("id", user.id)
     .maybeSingle();
 
-  if (profile?.role !== "admin" && !isEnvAdmin) {
+  if (!isAdminRole(profile?.role) && !isEnvAdmin) {
     return {
       error:
         "このアカウントはまだ管理者として登録されていません。",
@@ -43,7 +45,7 @@ const requireAdmin = async (request: Request) => {
     };
   }
 
-  if (isEnvAdmin && profile?.role !== "admin") {
+  if ((isEnvAdmin || profile?.role === "admine") && profile?.role !== "admin") {
     await admin.from("profiles").update({ role: "admin" }).eq("id", user.id);
   }
 
@@ -73,7 +75,7 @@ export async function GET(request: Request) {
         id: user.id,
         email: user.email,
         username: profile?.username ?? "名前未設定",
-        role: profile?.role ?? "user",
+        role: isAdminRole(profile?.role) ? "admin" : "user",
         created_at: user.created_at,
         last_sign_in_at: user.last_sign_in_at,
         banned_until: user.banned_until,
@@ -98,6 +100,19 @@ export async function PATCH(request: Request) {
   }
 
   if (body.action === "delete") {
+    const { data: targetProfile } = await auth.admin
+      .from("profiles")
+      .select("role")
+      .eq("id", body.userId)
+      .maybeSingle();
+
+    if (isAdminRole(targetProfile?.role)) {
+      return NextResponse.json(
+        { error: "管理者アカウントは管理画面から削除できません。" },
+        { status: 400 },
+      );
+    }
+
     const { error } = await auth.admin.auth.admin.deleteUser(body.userId);
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
     return NextResponse.json({ ok: true });
