@@ -588,7 +588,7 @@ export default function SettingsPage() {
               { id: "profile", label: "プロフィール" },
               { id: "design", label: "デザイン" },
               { id: "categories", label: "分類" },
-              { id: "recurring", label: "繰り返し予定登録" },
+              { id: "recurring", label: "くり返し予定登録" },
               { id: "guide", label: "使い方" },
             ].map((item) => (
               <button
