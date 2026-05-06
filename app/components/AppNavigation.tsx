@@ -1,6 +1,8 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import Link from "next/link";
+import { supabase } from "@/lib/supabase";
 
 export function ShareCalLogo({ compact = false }: { compact?: boolean }) {
   return (
@@ -58,6 +60,13 @@ const SettingsIcon = () => (
   </svg>
 );
 
+const AdminIcon = () => (
+  <svg className="nav-svg" viewBox="0 0 24 24" aria-hidden="true">
+    <path d="M12 3 5 6v5c0 4.5 3 8 7 10 4-2 7-5.5 7-10V6l-7-3Z" />
+    <path d="M9 12l2 2 4-5" />
+  </svg>
+);
+
 const items = [
   { href: "/", label: "予定", desktopLabel: "カレンダー", icon: <CalendarIcon /> },
   { href: "/patterns", label: "定型", desktopLabel: "定型予定", icon: <PatternIcon /> },
@@ -67,11 +76,53 @@ const items = [
   { href: "/settings", label: "設定", desktopLabel: "設定", icon: <SettingsIcon /> },
 ];
 
+const adminItem = {
+  href: "/admin",
+  label: "管理",
+  desktopLabel: "管理",
+  icon: <AdminIcon />,
+};
+
+function useNavigationMeta() {
+  const [pendingCount, setPendingCount] = useState(0);
+  const [isAdmin, setIsAdmin] = useState(false);
+
+  useEffect(() => {
+    const fetchMeta = async () => {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      if (!user) return;
+
+      const [{ count }, { data: profile }] = await Promise.all([
+        supabase
+          .from("connections")
+          .select("id", { count: "exact", head: true })
+          .eq("receiver_id", user.id)
+          .eq("status", "pending"),
+        supabase.from("profiles").select("role").eq("id", user.id).maybeSingle(),
+      ]);
+
+      setPendingCount(count ?? 0);
+      setIsAdmin(profile?.role === "admin");
+    };
+
+    void fetchMeta();
+  }, []);
+
+  return { pendingCount, isAdmin };
+}
+
 export function DesktopNavigation() {
+  const { pendingCount, isAdmin } = useNavigationMeta();
+  const navItems = isAdmin ? [...items, adminItem] : items;
+
   return (
     <nav className="hidden gap-2 sm:flex sm:flex-wrap sm:items-center">
-      {items.map((item) => (
+      {navItems.map((item) => (
         <Link key={item.href} className="top-nav-link" href={item.href} aria-label={item.desktopLabel}>
+          {item.href === "/connect" && pendingCount > 0 && <span className="nav-badge" />}
           {item.icon}
           <span>{item.desktopLabel}</span>
         </Link>
@@ -81,10 +132,14 @@ export function DesktopNavigation() {
 }
 
 export function MobileNavigation() {
+  const { pendingCount, isAdmin } = useNavigationMeta();
+  const navItems = isAdmin ? [...items, adminItem] : items;
+
   return (
-    <nav className="fixed inset-x-3 bottom-3 z-40 grid grid-cols-6 rounded-2xl border border-[#d9e2ef] bg-white/95 p-2 text-center text-[10px] font-semibold text-[#334155] shadow-xl backdrop-blur sm:hidden">
-      {items.map((item) => (
+    <nav className={`fixed inset-x-3 bottom-3 z-40 grid ${isAdmin ? "grid-cols-7" : "grid-cols-6"} rounded-2xl border border-[#d9e2ef] bg-white/95 p-2 text-center text-[10px] font-semibold text-[#334155] shadow-xl backdrop-blur sm:hidden`}>
+      {navItems.map((item) => (
         <Link key={item.href} className="mobile-nav-link" href={item.href} aria-label={item.desktopLabel}>
+          {item.href === "/connect" && pendingCount > 0 && <span className="nav-badge mobile" />}
           {item.icon}
           <span>{item.label}</span>
         </Link>

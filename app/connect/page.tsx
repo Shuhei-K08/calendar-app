@@ -10,10 +10,17 @@ type Request = {
   requester_name: string;
 };
 
+type ConnectedUser = {
+  connection_id: string;
+  user_id: string;
+  username: string;
+};
+
 export default function ConnectPage() {
   const [code, setCode] = useState("");
   const [shareCode, setShareCode] = useState("");
   const [requests, setRequests] = useState<Request[]>([]);
+  const [connectedUsers, setConnectedUsers] = useState<ConnectedUser[]>([]);
   const [approvingId, setApprovingId] = useState<string | null>(null);
 
   const fetchRequests = useCallback(async () => {
@@ -65,6 +72,54 @@ export default function ConnectPage() {
     );
   }, []);
 
+  const fetchConnectedUsers = useCallback(async () => {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) return;
+
+    const { data: connections, error } = await supabase
+      .from("connections")
+      .select("id, requester_id, receiver_id")
+      .eq("status", "accepted")
+      .or(`requester_id.eq.${user.id},receiver_id.eq.${user.id}`);
+
+    if (error) {
+      console.error(error);
+      return;
+    }
+
+    const acceptedConnections = connections ?? [];
+    const userIds = acceptedConnections.map((connection) =>
+      connection.requester_id === user.id ? connection.receiver_id : connection.requester_id,
+    );
+
+    if (userIds.length === 0) {
+      setConnectedUsers([]);
+      return;
+    }
+
+    const { data: profiles } = await supabase
+      .from("profiles")
+      .select("id, username")
+      .in("id", userIds);
+
+    setConnectedUsers(
+      acceptedConnections.map((connection) => {
+        const targetId =
+          connection.requester_id === user.id ? connection.receiver_id : connection.requester_id;
+        const profile = profiles?.find((item) => item.id === targetId);
+
+        return {
+          connection_id: connection.id,
+          user_id: targetId,
+          username: profile?.username ?? "名前未設定",
+        };
+      }),
+    );
+  }, []);
+
   useEffect(() => {
     const fetchMyShareCode = async () => {
       const {
@@ -90,10 +145,11 @@ export default function ConnectPage() {
     void fetchMyShareCode();
     const timer = window.setTimeout(() => {
       void fetchRequests();
+      void fetchConnectedUsers();
     }, 0);
 
     return () => window.clearTimeout(timer);
-  }, [fetchRequests]);
+  }, [fetchConnectedUsers, fetchRequests]);
 
   const approve = async (request: Request) => {
     if (approvingId) return;
@@ -125,7 +181,74 @@ export default function ConnectPage() {
     }
 
     await fetchRequests();
+    await fetchConnectedUsers();
     alert("承認しました");
+  };
+
+  const reject = async (request: Request) => {
+    const ok = window.confirm(`「${request.requester_name}」さんの申請を却下しますか？`);
+    if (!ok) return;
+
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) return;
+
+    const { error } = await supabase
+      .from("connections")
+      .delete()
+      .eq("id", request.id)
+      .eq("receiver_id", user.id)
+      .eq("status", "pending");
+
+    if (error) {
+      console.error(error);
+      alert(error.message);
+      return;
+    }
+
+    await fetchRequests();
+  };
+
+  const disconnect = async (connectedUser: ConnectedUser) => {
+    const ok = window.confirm(
+      `「${connectedUser.username}」さんとのつながりを解除しますか？\n今後、新しく予定を共有できなくなります。`,
+    );
+    if (!ok) return;
+
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (user) {
+      const { data: myEvents } = await supabase
+        .from("events")
+        .select("id")
+        .eq("user_id", user.id);
+
+      const myEventIds = (myEvents ?? []).map((event) => event.id);
+      if (myEventIds.length > 0) {
+        await supabase
+          .from("event_shares")
+          .delete()
+          .eq("shared_with", connectedUser.user_id)
+          .in("event_id", myEventIds);
+      }
+    }
+
+    const { error } = await supabase
+      .from("connections")
+      .delete()
+      .eq("id", connectedUser.connection_id);
+
+    if (error) {
+      console.error(error);
+      alert(error.message);
+      return;
+    }
+
+    await fetchConnectedUsers();
   };
 
   const sendRequest = async () => {
@@ -238,6 +361,40 @@ export default function ConnectPage() {
         </section>
 
         <section className="rounded-2xl border border-[#d9e2ef] bg-white p-4 shadow-sm">
+          <div className="mb-4">
+            <h2 className="text-base font-bold text-[#0f172a]">共有できるユーザー</h2>
+            <p className="mt-1 text-sm leading-6 text-[#64748b]">
+              ここに表示されている相手は、予定登録や予定編集で共有先として選べます。解除すると共有先として選べなくなります。
+            </p>
+          </div>
+
+          <div className="grid gap-3 sm:grid-cols-2">
+            {connectedUsers.map((connectedUser) => (
+              <div
+                key={connectedUser.connection_id}
+                className="flex items-center justify-between gap-3 rounded-xl border border-[#d9e2ef] bg-[#f8fafc] p-3"
+              >
+                <div className="min-w-0">
+                  <p className="text-xs font-bold text-[#64748b]">ユーザー</p>
+                  <p className="truncate font-bold text-[#0f172a]">{connectedUser.username}</p>
+                </div>
+                <button
+                  className="h-10 rounded-lg border border-[#fecdd3] px-3 text-sm font-bold text-[#be123c]"
+                  onClick={() => disconnect(connectedUser)}
+                >
+                  解除
+                </button>
+              </div>
+            ))}
+            {connectedUsers.length === 0 && (
+              <p className="rounded-xl bg-[#f8fafc] p-4 text-sm text-[#64748b] sm:col-span-2">
+                まだ共有できるユーザーはいません。共有IDで申請するか、届いた申請を承認してください。
+              </p>
+            )}
+          </div>
+        </section>
+
+        <section className="rounded-2xl border border-[#d9e2ef] bg-white p-4 shadow-sm">
           <div className="mb-4 rounded-2xl border border-[#bae6fd] bg-[#f0f9ff] p-4">
             <h2 className="text-base font-bold text-[#075985]">届いた申請</h2>
             <p className="mt-2 text-sm leading-6 text-[#475569]">
@@ -255,13 +412,21 @@ export default function ConnectPage() {
                   <p className="text-xs font-bold text-[#64748b]">申請者</p>
                   <p className="font-bold text-[#0f172a]">{request.requester_name}</p>
                 </div>
-                <button
-                  className="h-10 rounded-lg bg-[#0f766e] px-4 text-sm font-bold text-white disabled:opacity-50"
-                  disabled={approvingId === request.id}
-                  onClick={() => approve(request)}
-                >
-                  {approvingId === request.id ? "承認中" : "承認"}
-                </button>
+                <div className="flex gap-2">
+                  <button
+                    className="h-10 rounded-lg bg-[#0f766e] px-4 text-sm font-bold text-white disabled:opacity-50"
+                    disabled={approvingId === request.id}
+                    onClick={() => approve(request)}
+                  >
+                    {approvingId === request.id ? "承認中" : "承認"}
+                  </button>
+                  <button
+                    className="h-10 rounded-lg border border-[#fecdd3] px-4 text-sm font-bold text-[#be123c]"
+                    onClick={() => reject(request)}
+                  >
+                    却下
+                  </button>
+                </div>
               </div>
             ))}
             {requests.length === 0 && (

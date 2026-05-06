@@ -180,6 +180,41 @@ export default function SettingsPage() {
     router.push("/login");
   };
 
+  const deleteAccount = async () => {
+    const ok = window.confirm(
+      "アカウントを削除しますか？\n予定、TODO、分類、共有情報も削除されます。この操作は元に戻せません。",
+    );
+    if (!ok) return;
+
+    const secondOk = window.confirm("本当に削除しますか？");
+    if (!secondOk) return;
+
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
+
+    if (!session) {
+      alert("ログイン情報がありません。");
+      return;
+    }
+
+    const response = await fetch("/api/account/delete", {
+      method: "POST",
+      headers: {
+        authorization: `Bearer ${session.access_token}`,
+      },
+    });
+    const result = await response.json();
+
+    if (!response.ok) {
+      alert(result.error ?? "アカウント削除に失敗しました");
+      return;
+    }
+
+    await supabase.auth.signOut();
+    router.push("/signup");
+  };
+
   return (
     <main className="min-h-screen bg-[#f5f7fb] px-4 pb-24 pt-4 text-[#172033] sm:px-6 sm:pb-4">
       <div className="mx-auto flex max-w-5xl flex-col gap-4">
@@ -422,14 +457,22 @@ export default function SettingsPage() {
         <section className="rounded-2xl border border-[#fecdd3] bg-white p-4 shadow-sm">
           <h2 className="text-base font-bold text-[#0f172a]">アカウント</h2>
           <p className="mt-1 text-sm text-[#64748b]">
-            この端末からログアウトします。予定や設定は保存されたままです。
+            ログアウトやアカウント削除を行えます。アカウント削除は元に戻せません。
           </p>
-          <button
-            className="mt-4 h-11 w-full rounded-lg bg-[#be123c] px-4 font-semibold text-white"
-            onClick={logout}
-          >
-            ログアウト
-          </button>
+          <div className="mt-4 grid gap-2 sm:grid-cols-2">
+            <button
+              className="h-11 rounded-lg border border-[#cbd5e1] px-4 font-semibold text-[#334155]"
+              onClick={logout}
+            >
+              ログアウト
+            </button>
+            <button
+              className="h-11 rounded-lg bg-[#be123c] px-4 font-semibold text-white"
+              onClick={deleteAccount}
+            >
+              アカウント削除
+            </button>
+          </div>
         </section>
       </div>
       <MobileNavigation />

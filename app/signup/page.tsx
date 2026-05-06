@@ -5,8 +5,20 @@ import { supabase } from "@/lib/supabase";
 import { useRouter } from "next/navigation";
 import { ShareCalLogo } from "@/app/components/AppNavigation";
 
-const appUrl =
-  process.env.NEXT_PUBLIC_SITE_URL ?? "https://calendar-app-alpha-nine.vercel.app";
+const productionUrl = "https://calendar-app-alpha-nine.vercel.app";
+
+const getAppUrl = () => {
+  const envUrl = process.env.NEXT_PUBLIC_SITE_URL;
+  if (envUrl && !envUrl.includes("localhost") && !envUrl.includes("127.0.0.1")) {
+    return envUrl.replace(/\/$/, "");
+  }
+
+  if (typeof window !== "undefined" && !window.location.origin.includes("localhost")) {
+    return window.location.origin;
+  }
+
+  return productionUrl;
+};
 
 export default function SignupPage() {
   const router = useRouter();
@@ -30,7 +42,7 @@ export default function SignupPage() {
       email,
       password,
       options: {
-        emailRedirectTo: `${appUrl}/auth/confirmed`,
+        emailRedirectTo: `${getAppUrl()}/auth/confirmed`,
       },
     });
 

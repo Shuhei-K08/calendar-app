@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Calendar, dateFnsLocalizer, Event, View } from "react-big-calendar";
-import { format, getDay, parse, startOfWeek } from "date-fns";
+import { addMonths, addWeeks, addYears, format, getDay, parse, startOfWeek } from "date-fns";
 import { ja } from "date-fns/locale/ja";
 import "react-big-calendar/lib/css/react-big-calendar.css";
 import { supabase } from "@/lib/supabase";
@@ -54,14 +54,6 @@ const getEventsOnDate = (events: CalendarEvent[], date: Date) => {
   return events.filter((event) => format(event.start, "yyyy-MM-dd") === target);
 };
 
-const DEFAULT_PATTERNS = [
-  { id: "default-work", label: "出勤", title: "出勤", start_time: "09:00", end_time: "18:00", next_day_end: false },
-  { id: "default-day", label: "日勤", title: "日勤", start_time: "08:30", end_time: "17:30", next_day_end: false },
-  { id: "default-night", label: "夜勤", title: "夜勤", start_time: "16:30", end_time: "09:30", next_day_end: true },
-  { id: "default-after", label: "明け", title: "明け", start_time: "09:30", end_time: "10:00", next_day_end: false },
-  { id: "default-off", label: "休み", title: "休み", start_time: "00:00", end_time: "23:59", next_day_end: false },
-];
-
 const DESIGN_THEMES = {
   clean: { background: "#f5f7fb", accent: "#0f766e" },
   mint: { background: "#f0fdfa", accent: "#0d9488" },
@@ -103,6 +95,10 @@ type CalendarEvent = Event & {
   categoryId: string | null;
   categoryName: string;
   categoryColor: string | null;
+  recurringId?: string;
+  recurringRule?: RecurrenceRule;
+  visibility: EventVisibility;
+  displayKind: EventDisplayKind;
 };
 
 type DbEvent = {
@@ -114,6 +110,12 @@ type DbEvent = {
   note: string | null;
   all_day: boolean | null;
   category_id: string | null;
+  event_visibility?: EventVisibility | null;
+};
+
+type DbRecurringEvent = DbEvent & {
+  recurrence_rule: RecurrenceRule;
+  recurrence_until: string | null;
 };
 
 type ConnectedUser = {
@@ -133,6 +135,7 @@ type SchedulePattern = {
   start_time: string;
   end_time: string;
   next_day_end: boolean;
+  category_id: string | null;
 };
 
 type ScheduleCategory = {
@@ -154,7 +157,14 @@ type EventForm = {
   note: string;
   categoryId: string;
   selectedUserIds: string[];
+  shareType: EventVisibility;
+  recurrenceRule: RecurrenceRule;
+  recurrenceUntil: string;
 };
+
+type RecurrenceRule = "none" | "weekly" | "monthly" | "yearly";
+type EventVisibility = "private" | "partner" | "together";
+type EventDisplayKind = "own" | "partner" | "together";
 
 const createBlankForm = (date = new Date()): EventForm => {
   const startDate = new Date(date);
@@ -171,7 +181,113 @@ const createBlankForm = (date = new Date()): EventForm => {
     note: "",
     categoryId: "",
     selectedUserIds: [],
+    shareType: "together",
+    recurrenceRule: "none",
+    recurrenceUntil: "",
   };
+};
+
+const getDisplayKind = (
+  isShared: boolean,
+  hasShareTargets: boolean,
+  visibility: EventVisibility | null,
+): EventDisplayKind => {
+  if (!isShared && !hasShareTargets) return "own";
+  return visibility === "partner" ? "partner" : "together";
+};
+
+const getDisplayLabel = (kind: EventDisplayKind) => {
+  if (kind === "own") return "自分の予定";
+  if (kind === "partner") return "相手の予定";
+  return "私たちの予定";
+};
+
+const getDisplayStyle = (kind: EventDisplayKind) => {
+  if (kind === "partner") {
+    return {
+      background: "#e0f2fe",
+      text: "#075985",
+      border: "#38bdf8",
+    };
+  }
+
+  if (kind === "together") {
+    return {
+      background: "var(--shared-event-bg)",
+      text: "#92400e",
+      border: "#f59e0b",
+    };
+  }
+
+  return {
+    background: "var(--own-event-bg)",
+    text: "#075985",
+    border: "var(--uncategorized-event)",
+  };
+};
+
+const addByRecurrence = (date: Date, rule: RecurrenceRule) => {
+  if (rule === "weekly") return addWeeks(date, 1);
+  if (rule === "monthly") return addMonths(date, 1);
+  if (rule === "yearly") return addYears(date, 1);
+  return date;
+};
+
+const expandRecurringEvents = (
+  rows: DbRecurringEvent[],
+  categoryMap: Map<string, ScheduleCategory>,
+): CalendarEvent[] => {
+  const now = new Date();
+  const windowStart = addYears(now, -1);
+  const windowEnd = addYears(now, 2);
+
+  return rows.flatMap((row) => {
+    if (row.recurrence_rule === "none") return [];
+
+    const originalStart = new Date(row.start_at);
+    const originalEnd = new Date(row.end_at);
+    const duration = originalEnd.getTime() - originalStart.getTime();
+    const until = row.recurrence_until ? new Date(row.recurrence_until) : windowEnd;
+    const events: CalendarEvent[] = [];
+    let occurrenceStart = originalStart;
+    let guard = 0;
+
+    while (occurrenceStart <= until && occurrenceStart <= windowEnd && guard < 500) {
+      const occurrenceEnd = new Date(occurrenceStart.getTime() + duration);
+
+      if (occurrenceEnd >= windowStart) {
+        events.push({
+          id: `${row.id}:${occurrenceStart.toISOString()}`,
+          title: row.title,
+          start: occurrenceStart,
+          end: occurrenceEnd,
+          allDay: row.all_day ?? false,
+          note: row.note ?? "",
+          canDelete: true,
+          isShared: false,
+          ownerId: row.user_id,
+          ownerName: "自分",
+          categoryId: row.category_id,
+          categoryName: row.category_id
+            ? categoryMap.get(row.category_id)?.name ?? "分類"
+            : "未分類",
+          categoryColor: row.category_id
+            ? categoryMap.get(row.category_id)?.color ?? null
+            : null,
+          sharedWith: [],
+          recurringId: row.id,
+          recurringRule: row.recurrence_rule,
+          visibility: "private",
+          displayKind: "own",
+        });
+      }
+
+      occurrenceStart = addByRecurrence(occurrenceStart, row.recurrence_rule);
+      guard += 1;
+    }
+
+    return events;
+  });
 };
 
 export default function Home() {
@@ -180,7 +296,7 @@ export default function Home() {
   const [loading, setLoading] = useState(true);
   const [events, setEvents] = useState<CalendarEvent[]>([]);
   const [connections, setConnections] = useState<ConnectedUser[]>([]);
-  const [patterns, setPatterns] = useState<SchedulePattern[]>(DEFAULT_PATTERNS);
+  const [patterns, setPatterns] = useState<SchedulePattern[]>([]);
   const [categories, setCategories] = useState<ScheduleCategory[]>([]);
   const [calendarDate, setCalendarDate] = useState(new Date());
   const [calendarView, setCalendarView] = useState<View>("month");
@@ -188,6 +304,7 @@ export default function Home() {
   const [editForm, setEditForm] = useState<EventForm>(() => createBlankForm());
   const [isEventModalOpen, setIsEventModalOpen] = useState(false);
   const [detailEvent, setDetailEvent] = useState<CalendarEvent | null>(null);
+  const [isDetailEditing, setIsDetailEditing] = useState(false);
   const [shareDraftIds, setShareDraftIds] = useState<string[]>([]);
   const [dayDetail, setDayDetail] = useState<{
     date: Date;
@@ -247,7 +364,7 @@ export default function Home() {
   const fetchPatterns = useCallback(async (userId: string) => {
     const { data, error } = await supabase
       .from("schedule_patterns")
-      .select("id, label, title, start_time, end_time, next_day_end")
+      .select("id, label, title, start_time, end_time, next_day_end, category_id")
       .eq("user_id", userId)
       .order("created_at", { ascending: true });
 
@@ -255,30 +372,7 @@ export default function Home() {
       return [];
     }
 
-    if (data && data.length > 0) return data;
-
-    const defaults = DEFAULT_PATTERNS.map((pattern) => ({
-      label: pattern.label,
-      title: pattern.title,
-      start_time: pattern.start_time,
-      end_time: pattern.end_time,
-      next_day_end: pattern.next_day_end,
-      user_id: userId,
-    }));
-
-    const { error: insertError } = await supabase
-      .from("schedule_patterns")
-      .insert(defaults);
-
-    if (insertError) return [];
-
-    const { data: seededPatterns } = await supabase
-      .from("schedule_patterns")
-      .select("id, label, title, start_time, end_time, next_day_end")
-      .eq("user_id", userId)
-      .order("created_at", { ascending: true });
-
-    return seededPatterns ?? [];
+    return data ?? [];
   }, []);
 
   const fetchCategories = useCallback(async (userId: string) => {
@@ -290,27 +384,7 @@ export default function Home() {
 
     if (error) return [];
 
-    if (data && data.length > 0) return data;
-
-    const defaults = [
-      { name: "勤務", color: "#2563eb", user_id: userId },
-      { name: "私用", color: "#7c3aed", user_id: userId },
-      { name: "重要", color: "#dc2626", user_id: userId },
-    ];
-
-    const { error: insertError } = await supabase
-      .from("schedule_categories")
-      .insert(defaults);
-
-    if (insertError) return [];
-
-    const { data: seededCategories } = await supabase
-      .from("schedule_categories")
-      .select("id, name, color")
-      .eq("user_id", userId)
-      .order("created_at", { ascending: true });
-
-    return seededCategories ?? [];
+    return data ?? [];
   }, []);
 
   const notifyNewSharedEvents = useCallback((shared: CalendarEvent[], userId: string) => {
@@ -356,9 +430,9 @@ export default function Home() {
     if (!user) return;
 
     let { data: myEvents, error: myError } = await supabase
-      .from("events")
-      .select("id, title, start_at, end_at, user_id, note, all_day, category_id")
-      .eq("user_id", user.id);
+        .from("events")
+        .select("id, title, start_at, end_at, user_id, note, all_day, category_id, event_visibility")
+        .eq("user_id", user.id);
 
     if (myError?.code === "42703") {
       const fallback = await supabase
@@ -371,6 +445,7 @@ export default function Home() {
         note: null,
         all_day: false,
         category_id: null,
+        event_visibility: "private",
       })) ?? null;
       myError = fallback.error;
     }
@@ -378,6 +453,21 @@ export default function Home() {
     if (myError) {
       console.error(myError);
       return;
+    }
+
+    let { data: recurringEvents, error: recurringError } = await supabase
+      .from("recurring_events")
+      .select("id, title, start_at, end_at, user_id, note, all_day, category_id, recurrence_rule, recurrence_until")
+      .eq("user_id", user.id);
+
+    if (recurringError?.code === "PGRST205") {
+      recurringEvents = [];
+      recurringError = null;
+    }
+
+    if (recurringError) {
+      console.error(recurringError);
+      recurringEvents = [];
     }
 
     const { data: sharedRows, error: sharedError } = await supabase
@@ -399,7 +489,7 @@ export default function Home() {
     if (sharedEventIds.length > 0) {
       let { data, error } = await supabase
         .from("events")
-        .select("id, title, start_at, end_at, user_id, note, all_day, category_id")
+        .select("id, title, start_at, end_at, user_id, note, all_day, category_id, event_visibility")
         .in("id", sharedEventIds);
 
       if (error?.code === "42703") {
@@ -413,6 +503,7 @@ export default function Home() {
           note: null,
           all_day: false,
           category_id: null,
+          event_visibility: "together",
         })) ?? null;
         error = fallback.error;
       }
@@ -447,6 +538,7 @@ export default function Home() {
     const categoryIds = Array.from(new Set([
       ...(myEvents ?? []).map((event) => event.category_id).filter(Boolean),
       ...sharedEvents.map((event) => event.category_id).filter(Boolean),
+      ...(recurringEvents ?? []).map((event) => event.category_id).filter(Boolean),
     ])) as string[];
     let categoryMap = new Map<string, ScheduleCategory>();
 
@@ -487,33 +579,45 @@ export default function Home() {
         ownerId: event.user_id,
         ownerName: profileMap.get(event.user_id) ?? "共有元",
       })),
-    ].map((event) => ({
-      id: event.id,
-      title: event.title,
-      start: new Date(event.start_at),
-      end: new Date(event.end_at),
-      allDay: event.all_day ?? false,
-      note: event.note ?? "",
-      canDelete: event.canDelete,
-      isShared: event.isShared,
-      ownerId: event.ownerId,
-      ownerName: event.ownerName,
-      categoryId: event.category_id,
-      categoryName: event.category_id
-        ? categoryMap.get(event.category_id)?.name ?? "分類"
-        : "未分類",
-      categoryColor: event.category_id
-        ? categoryMap.get(event.category_id)?.color ?? null
-        : null,
-      sharedWith: myShareRows
+    ].map((event) => {
+      const sharedWith = myShareRows
         .filter((row) => row.event_id === event.id)
         .map((row) => ({
           id: row.shared_with,
           username: profileMap.get(row.shared_with) ?? "共有先",
-        })),
-    }));
+        }));
+      const visibility = event.event_visibility ?? (sharedWith.length > 0 ? "together" : "private");
 
-    setEvents(formatted);
+      return {
+        id: event.id,
+        title: event.title,
+        start: new Date(event.start_at),
+        end: new Date(event.end_at),
+        allDay: event.all_day ?? false,
+        note: event.note ?? "",
+        canDelete: event.canDelete,
+        isShared: event.isShared,
+        ownerId: event.ownerId,
+        ownerName: event.ownerName,
+        categoryId: event.category_id,
+        categoryName: event.category_id
+          ? categoryMap.get(event.category_id)?.name ?? "分類"
+          : "未分類",
+        categoryColor: event.category_id
+          ? categoryMap.get(event.category_id)?.color ?? null
+          : null,
+        sharedWith,
+        visibility,
+        displayKind: getDisplayKind(event.isShared, sharedWith.length > 0, visibility),
+      };
+    });
+
+    const expandedRecurring = expandRecurringEvents(
+      (recurringEvents ?? []) as DbRecurringEvent[],
+      categoryMap,
+    );
+
+    setEvents([...formatted, ...expandedRecurring]);
     notifyNewSharedEvents(
       formatted.filter((event) => event.isShared),
       user.id,
@@ -532,6 +636,9 @@ export default function Home() {
         note: detailEvent.note,
         categoryId: detailEvent.categoryId ?? "",
         selectedUserIds: detailEvent.sharedWith.map((user) => user.id),
+        shareType: detailEvent.visibility === "private" ? "together" : detailEvent.visibility,
+        recurrenceRule: detailEvent.recurringRule ?? "none",
+        recurrenceUntil: "",
       });
     }
   }, [detailEvent]);
@@ -626,6 +733,11 @@ export default function Home() {
     setIsEventModalOpen(true);
   };
 
+  const openDetailEvent = (event: CalendarEvent) => {
+    setDetailEvent(event);
+    setIsDetailEditing(false);
+  };
+
   const applyPattern = (pattern: SchedulePattern) => {
     const baseDate = new Date(eventForm.start);
     const startValue = buildDateTimeLocal(baseDate, pattern.start_time);
@@ -640,6 +752,7 @@ export default function Home() {
       title: pattern.title,
       start: startValue,
       end: buildDateTimeLocal(endBase, pattern.end_time),
+      categoryId: pattern.category_id ?? current.categoryId,
     }));
   };
 
@@ -686,8 +799,42 @@ export default function Home() {
       all_day: eventForm.allDay,
       category_id: eventForm.categoryId || null,
       note: eventForm.note.trim() || null,
+      event_visibility:
+        eventForm.selectedUserIds.length > 0 ? eventForm.shareType : "private",
       user_id: user.id,
     };
+
+    if (eventForm.recurrenceRule !== "none") {
+      const recurrenceUntil = eventForm.recurrenceUntil
+        ? new Date(`${eventForm.recurrenceUntil}T23:59:59`).toISOString()
+        : null;
+
+      const { error: recurringError } = await supabase.from("recurring_events").insert({
+        title: eventPayload.title,
+        start_at: eventPayload.start_at,
+        end_at: eventPayload.end_at,
+        all_day: eventPayload.all_day,
+        category_id: eventPayload.category_id,
+        note: eventPayload.note,
+        user_id: eventPayload.user_id,
+        recurrence_rule: eventForm.recurrenceRule,
+        recurrence_until: recurrenceUntil,
+      });
+
+      if (recurringError) {
+        console.error(recurringError);
+        alert(
+          recurringError.code === "PGRST205"
+            ? "繰り返し予定用のSQLを実行してください"
+            : recurringError.message,
+        );
+        return;
+      }
+
+      setIsEventModalOpen(false);
+      await fetchEvents();
+      return;
+    }
 
     let { data: insertedEvent, error } = await supabase
       .from("events")
@@ -696,7 +843,7 @@ export default function Home() {
       .single();
 
     if (error?.code === "PGRST204" || error?.code === "42703") {
-      const { note, all_day, category_id, ...payloadWithoutNote } = eventPayload;
+      const { note, all_day, category_id, event_visibility, ...payloadWithoutNote } = eventPayload;
       const fallback = await supabase
         .from("events")
         .insert(payloadWithoutNote)
@@ -706,7 +853,7 @@ export default function Home() {
       insertedEvent = fallback.data;
       error = fallback.error;
 
-      if (!fallback.error && (note || all_day || category_id)) {
+      if (!fallback.error && (note || all_day || category_id || event_visibility !== "private")) {
         alert("DB列がまだ不足しています。SQL実行後はメモ・終日・分類も保存されます。");
       }
     }
@@ -760,7 +907,25 @@ export default function Home() {
       all_day: editForm.allDay,
       category_id: editForm.categoryId || null,
       note: editForm.note.trim() || null,
+      event_visibility: shareDraftIds.length > 0 ? editForm.shareType : "private",
     };
+
+    if (detailEvent.recurringId) {
+      const { error } = await supabase
+        .from("recurring_events")
+        .update(payload)
+        .eq("id", detailEvent.recurringId);
+
+      if (error) {
+        console.error(error);
+        alert(error.message);
+        return;
+      }
+
+      await fetchEvents();
+      setDetailEvent(null);
+      return;
+    }
 
     let { error } = await supabase
       .from("events")
@@ -768,7 +933,7 @@ export default function Home() {
       .eq("id", detailEvent.id);
 
     if (error?.code === "PGRST204" || error?.code === "42703") {
-      const { note, all_day, category_id, ...fallbackPayload } = payload;
+      const { note, all_day, category_id, event_visibility, ...fallbackPayload } = payload;
       const fallback = await supabase
         .from("events")
         .update(fallbackPayload)
@@ -776,7 +941,7 @@ export default function Home() {
 
       error = fallback.error;
 
-      if (!fallback.error && (note || all_day || category_id)) {
+      if (!fallback.error && (note || all_day || category_id || event_visibility !== "private")) {
         alert("DB列がまだ不足しています。SQL実行後はメモ・終日・分類も保存されます。");
       }
     }
@@ -800,6 +965,24 @@ export default function Home() {
 
     const ok = window.confirm(`「${event.title}」を削除しますか？`);
     if (!ok) return;
+
+    if (event.recurringId) {
+      const { error } = await supabase
+        .from("recurring_events")
+        .delete()
+        .eq("id", event.recurringId);
+
+      if (error) {
+        console.error(error);
+        alert("削除失敗");
+        return;
+      }
+
+      setDetailEvent(null);
+      setDayDetail(null);
+      await fetchEvents();
+      return;
+    }
 
     const { error } = await supabase
       .from("events")
@@ -832,6 +1015,11 @@ export default function Home() {
     }
 
     if (shareDraftIds.length > 0) {
+      await supabase
+        .from("events")
+        .update({ event_visibility: editForm.shareType })
+        .eq("id", detailEvent.id);
+
       const { error: insertError } = await supabase.from("event_shares").insert(
         shareDraftIds.map((userId) => ({
           event_id: detailEvent.id,
@@ -844,6 +1032,11 @@ export default function Home() {
         alert(insertError.message);
         return;
       }
+    } else {
+      await supabase
+        .from("events")
+        .update({ event_visibility: "private" })
+        .eq("id", detailEvent.id);
     }
 
     await fetchEvents();
@@ -937,23 +1130,22 @@ export default function Home() {
               <button
                 key={`${event.id}-${event.start.toISOString()}`}
                 className={`rounded-xl border p-3 text-left transition hover:border-[#0f766e] ${
-                  event.isShared
+                  event.displayKind === "together"
                     ? "border-[#fde68a] text-[#92400e]"
                     : "border-[#bfdbfe] text-[#075985]"
                 }`}
                 style={{
-                  backgroundColor: event.isShared
-                    ? "var(--shared-event-bg)"
-                    : "var(--own-event-bg)",
-                  borderLeft: `8px solid ${event.categoryColor ?? "var(--uncategorized-event)"}`,
-                  color: event.isShared ? "#92400e" : "#075985",
+                  backgroundColor: getDisplayStyle(event.displayKind).background,
+                  borderLeft: `8px solid ${event.categoryColor ?? getDisplayStyle(event.displayKind).border}`,
+                  color: getDisplayStyle(event.displayKind).text,
                 }}
-                onClick={() => setDetailEvent(event)}
+                onClick={() => openDetailEvent(event)}
               >
                 <p className="font-semibold text-[#0f172a]">{event.title}</p>
                 <p className="mt-1 text-sm text-[#64748b]">
                   {event.allDay ? "終日" : `${format(event.start, "HH:mm")} - ${format(event.end, "HH:mm")}`}
-                  {event.isShared && " / 共有"}
+                  {` / ${getDisplayLabel(event.displayKind)}`}
+                  {event.recurringRule && event.recurringRule !== "none" && " / 繰り返し"}
                 </p>
                 <p className="mt-1 text-xs font-semibold text-[#64748b]">
                   {event.isShared
@@ -1004,13 +1196,11 @@ export default function Home() {
                   `${format(start, "yyyy年M月d日", { locale: ja })} - ${format(end, "M月d日", { locale: ja })}`,
               }}
               eventPropGetter={(event) => ({
-                className: event.isShared ? "shared-event" : "own-event",
+                className: `${event.displayKind}-event`,
                 style: {
-                  backgroundColor: event.isShared
-                    ? "var(--shared-event-bg)"
-                    : "var(--own-event-bg)",
-                  borderLeft: `5px solid ${event.categoryColor ?? "var(--uncategorized-event)"}`,
-                  color: event.isShared ? "#92400e" : "#075985",
+                  backgroundColor: getDisplayStyle(event.displayKind).background,
+                  borderLeft: `5px solid ${event.categoryColor ?? getDisplayStyle(event.displayKind).border}`,
+                  color: getDisplayStyle(event.displayKind).text,
                 },
               })}
               onNavigate={(date) => setCalendarDate(date)}
@@ -1055,7 +1245,7 @@ export default function Home() {
 
                 openDateForRegistration(date);
               }}
-              onSelectEvent={(event) => setDetailEvent(event)}
+              onSelectEvent={(event) => openDetailEvent(event)}
             />
           </div>
         </section>
@@ -1102,17 +1292,6 @@ export default function Home() {
             </div>
 
             <div className="grid gap-3 sm:grid-cols-2">
-              <label className="flex items-center gap-2 rounded-lg border border-[#cbd5e1] px-3 py-3 text-sm text-[#334155] sm:col-span-2">
-                <input
-                  className="h-4 w-4 accent-[#0f766e]"
-                  type="checkbox"
-                  checked={eventForm.allDay}
-                  onChange={(event) =>
-                    setEventForm((current) => ({ ...current, allDay: event.target.checked }))
-                  }
-                />
-                終日の予定にする
-              </label>
               <label className="space-y-1 sm:col-span-2">
                 <span className="text-xs font-semibold text-[#64748b]">タイトル</span>
                 <input
@@ -1123,6 +1302,24 @@ export default function Home() {
                   }
                 />
               </label>
+              <div className="flex items-center justify-between gap-3 rounded-2xl border border-[#d9e2ef] bg-[#f8fafc] px-3 py-3 sm:col-span-2">
+                <div>
+                  <p className="text-sm font-bold text-[#0f172a]">終日の予定</p>
+                  <p className="mt-1 text-xs text-[#64748b]">時間を指定しない予定として登録します。</p>
+                </div>
+                <label className="relative inline-flex cursor-pointer items-center">
+                  <input
+                    className="peer sr-only"
+                    type="checkbox"
+                    checked={eventForm.allDay}
+                    onChange={(event) =>
+                      setEventForm((current) => ({ ...current, allDay: event.target.checked }))
+                    }
+                  />
+                  <span className="h-7 w-12 rounded-full bg-[#cbd5e1] transition peer-checked:bg-[#0f766e]" />
+                  <span className="absolute left-1 h-5 w-5 rounded-full bg-white shadow transition peer-checked:translate-x-5" />
+                </label>
+              </div>
               <label className="space-y-1 sm:col-span-2">
                 <span className="text-xs font-semibold text-[#64748b]">分類</span>
                 <select
@@ -1169,6 +1366,47 @@ export default function Home() {
                   {isEndOnNextDay(eventForm) ? "終了日を当日に戻す" : "終了日を翌日にする"}
                 </button>
               </label>
+              <div className="grid gap-3 rounded-2xl border border-[#d9e2ef] bg-[#f8fafc] p-3 sm:col-span-2 sm:grid-cols-2">
+                <label className="space-y-1">
+                  <span className="text-xs font-semibold text-[#64748b]">繰り返し</span>
+                  <select
+                    className="h-11 w-full rounded-lg border border-[#cbd5e1] bg-white px-3 text-sm outline-none transition focus:border-[#0f766e] focus:ring-2 focus:ring-[#99f6e4]"
+                    value={eventForm.recurrenceRule}
+                    onChange={(event) =>
+                      setEventForm((current) => ({
+                        ...current,
+                        recurrenceRule: event.target.value as RecurrenceRule,
+                        selectedUserIds:
+                          event.target.value === "none" ? current.selectedUserIds : [],
+                      }))
+                    }
+                  >
+                    <option value="none">繰り返さない</option>
+                    <option value="weekly">毎週</option>
+                    <option value="monthly">毎月</option>
+                    <option value="yearly">毎年</option>
+                  </select>
+                </label>
+                <label className="space-y-1">
+                  <span className="text-xs font-semibold text-[#64748b]">繰り返し終了日</span>
+                  <input
+                    className="h-11 w-full rounded-lg border border-[#cbd5e1] bg-white px-3 text-sm outline-none transition focus:border-[#0f766e] focus:ring-2 focus:ring-[#99f6e4]"
+                    type="date"
+                    value={eventForm.recurrenceUntil}
+                    onChange={(event) =>
+                      setEventForm((current) => ({
+                        ...current,
+                        recurrenceUntil: event.target.value,
+                      }))
+                    }
+                  />
+                </label>
+                {eventForm.recurrenceRule !== "none" && (
+                  <p className="text-xs font-semibold text-[#64748b] sm:col-span-2">
+                    繰り返し予定はまず自分の予定として登録されます。共有したい場合は通常予定で登録してください。
+                  </p>
+                )}
+              </div>
               <label className="space-y-1 sm:col-span-2">
                 <span className="text-xs font-semibold text-[#64748b]">メモ</span>
                 <textarea
@@ -1184,6 +1422,39 @@ export default function Home() {
 
             <div className="mt-5 space-y-2">
               <p className="text-xs font-semibold text-[#64748b]">共有する相手</p>
+              {eventForm.selectedUserIds.length > 0 && (
+                <div className="grid gap-2 sm:grid-cols-2">
+                  {[
+                    { value: "partner", title: "相手の予定として表示", desc: "相手側の予定として見せたい時" },
+                    { value: "together", title: "私たちの予定として表示", desc: "2人やグループ共通の予定" },
+                  ].map((option) => (
+                    <label
+                      key={option.value}
+                      className={`cursor-pointer rounded-2xl border p-3 transition ${
+                        eventForm.shareType === option.value
+                          ? "border-[#0f766e] bg-[#ecfdf5]"
+                          : "border-[#d9e2ef] bg-[#f8fafc]"
+                      }`}
+                    >
+                      <input
+                        className="sr-only"
+                        type="radio"
+                        name="new-share-type"
+                        value={option.value}
+                        checked={eventForm.shareType === option.value}
+                        onChange={(event) =>
+                          setEventForm((current) => ({
+                            ...current,
+                            shareType: event.target.value as EventVisibility,
+                          }))
+                        }
+                      />
+                      <span className="block text-sm font-black text-[#0f172a]">{option.title}</span>
+                      <span className="mt-1 block text-xs font-semibold text-[#64748b]">{option.desc}</span>
+                    </label>
+                  ))}
+                </div>
+              )}
               <div className="flex flex-wrap gap-2">
                 {connections.map((connection) => (
                   <label
@@ -1198,6 +1469,7 @@ export default function Home() {
                       className="h-4 w-4 accent-[#0f766e]"
                       type="checkbox"
                       checked={eventForm.selectedUserIds.includes(connection.id)}
+                      disabled={eventForm.recurrenceRule !== "none"}
                       onChange={(event) => {
                         setEventForm((current) => ({
                           ...current,
@@ -1247,19 +1519,8 @@ export default function Home() {
               </button>
             </div>
 
-            {detailEvent.canDelete ? (
+            {detailEvent.canDelete && isDetailEditing ? (
               <div className="grid gap-3 text-sm sm:grid-cols-2">
-                <label className="flex items-center gap-2 rounded-lg border border-[#cbd5e1] px-3 py-3 text-[#334155] sm:col-span-2">
-                  <input
-                    className="h-4 w-4 accent-[#0f766e]"
-                    type="checkbox"
-                    checked={editForm.allDay}
-                    onChange={(event) =>
-                      setEditForm((current) => ({ ...current, allDay: event.target.checked }))
-                    }
-                  />
-                  終日の予定にする
-                </label>
                 <label className="space-y-1 sm:col-span-2">
                   <span className="text-xs font-semibold text-[#64748b]">タイトル</span>
                   <input
@@ -1270,6 +1531,24 @@ export default function Home() {
                     }
                   />
                 </label>
+                <div className="flex items-center justify-between gap-3 rounded-2xl border border-[#d9e2ef] bg-[#f8fafc] px-3 py-3 sm:col-span-2">
+                  <div>
+                    <p className="text-sm font-bold text-[#0f172a]">終日の予定</p>
+                    <p className="mt-1 text-xs text-[#64748b]">時間を指定しない予定として保存します。</p>
+                  </div>
+                  <label className="relative inline-flex cursor-pointer items-center">
+                    <input
+                      className="peer sr-only"
+                      type="checkbox"
+                      checked={editForm.allDay}
+                      onChange={(event) =>
+                        setEditForm((current) => ({ ...current, allDay: event.target.checked }))
+                      }
+                    />
+                    <span className="h-7 w-12 rounded-full bg-[#cbd5e1] transition peer-checked:bg-[#0f766e]" />
+                    <span className="absolute left-1 h-5 w-5 rounded-full bg-white shadow transition peer-checked:translate-x-5" />
+                  </label>
+                </div>
                 <label className="space-y-1 sm:col-span-2">
                   <span className="text-xs font-semibold text-[#64748b]">分類</span>
                   <select
@@ -1335,6 +1614,21 @@ export default function Home() {
               </div>
             ) : (
               <div className="space-y-4 text-sm">
+                <div
+                  className="rounded-xl border-l-8 p-3"
+                  style={{
+                    backgroundColor: getDisplayStyle(detailEvent.displayKind).background,
+                    borderLeftColor:
+                      detailEvent.categoryColor ?? getDisplayStyle(detailEvent.displayKind).border,
+                    color: getDisplayStyle(detailEvent.displayKind).text,
+                  }}
+                >
+                  <p className="text-xs font-black uppercase tracking-[0.14em] opacity-80">
+                    Preview
+                  </p>
+                  <p className="mt-1 text-lg font-black text-[#0f172a]">{detailEvent.title}</p>
+                  <p className="mt-1 font-bold">{getDisplayLabel(detailEvent.displayKind)}</p>
+                </div>
                 <div className="rounded-xl bg-[#f8fafc] p-3">
                   <p className="text-xs font-semibold text-[#64748b]">時間</p>
                   <p className="mt-1 font-semibold text-[#0f172a]">
@@ -1353,16 +1647,81 @@ export default function Home() {
                     {detailEvent.note || "メモはありません。"}
                   </p>
                 </div>
-                <div className="rounded-xl bg-[#fffbeb] p-3 text-[#92400e]">
-                  {`${detailEvent.ownerName}さんから共有された予定`}
-                </div>
+                {detailEvent.isShared ? (
+                  <div className="rounded-xl bg-[#fffbeb] p-3 text-[#92400e]">
+                    {`${detailEvent.ownerName}さんから共有された予定`}
+                  </div>
+                ) : detailEvent.sharedWith.length > 0 ? (
+                  <div className="rounded-xl bg-[#ecfdf5] p-3 text-[#0f766e]">
+                    {`${detailEvent.sharedWith.map((user) => user.username).join("、")}に共有中`}
+                  </div>
+                ) : (
+                  <div className="rounded-xl bg-[#f8fafc] p-3 text-[#475569]">
+                    共有していない自分の予定です。
+                  </div>
+                )}
+                {detailEvent.canDelete && (
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    <button
+                      className="h-11 rounded-lg bg-[#0f766e] px-5 text-sm font-semibold text-white shadow-sm transition hover:bg-[#115e59]"
+                      onClick={() => setIsDetailEditing(true)}
+                    >
+                      編集する
+                    </button>
+                    <button
+                      className="h-11 rounded-lg border border-[#fecdd3] px-5 text-sm font-semibold text-[#be123c]"
+                      onClick={() => deleteEvent(detailEvent)}
+                    >
+                      削除する
+                    </button>
+                  </div>
+                )}
               </div>
             )}
 
-            {detailEvent.canDelete && (
+            {detailEvent.canDelete && isDetailEditing && (
               <div className="mt-6 space-y-4">
+                {detailEvent.recurringId && (
+                  <div className="rounded-xl bg-[#f8fafc] p-3 text-sm font-bold text-[#475569]">
+                    この予定は繰り返し予定です。保存や削除は同じ繰り返し予定全体に反映されます。
+                  </div>
+                )}
+                {!detailEvent.recurringId && (
                 <div>
                   <p className="mb-2 text-xs font-semibold text-[#64748b]">共有先を変更</p>
+                  {shareDraftIds.length > 0 && (
+                    <div className="mb-3 grid gap-2 sm:grid-cols-2">
+                      {[
+                        { value: "partner", title: "相手の予定", desc: "相手側の予定として表示" },
+                        { value: "together", title: "私たちの予定", desc: "共通の予定として表示" },
+                      ].map((option) => (
+                        <label
+                          key={option.value}
+                          className={`cursor-pointer rounded-2xl border p-3 transition ${
+                            editForm.shareType === option.value
+                              ? "border-[#0f766e] bg-[#ecfdf5]"
+                              : "border-[#d9e2ef] bg-[#f8fafc]"
+                          }`}
+                        >
+                          <input
+                            className="sr-only"
+                            type="radio"
+                            name="edit-share-type"
+                            value={option.value}
+                            checked={editForm.shareType === option.value}
+                            onChange={(event) =>
+                              setEditForm((current) => ({
+                                ...current,
+                                shareType: event.target.value as EventVisibility,
+                              }))
+                            }
+                          />
+                          <span className="block text-sm font-black text-[#0f172a]">{option.title}</span>
+                          <span className="mt-1 block text-xs font-semibold text-[#64748b]">{option.desc}</span>
+                        </label>
+                      ))}
+                    </div>
+                  )}
                   <div className="flex flex-wrap gap-2">
                     {connections.map((connection) => (
                       <label
@@ -1393,14 +1752,17 @@ export default function Home() {
                     )}
                   </div>
                 </div>
+                )}
 
                 <div className="grid gap-2 sm:grid-cols-2">
+                  {!detailEvent.recurringId && (
                   <button
                     className="h-11 rounded-lg bg-[#0f766e] px-5 text-sm font-semibold text-white shadow-sm transition hover:bg-[#115e59]"
                     onClick={updateEventShares}
                   >
                     共有を保存
                   </button>
+                  )}
                   <button
                     className="h-11 rounded-lg bg-[#be123c] px-5 text-sm font-semibold text-white shadow-sm transition hover:bg-[#9f1239]"
                     onClick={() => deleteEvent(detailEvent)}

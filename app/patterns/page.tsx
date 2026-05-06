@@ -11,6 +11,7 @@ type Pattern = {
   start_time: string;
   end_time: string;
   next_day_end: boolean;
+  category_id: string | null;
 };
 
 type PatternForm = {
@@ -20,6 +21,13 @@ type PatternForm = {
   start_time: string;
   end_time: string;
   next_day_end: boolean;
+  category_id: string;
+};
+
+type Category = {
+  id: string;
+  name: string;
+  color: string;
 };
 
 const blankForm: PatternForm = {
@@ -28,19 +36,15 @@ const blankForm: PatternForm = {
   start_time: "09:00",
   end_time: "18:00",
   next_day_end: false,
+  category_id: "",
 };
-
-const defaultPatterns = [
-  { label: "出勤", title: "出勤", start_time: "09:00", end_time: "18:00", next_day_end: false },
-  { label: "日勤", title: "日勤", start_time: "08:30", end_time: "17:30", next_day_end: false },
-  { label: "夜勤", title: "夜勤", start_time: "16:30", end_time: "09:30", next_day_end: true },
-  { label: "明け", title: "明け", start_time: "09:30", end_time: "10:00", next_day_end: false },
-  { label: "休み", title: "休み", start_time: "00:00", end_time: "23:59", next_day_end: false },
-];
 
 export default function PatternsPage() {
   const [patterns, setPatterns] = useState<Pattern[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
   const [form, setForm] = useState<PatternForm>(blankForm);
+  const [newCategoryName, setNewCategoryName] = useState("");
+  const [newCategoryColor, setNewCategoryColor] = useState("#2563eb");
   const [saving, setSaving] = useState(false);
   const [schemaReady, setSchemaReady] = useState(true);
 
@@ -53,7 +57,7 @@ export default function PatternsPage() {
 
     const { data, error } = await supabase
       .from("schedule_patterns")
-      .select("id, label, title, start_time, end_time, next_day_end")
+      .select("id, label, title, start_time, end_time, next_day_end, category_id")
       .eq("user_id", user.id)
       .order("created_at", { ascending: true });
 
@@ -63,34 +67,60 @@ export default function PatternsPage() {
     }
 
     setSchemaReady(true);
+    setPatterns(data ?? []);
+  }, []);
 
-    if (!data || data.length === 0) {
-      const { error: insertError } = await supabase
-        .from("schedule_patterns")
-        .insert(defaultPatterns.map((pattern) => ({ ...pattern, user_id: user.id })));
+  const fetchCategories = useCallback(async () => {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
 
-      if (insertError) {
-        console.error(insertError);
-        return;
-      }
+    if (!user) return;
 
-      const { data: seededPatterns } = await supabase
-        .from("schedule_patterns")
-        .select("id, label, title, start_time, end_time, next_day_end")
-        .eq("user_id", user.id)
-        .order("created_at", { ascending: true });
+    const { data } = await supabase
+      .from("schedule_categories")
+      .select("id, name, color")
+      .eq("user_id", user.id)
+      .order("created_at", { ascending: true });
 
-      setPatterns(seededPatterns ?? []);
-      return;
-    }
-
-    setPatterns(data);
+    setCategories(data ?? []);
   }, []);
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     void fetchPatterns();
-  }, [fetchPatterns]);
+    void fetchCategories();
+  }, [fetchCategories, fetchPatterns]);
+
+  const addCategory = async () => {
+    if (!newCategoryName.trim()) return;
+
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) return;
+
+    const { data, error } = await supabase
+      .from("schedule_categories")
+      .insert({
+        name: newCategoryName.trim(),
+        color: newCategoryColor,
+        user_id: user.id,
+      })
+      .select("id, name, color")
+      .single();
+
+    if (error) {
+      alert(error.message);
+      return;
+    }
+
+    setCategories((current) => [...current, data]);
+    setForm((current) => ({ ...current, category_id: data.id }));
+    setNewCategoryName("");
+    setNewCategoryColor("#2563eb");
+  };
 
   const savePattern = async () => {
     if (!form.label.trim()) {
@@ -115,6 +145,7 @@ export default function PatternsPage() {
       start_time: form.start_time,
       end_time: form.end_time,
       next_day_end: form.next_day_end,
+      category_id: form.category_id || null,
       user_id: user.id,
     };
 
@@ -201,6 +232,46 @@ export default function PatternsPage() {
                 }
               />
             </label>
+            <label className="space-y-1 sm:col-span-2">
+              <span className="text-xs font-semibold text-[#64748b]">分類</span>
+              <select
+                className="h-11 w-full rounded-lg border border-[#cbd5e1] px-3 text-sm outline-none transition focus:border-[#0f766e] focus:ring-2 focus:ring-[#99f6e4]"
+                value={form.category_id}
+                onChange={(event) =>
+                  setForm((current) => ({ ...current, category_id: event.target.value }))
+                }
+              >
+                <option value="">未分類</option>
+                {categories.map((category) => (
+                  <option key={category.id} value={category.id}>
+                    {category.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <div className="rounded-2xl border border-[#d9e2ef] bg-[#f8fafc] p-3 sm:col-span-2">
+              <p className="text-xs font-bold text-[#64748b]">ここで分類も追加できます</p>
+              <div className="mt-2 grid gap-2 sm:grid-cols-[minmax(0,1fr)_96px_96px] sm:items-end">
+                <input
+                  className="h-10 min-w-0 rounded-lg border border-[#cbd5e1] bg-white px-3 text-sm outline-none transition focus:border-[#0f766e] focus:ring-2 focus:ring-[#99f6e4]"
+                  placeholder="例: 勤務"
+                  value={newCategoryName}
+                  onChange={(event) => setNewCategoryName(event.target.value)}
+                />
+                <input
+                  className="h-10 w-full rounded-lg border border-[#cbd5e1] bg-white px-2"
+                  type="color"
+                  value={newCategoryColor}
+                  onChange={(event) => setNewCategoryColor(event.target.value)}
+                />
+                <button
+                  className="h-10 rounded-lg border border-[#0f766e] bg-white px-4 text-sm font-bold text-[#0f766e] transition hover:bg-[#ecfdf5]"
+                  onClick={addCategory}
+                >
+                  分類追加
+                </button>
+              </div>
+            </div>
             <label className="space-y-1">
               <span className="text-xs font-semibold text-[#64748b]">開始</span>
               <input
@@ -263,6 +334,14 @@ export default function PatternsPage() {
           <div className="grid gap-3 sm:grid-cols-2">
             {patterns.map((pattern) => (
               <div key={pattern.id} className="rounded-xl border border-[#d9e2ef] bg-[#f8fafc] p-3">
+                <div
+                  className="mb-3 h-2 rounded-full"
+                  style={{
+                    backgroundColor:
+                      categories.find((category) => category.id === pattern.category_id)?.color ??
+                      "#cbd5e1",
+                  }}
+                />
                 <div className="flex items-start justify-between gap-3">
                   <div>
                     <p className="font-semibold text-[#0f172a]">{pattern.label}</p>
@@ -271,11 +350,20 @@ export default function PatternsPage() {
                       {pattern.next_day_end && "翌日"}
                       {pattern.end_time.slice(0, 5)}
                     </p>
+                    <p className="mt-1 text-xs font-bold text-[#64748b]">
+                      {categories.find((category) => category.id === pattern.category_id)?.name ??
+                        "未分類"}
+                    </p>
                   </div>
                   <div className="flex gap-2">
                     <button
                       className="rounded-lg border border-[#cbd5e1] px-3 py-2 text-sm text-[#334155]"
-                      onClick={() => setForm(pattern)}
+                      onClick={() =>
+                        setForm({
+                          ...pattern,
+                          category_id: pattern.category_id ?? "",
+                        })
+                      }
                     >
                       編集
                     </button>

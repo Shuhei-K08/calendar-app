@@ -9,6 +9,10 @@ alter table public.events
 alter table public.events
   add column if not exists all_day boolean not null default false;
 
+alter table public.events
+  add column if not exists event_visibility text not null default 'private'
+  check (event_visibility in ('private', 'partner', 'together'));
+
 create table if not exists public.schedule_categories (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null references auth.users(id) on delete cascade,
@@ -39,6 +43,29 @@ create table if not exists public.schedule_patterns (
   created_at timestamptz not null default now()
 );
 
+alter table public.schedule_patterns
+  add column if not exists category_id uuid references public.schedule_categories(id) on delete set null;
+
+alter table public.profiles
+  add column if not exists role text not null default 'user';
+
+alter table public.profiles
+  add column if not exists account_status text not null default 'active';
+
+create table if not exists public.recurring_events (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references auth.users(id) on delete cascade,
+  title text not null,
+  start_at timestamptz not null,
+  end_at timestamptz not null,
+  note text,
+  all_day boolean not null default false,
+  category_id uuid references public.schedule_categories(id) on delete set null,
+  recurrence_rule text not null check (recurrence_rule in ('weekly', 'monthly', 'yearly')),
+  recurrence_until timestamptz,
+  created_at timestamptz not null default now()
+);
+
 create table if not exists public.todos (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null references auth.users(id) on delete cascade,
@@ -64,6 +91,9 @@ create index if not exists schedule_categories_user_id_idx
 
 create index if not exists todos_user_id_idx
   on public.todos(user_id);
+
+create index if not exists recurring_events_user_id_idx
+  on public.recurring_events(user_id);
 
 create or replace function public.is_event_owner(target_event_id uuid, target_user_id uuid)
 returns boolean
@@ -138,6 +168,7 @@ alter table public.event_shares enable row level security;
 alter table public.schedule_patterns enable row level security;
 alter table public.schedule_categories enable row level security;
 alter table public.todos enable row level security;
+alter table public.recurring_events enable row level security;
 
 grant usage on schema public to authenticated;
 grant select, insert, update, delete on public.events to authenticated;
@@ -145,6 +176,8 @@ grant select, insert, update, delete on public.event_shares to authenticated;
 grant select, insert, update, delete on public.schedule_patterns to authenticated;
 grant select, insert, update, delete on public.schedule_categories to authenticated;
 grant select, insert, update, delete on public.todos to authenticated;
+grant select, insert, update, delete on public.recurring_events to authenticated;
+grant select, insert, update, delete on public.connections to authenticated;
 
 drop policy if exists "users can view own events" on public.events;
 drop policy if exists "users can insert own events" on public.events;
@@ -292,3 +325,36 @@ create policy "users can delete own todos"
 on public.todos
 for delete
 using (user_id = auth.uid());
+
+drop policy if exists "users can view own recurring events" on public.recurring_events;
+drop policy if exists "users can insert own recurring events" on public.recurring_events;
+drop policy if exists "users can update own recurring events" on public.recurring_events;
+drop policy if exists "users can delete own recurring events" on public.recurring_events;
+
+create policy "users can view own recurring events"
+on public.recurring_events
+for select
+using (user_id = auth.uid());
+
+create policy "users can insert own recurring events"
+on public.recurring_events
+for insert
+with check (user_id = auth.uid());
+
+create policy "users can update own recurring events"
+on public.recurring_events
+for update
+using (user_id = auth.uid())
+with check (user_id = auth.uid());
+
+create policy "users can delete own recurring events"
+on public.recurring_events
+for delete
+using (user_id = auth.uid());
+
+drop policy if exists "users can delete own connections" on public.connections;
+
+create policy "users can delete own connections"
+on public.connections
+for delete
+using (requester_id = auth.uid() or receiver_id = auth.uid());

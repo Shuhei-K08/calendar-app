@@ -138,6 +138,7 @@ a:active {
   gap: 7px;
   justify-content: center;
   padding: 7px 9px;
+  position: relative;
   transition: background-color 160ms ease, border-color 160ms ease;
   white-space: nowrap;
 }
@@ -234,6 +235,24 @@ button,
   justify-content: center;
   min-width: 0;
   padding: 5px 1px;
+  position: relative;
+}
+
+.nav-badge {
+  background: #ef4444;
+  border: 2px solid #fff;
+  border-radius: 999px;
+  box-shadow: 0 2px 8px rgb(239 68 68 / 35%);
+  height: 10px;
+  position: absolute;
+  right: 7px;
+  top: 6px;
+  width: 10px;
+}
+
+.nav-badge.mobile {
+  right: 12px;
+  top: 3px;
 }
 
 .mobile-nav-link:active {
@@ -373,9 +392,14 @@ button,
   color: #075985 !important;
 }
 
-.calendar-shell .rbc-event.shared-event {
+.calendar-shell .rbc-event.together-event {
   background: var(--shared-event-bg);
   color: #92400e !important;
+}
+
+.calendar-shell .rbc-event.partner-event {
+  background: #e0f2fe;
+  color: #075985 !important;
 }
 
 .calendar-shell .rbc-overlay .rbc-event.own-event,
@@ -384,10 +408,16 @@ button,
   color: #075985 !important;
 }
 
-.calendar-shell .rbc-overlay .rbc-event.shared-event,
-.calendar-shell .rbc-overlay .shared-event {
+.calendar-shell .rbc-overlay .rbc-event.together-event,
+.calendar-shell .rbc-overlay .together-event {
   background: var(--shared-event-bg);
   color: #92400e !important;
+}
+
+.calendar-shell .rbc-overlay .rbc-event.partner-event,
+.calendar-shell .rbc-overlay .partner-event {
+  background: #e0f2fe;
+  color: #075985 !important;
 }
 
 .calendar-shell .rbc-event-content {
