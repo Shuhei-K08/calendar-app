@@ -235,6 +235,20 @@ export default function ConnectPage() {
           .eq("shared_with", connectedUser.user_id)
           .in("event_id", myEventIds);
       }
+
+      const { data: otherEvents } = await supabase
+        .from("events")
+        .select("id")
+        .eq("user_id", connectedUser.user_id);
+
+      const otherEventIds = (otherEvents ?? []).map((event) => event.id);
+      if (otherEventIds.length > 0) {
+        await supabase
+          .from("event_shares")
+          .delete()
+          .eq("shared_with", user.id)
+          .in("event_id", otherEventIds);
+      }
     }
 
     const { error } = await supabase

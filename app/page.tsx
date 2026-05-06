@@ -194,14 +194,14 @@ const getDisplayKind = (
 
 const getDisplayLabel = (kind: EventDisplayKind) => {
   if (kind === "own") return "自分の予定";
-  if (kind === "partner") return "相手の予定";
+  if (kind === "partner") return "自分の予定を相手に共有";
   return "私たちの予定";
 };
 
 const getDisplayStyle = (kind: EventDisplayKind) => {
   if (kind === "partner") {
     return {
-      background: "#e0f2fe",
+      background: "var(--partner-event-bg)",
       text: "#075985",
       border: "#38bdf8",
     };
@@ -659,6 +659,10 @@ export default function Home() {
       document.documentElement.style.setProperty(
         "--shared-event-bg",
         settings.sharedEventBackground ?? settings.sharedEvent ?? "#fef3c7",
+      );
+      document.documentElement.style.setProperty(
+        "--partner-event-bg",
+        settings.partnerEventBackground ?? settings.ownEventBackground ?? "#e0f2fe",
       );
       document.documentElement.style.setProperty(
         "--uncategorized-event",
@@ -1346,7 +1350,7 @@ export default function Home() {
               {eventForm.selectedUserIds.length > 0 && (
                 <div className="grid gap-2 sm:grid-cols-2">
                   {[
-                    { value: "partner", title: "相手の予定として表示", desc: "相手側の予定として見せたい時" },
+                    { value: "partner", title: "自分の予定を相手に共有", desc: "自分の予定として持ったまま、相手にも見せたい時" },
                     { value: "together", title: "私たちの予定として表示", desc: "2人やグループ共通の予定" },
                   ].map((option) => (
                     <label
@@ -1569,7 +1573,9 @@ export default function Home() {
                 </div>
                 {detailEvent.isShared ? (
                   <div className="rounded-xl bg-[#fffbeb] p-3 text-[#92400e]">
-                    {`${detailEvent.ownerName}さんから共有された予定`}
+                    {detailEvent.displayKind === "together"
+                      ? `${detailEvent.ownerName}さんとの共有の予定`
+                      : `${detailEvent.ownerName}さんから共有された予定`}
                   </div>
                 ) : detailEvent.sharedWith.length > 0 ? (
                   <div className="rounded-xl bg-[#ecfdf5] p-3 text-[#0f766e]">
@@ -1612,7 +1618,7 @@ export default function Home() {
                   {shareDraftIds.length > 0 && (
                     <div className="mb-3 grid gap-2 sm:grid-cols-2">
                       {[
-                        { value: "partner", title: "相手の予定", desc: "相手側の予定として表示" },
+                        { value: "partner", title: "自分の予定を相手に共有", desc: "自分の予定として持ったまま共有" },
                         { value: "together", title: "私たちの予定", desc: "共通の予定として表示" },
                       ].map((option) => (
                         <label

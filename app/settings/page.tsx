@@ -9,6 +9,7 @@ const defaultSettings = {
   designTheme: "clean",
   background: "#f5f7fb",
   ownEventBackground: "#e0f2fe",
+  partnerEventBackground: "#e0f2fe",
   sharedEventBackground: "#fef3c7",
   unclassifiedEvent: "#22c8d6",
   notificationsEnabled: true,
@@ -115,6 +116,10 @@ export default function SettingsPage() {
           parsed.ownEventBackground ?? parsed.ownEvent ?? defaultSettings.ownEventBackground,
         sharedEventBackground:
           parsed.sharedEventBackground ?? parsed.sharedEvent ?? defaultSettings.sharedEventBackground,
+        partnerEventBackground:
+          parsed.partnerEventBackground ??
+          parsed.ownEventBackground ??
+          defaultSettings.partnerEventBackground,
         unclassifiedEvent:
           parsed.unclassifiedEvent ?? parsed.ownEvent ?? defaultSettings.unclassifiedEvent,
       };
@@ -184,6 +189,7 @@ export default function SettingsPage() {
     document.documentElement.style.setProperty("--app-bg", selectedTheme.background);
     document.documentElement.style.setProperty("--app-accent", selectedTheme.accent);
     document.documentElement.style.setProperty("--own-event-bg", settings.ownEventBackground);
+    document.documentElement.style.setProperty("--partner-event-bg", settings.partnerEventBackground);
     document.documentElement.style.setProperty("--shared-event-bg", settings.sharedEventBackground);
     document.documentElement.style.setProperty(
       "--uncategorized-event",
@@ -458,7 +464,20 @@ export default function SettingsPage() {
               />
             </label>
             <label className="flex items-center justify-between gap-4 rounded-xl bg-[#f8fafc] p-3">
-              <span className="font-semibold text-[#334155]">共有予定の塗り色</span>
+              <span className="font-semibold text-[#334155]">自分の予定を相手に共有の塗り色</span>
+              <input
+                type="color"
+                value={settings.partnerEventBackground}
+                onChange={(event) =>
+                  setSettings((current) => ({
+                    ...current,
+                    partnerEventBackground: event.target.value,
+                  }))
+                }
+              />
+            </label>
+            <label className="flex items-center justify-between gap-4 rounded-xl bg-[#f8fafc] p-3">
+              <span className="font-semibold text-[#334155]">私たちの予定の塗り色</span>
               <input
                 type="color"
                 value={settings.sharedEventBackground}
