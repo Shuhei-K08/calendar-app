@@ -1,6 +1,12 @@
 import { NextResponse } from "next/server";
 import { createSupabaseAdmin } from "@/lib/supabaseAdmin";
 
+const getAdminEmails = () =>
+  (process.env.ADMIN_EMAILS ?? "")
+    .split(",")
+    .map((email) => email.trim().toLowerCase())
+    .filter(Boolean);
+
 const requireAdmin = async (request: Request) => {
   const admin = createSupabaseAdmin();
   if (!admin) {
@@ -20,14 +26,25 @@ const requireAdmin = async (request: Request) => {
     return { error: "ログイン情報を確認できません。", status: 401 as const };
   }
 
+  const normalizedEmail = user.email?.toLowerCase() ?? "";
+  const isEnvAdmin = getAdminEmails().includes(normalizedEmail);
+
   const { data: profile } = await admin
     .from("profiles")
     .select("role")
     .eq("id", user.id)
     .maybeSingle();
 
-  if (profile?.role !== "admin") {
-    return { error: "管理者権限がありません。", status: 403 as const };
+  if (profile?.role !== "admin" && !isEnvAdmin) {
+    return {
+      error:
+        "管理者権限がありません。Supabase の profiles.role を admin にするか、Vercel に ADMIN_EMAILS を設定してください。",
+      status: 403 as const,
+    };
+  }
+
+  if (isEnvAdmin && profile?.role !== "admin") {
+    await admin.from("profiles").update({ role: "admin" }).eq("id", user.id);
   }
 
   return { admin };
@@ -103,4 +120,3 @@ export async function PATCH(request: Request) {
 
   return NextResponse.json({ ok: true });
 }
-

@@ -114,9 +114,12 @@ export default function AdminPage() {
             管理者だけが利用できます。停止、停止解除、管理者権限の変更、アカウント削除を行えます。
           </p>
           {message && (
-            <p className="mt-4 rounded-xl border border-[#fde68a] bg-[#fffbeb] p-3 text-sm font-semibold text-[#92400e]">
-              {message}
-            </p>
+            <div className="mt-4 rounded-xl border border-[#fde68a] bg-[#fffbeb] p-3 text-sm font-semibold text-[#92400e]">
+              <p>{message}</p>
+              <p className="mt-2 text-xs leading-5">
+                管理者にしたいユーザーのメールアドレスを Supabase SQL で role=admin にするか、Vercel の環境変数 ADMIN_EMAILS に登録してください。
+              </p>
+            </div>
           )}
         </section>
 

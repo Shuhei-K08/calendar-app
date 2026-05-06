@@ -80,6 +80,11 @@ export default function SettingsPage() {
   const [categories, setCategories] = useState<Category[]>([]);
   const [categoryName, setCategoryName] = useState("");
   const [categoryColor, setCategoryColor] = useState("#2563eb");
+  const [deleteModalOpen, setDeleteModalOpen] = useState(false);
+  const [deletePassword, setDeletePassword] = useState("");
+  const [deleteConfirmText, setDeleteConfirmText] = useState("");
+  const [deleteError, setDeleteError] = useState("");
+  const [deletingAccount, setDeletingAccount] = useState(false);
 
   const fetchCategories = useCallback(async () => {
     const {
@@ -181,33 +186,56 @@ export default function SettingsPage() {
   };
 
   const deleteAccount = async () => {
-    const ok = window.confirm(
-      "アカウントを削除しますか？\n予定、TODO、分類、共有情報も削除されます。この操作は元に戻せません。",
-    );
-    if (!ok) return;
+    setDeleteError("");
+    if (!deletePassword || deleteConfirmText !== "削除する") {
+      setDeleteError("パスワードを入力し、確認欄に「削除する」と入力してください。");
+      return;
+    }
 
-    const secondOk = window.confirm("本当に削除しますか？");
-    if (!secondOk) return;
-
+    setDeletingAccount(true);
     const {
       data: { session },
     } = await supabase.auth.getSession();
 
     if (!session) {
-      alert("ログイン情報がありません。");
+      setDeleteError("ログイン情報がありません。");
+      setDeletingAccount(false);
       return;
     }
+
+    const email = session.user.email;
+    if (!email) {
+      setDeleteError("メールアドレスを確認できません。");
+      setDeletingAccount(false);
+      return;
+    }
+
+    const { error: signInError } = await supabase.auth.signInWithPassword({
+      email,
+      password: deletePassword,
+    });
+
+    if (signInError) {
+      setDeleteError("パスワードが正しくありません。");
+      setDeletingAccount(false);
+      return;
+    }
+
+    const {
+      data: { session: refreshedSession },
+    } = await supabase.auth.getSession();
 
     const response = await fetch("/api/account/delete", {
       method: "POST",
       headers: {
-        authorization: `Bearer ${session.access_token}`,
+        authorization: `Bearer ${(refreshedSession ?? session).access_token}`,
       },
     });
     const result = await response.json();
 
     if (!response.ok) {
-      alert(result.error ?? "アカウント削除に失敗しました");
+      setDeleteError(result.error ?? "アカウント削除に失敗しました");
+      setDeletingAccount(false);
       return;
     }
 
@@ -468,13 +496,98 @@ export default function SettingsPage() {
             </button>
             <button
               className="h-11 rounded-lg bg-[#be123c] px-4 font-semibold text-white"
-              onClick={deleteAccount}
+              onClick={() => {
+                setDeletePassword("");
+                setDeleteConfirmText("");
+                setDeleteError("");
+                setDeleteModalOpen(true);
+              }}
             >
               アカウント削除
             </button>
           </div>
         </section>
       </div>
+      {deleteModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-[#0f172a]/45 p-4 pt-8 sm:items-center">
+          <div className="w-full max-w-lg rounded-3xl border border-[#fecdd3] bg-white p-5 shadow-2xl sm:p-6">
+            <div className="flex items-start justify-between gap-4 border-b border-[#fee2e2] pb-4">
+              <div>
+                <p className="text-xs font-black uppercase tracking-[0.16em] text-[#be123c]">
+                  Delete Account
+                </p>
+                <h2 className="mt-1 text-2xl font-black text-[#0f172a]">
+                  アカウント削除の確認
+                </h2>
+              </div>
+              <button
+                className="h-10 rounded-xl border border-[#cbd5e1] px-4 text-sm font-bold text-[#334155]"
+                disabled={deletingAccount}
+                onClick={() => setDeleteModalOpen(false)}
+              >
+                閉じる
+              </button>
+            </div>
+
+            <div className="mt-4 rounded-2xl border border-[#fecdd3] bg-[#fff1f2] p-4 text-sm leading-6 text-[#9f1239]">
+              <p className="font-black">この操作は元に戻せません。</p>
+              <p className="mt-1">
+                予定、TODO、分類、共有情報、プロフィールが削除されます。本人確認のため、現在のパスワードを入力してください。
+              </p>
+            </div>
+
+            <div className="mt-4 space-y-4">
+              <label className="block space-y-2">
+                <span className="text-sm font-bold text-[#334155]">現在のパスワード</span>
+                <input
+                  className="h-12 w-full rounded-xl border border-[#cbd5e1] bg-[#f8fafc] px-4 text-sm outline-none transition focus:border-[#be123c] focus:bg-white focus:ring-4 focus:ring-[#fecdd3]/70"
+                  type="password"
+                  value={deletePassword}
+                  onChange={(event) => setDeletePassword(event.target.value)}
+                />
+              </label>
+
+              <label className="block space-y-2">
+                <span className="text-sm font-bold text-[#334155]">
+                  確認のため「削除する」と入力
+                </span>
+                <input
+                  className="h-12 w-full rounded-xl border border-[#cbd5e1] bg-[#f8fafc] px-4 text-sm outline-none transition focus:border-[#be123c] focus:bg-white focus:ring-4 focus:ring-[#fecdd3]/70"
+                  value={deleteConfirmText}
+                  onChange={(event) => setDeleteConfirmText(event.target.value)}
+                />
+              </label>
+
+              {deleteError && (
+                <p className="rounded-xl border border-[#fecdd3] bg-[#fff1f2] p-3 text-sm font-bold text-[#be123c]">
+                  {deleteError}
+                </p>
+              )}
+
+              <div className="grid gap-2 sm:grid-cols-2">
+                <button
+                  className="h-12 rounded-xl border border-[#cbd5e1] px-4 font-bold text-[#334155]"
+                  disabled={deletingAccount}
+                  onClick={() => setDeleteModalOpen(false)}
+                >
+                  キャンセル
+                </button>
+                <button
+                  className="h-12 rounded-xl bg-[#be123c] px-4 font-bold text-white disabled:cursor-not-allowed disabled:opacity-50"
+                  disabled={
+                    deletingAccount ||
+                    !deletePassword ||
+                    deleteConfirmText !== "削除する"
+                  }
+                  onClick={deleteAccount}
+                >
+                  {deletingAccount ? "削除中" : "完全に削除する"}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
       <MobileNavigation />
     </main>
   );
