@@ -117,7 +117,7 @@ export default function AdminPage() {
             <div className="mt-4 rounded-xl border border-[#fde68a] bg-[#fffbeb] p-3 text-sm font-semibold text-[#92400e]">
               <p>{message}</p>
               <p className="mt-2 text-xs leading-5">
-                管理者にしたいユーザーのメールアドレスを Supabase SQL で role=admin にするか、Vercel の環境変数 ADMIN_EMAILS に登録してください。
+                管理者登録が完了しているか確認してください。設定後は再デプロイ、または再ログインが必要な場合があります。
               </p>
             </div>
           )}

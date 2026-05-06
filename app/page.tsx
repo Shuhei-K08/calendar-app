@@ -158,8 +158,6 @@ type EventForm = {
   categoryId: string;
   selectedUserIds: string[];
   shareType: EventVisibility;
-  recurrenceRule: RecurrenceRule;
-  recurrenceUntil: string;
 };
 
 type RecurrenceRule = "none" | "weekly" | "monthly" | "yearly";
@@ -182,8 +180,6 @@ const createBlankForm = (date = new Date()): EventForm => {
     categoryId: "",
     selectedUserIds: [],
     shareType: "together",
-    recurrenceRule: "none",
-    recurrenceUntil: "",
   };
 };
 
@@ -637,8 +633,6 @@ export default function Home() {
         categoryId: detailEvent.categoryId ?? "",
         selectedUserIds: detailEvent.sharedWith.map((user) => user.id),
         shareType: detailEvent.visibility === "private" ? "together" : detailEvent.visibility,
-        recurrenceRule: detailEvent.recurringRule ?? "none",
-        recurrenceUntil: "",
       });
     }
   }, [detailEvent]);
@@ -803,38 +797,6 @@ export default function Home() {
         eventForm.selectedUserIds.length > 0 ? eventForm.shareType : "private",
       user_id: user.id,
     };
-
-    if (eventForm.recurrenceRule !== "none") {
-      const recurrenceUntil = eventForm.recurrenceUntil
-        ? new Date(`${eventForm.recurrenceUntil}T23:59:59`).toISOString()
-        : null;
-
-      const { error: recurringError } = await supabase.from("recurring_events").insert({
-        title: eventPayload.title,
-        start_at: eventPayload.start_at,
-        end_at: eventPayload.end_at,
-        all_day: eventPayload.all_day,
-        category_id: eventPayload.category_id,
-        note: eventPayload.note,
-        user_id: eventPayload.user_id,
-        recurrence_rule: eventForm.recurrenceRule,
-        recurrence_until: recurrenceUntil,
-      });
-
-      if (recurringError) {
-        console.error(recurringError);
-        alert(
-          recurringError.code === "PGRST205"
-            ? "繰り返し予定用のSQLを実行してください"
-            : recurringError.message,
-        );
-        return;
-      }
-
-      setIsEventModalOpen(false);
-      await fetchEvents();
-      return;
-    }
 
     let { data: insertedEvent, error } = await supabase
       .from("events")
@@ -1366,47 +1328,6 @@ export default function Home() {
                   {isEndOnNextDay(eventForm) ? "終了日を当日に戻す" : "終了日を翌日にする"}
                 </button>
               </label>
-              <div className="grid gap-3 rounded-2xl border border-[#d9e2ef] bg-[#f8fafc] p-3 sm:col-span-2 sm:grid-cols-2">
-                <label className="space-y-1">
-                  <span className="text-xs font-semibold text-[#64748b]">繰り返し</span>
-                  <select
-                    className="h-11 w-full rounded-lg border border-[#cbd5e1] bg-white px-3 text-sm outline-none transition focus:border-[#0f766e] focus:ring-2 focus:ring-[#99f6e4]"
-                    value={eventForm.recurrenceRule}
-                    onChange={(event) =>
-                      setEventForm((current) => ({
-                        ...current,
-                        recurrenceRule: event.target.value as RecurrenceRule,
-                        selectedUserIds:
-                          event.target.value === "none" ? current.selectedUserIds : [],
-                      }))
-                    }
-                  >
-                    <option value="none">繰り返さない</option>
-                    <option value="weekly">毎週</option>
-                    <option value="monthly">毎月</option>
-                    <option value="yearly">毎年</option>
-                  </select>
-                </label>
-                <label className="space-y-1">
-                  <span className="text-xs font-semibold text-[#64748b]">繰り返し終了日</span>
-                  <input
-                    className="h-11 w-full rounded-lg border border-[#cbd5e1] bg-white px-3 text-sm outline-none transition focus:border-[#0f766e] focus:ring-2 focus:ring-[#99f6e4]"
-                    type="date"
-                    value={eventForm.recurrenceUntil}
-                    onChange={(event) =>
-                      setEventForm((current) => ({
-                        ...current,
-                        recurrenceUntil: event.target.value,
-                      }))
-                    }
-                  />
-                </label>
-                {eventForm.recurrenceRule !== "none" && (
-                  <p className="text-xs font-semibold text-[#64748b] sm:col-span-2">
-                    繰り返し予定はまず自分の予定として登録されます。共有したい場合は通常予定で登録してください。
-                  </p>
-                )}
-              </div>
               <label className="space-y-1 sm:col-span-2">
                 <span className="text-xs font-semibold text-[#64748b]">メモ</span>
                 <textarea
@@ -1469,7 +1390,6 @@ export default function Home() {
                       className="h-4 w-4 accent-[#0f766e]"
                       type="checkbox"
                       checked={eventForm.selectedUserIds.includes(connection.id)}
-                      disabled={eventForm.recurrenceRule !== "none"}
                       onChange={(event) => {
                         setEventForm((current) => ({
                           ...current,

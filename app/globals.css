@@ -251,8 +251,10 @@ button,
 }
 
 .nav-badge.mobile {
+  min-width: 10px;
   right: 12px;
   top: 3px;
+  width: 10px;
 }
 
 .mobile-nav-link:active {
@@ -265,7 +267,7 @@ button,
   width: 22px;
 }
 
-.mobile-nav-link span {
+.mobile-nav-link > span:not(.nav-badge) {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;

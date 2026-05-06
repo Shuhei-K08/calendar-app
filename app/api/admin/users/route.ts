@@ -38,7 +38,7 @@ const requireAdmin = async (request: Request) => {
   if (profile?.role !== "admin" && !isEnvAdmin) {
     return {
       error:
-        "管理者権限がありません。Supabase の profiles.role を admin にするか、Vercel に ADMIN_EMAILS を設定してください。",
+        "このアカウントはまだ管理者として登録されていません。",
       status: 403 as const,
     };
   }

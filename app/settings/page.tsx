@@ -57,6 +57,50 @@ type Category = {
   color: string;
 };
 
+type RecurrenceRule = "weekly" | "monthly" | "yearly";
+
+type RecurringEvent = {
+  id: string;
+  title: string;
+  start_at: string;
+  end_at: string;
+  recurrence_rule: RecurrenceRule;
+  recurrence_until: string | null;
+  category_id: string | null;
+};
+
+type RecurringForm = {
+  title: string;
+  start: string;
+  end: string;
+  recurrenceRule: RecurrenceRule;
+  recurrenceUntil: string;
+  categoryId: string;
+};
+
+type SettingsSection = "design" | "categories" | "recurring" | "guide" | "account";
+
+const formatDateTimeLocal = (date: Date) => {
+  const offsetDate = new Date(date.getTime() - date.getTimezoneOffset() * 60000);
+  return offsetDate.toISOString().slice(0, 16);
+};
+
+const createBlankRecurringForm = (): RecurringForm => {
+  const start = new Date();
+  start.setHours(9, 0, 0, 0);
+  const end = new Date();
+  end.setHours(10, 0, 0, 0);
+
+  return {
+    title: "",
+    start: formatDateTimeLocal(start),
+    end: formatDateTimeLocal(end),
+    recurrenceRule: "weekly",
+    recurrenceUntil: "",
+    categoryId: "",
+  };
+};
+
 export default function SettingsPage() {
   const router = useRouter();
   const [settings, setSettings] = useState<CalendarSettings>(() => {
@@ -78,6 +122,11 @@ export default function SettingsPage() {
     return defaultSettings;
   });
   const [categories, setCategories] = useState<Category[]>([]);
+  const [recurringEvents, setRecurringEvents] = useState<RecurringEvent[]>([]);
+  const [recurringForm, setRecurringForm] = useState<RecurringForm>(() =>
+    createBlankRecurringForm(),
+  );
+  const [activeSection, setActiveSection] = useState<SettingsSection>("design");
   const [categoryName, setCategoryName] = useState("");
   const [categoryColor, setCategoryColor] = useState("#2563eb");
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
@@ -104,10 +153,29 @@ export default function SettingsPage() {
     setCategories(data ?? []);
   }, []);
 
+  const fetchRecurringEvents = useCallback(async () => {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) return;
+
+    const { data, error } = await supabase
+      .from("recurring_events")
+      .select("id, title, start_at, end_at, recurrence_rule, recurrence_until, category_id")
+      .eq("user_id", user.id)
+      .order("created_at", { ascending: false });
+
+    if (error) return;
+
+    setRecurringEvents((data ?? []) as RecurringEvent[]);
+  }, []);
+
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     void fetchCategories();
-  }, [fetchCategories]);
+    void fetchRecurringEvents();
+  }, [fetchCategories, fetchRecurringEvents]);
 
   const save = () => {
     const selectedTheme =
@@ -180,6 +248,60 @@ export default function SettingsPage() {
     await fetchCategories();
   };
 
+  const saveRecurringEvent = async () => {
+    if (!recurringForm.title.trim()) return;
+
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) return;
+
+    const startAt = new Date(recurringForm.start).toISOString();
+    const endAt = new Date(recurringForm.end).toISOString();
+
+    if (new Date(endAt).getTime() <= new Date(startAt).getTime()) {
+      alert("終了日時は開始日時より後にしてください");
+      return;
+    }
+
+    const { error } = await supabase.from("recurring_events").insert({
+      user_id: user.id,
+      title: recurringForm.title.trim(),
+      start_at: startAt,
+      end_at: endAt,
+      note: null,
+      all_day: false,
+      category_id: recurringForm.categoryId || null,
+      recurrence_rule: recurringForm.recurrenceRule,
+      recurrence_until: recurringForm.recurrenceUntil
+        ? new Date(`${recurringForm.recurrenceUntil}T23:59:59`).toISOString()
+        : null,
+    });
+
+    if (error) {
+      alert(error.code === "PGRST205" ? "Supabase SQLを再実行してください。" : error.message);
+      return;
+    }
+
+    setRecurringForm(createBlankRecurringForm());
+    await fetchRecurringEvents();
+  };
+
+  const deleteRecurringEvent = async (event: RecurringEvent) => {
+    const ok = window.confirm(`「${event.title}」を削除しますか？`);
+    if (!ok) return;
+
+    const { error } = await supabase.from("recurring_events").delete().eq("id", event.id);
+
+    if (error) {
+      alert(error.message);
+      return;
+    }
+
+    await fetchRecurringEvents();
+  };
+
   const logout = async () => {
     await supabase.auth.signOut();
     router.push("/login");
@@ -240,7 +362,7 @@ export default function SettingsPage() {
     }
 
     await supabase.auth.signOut();
-    router.push("/signup");
+    router.push("/account-deleted");
   };
 
   return (
@@ -259,6 +381,31 @@ export default function SettingsPage() {
           <DesktopNavigation />
         </header>
 
+        <section className="rounded-2xl border border-[#d9e2ef] bg-white p-3 shadow-sm">
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
+            {[
+              { id: "design", label: "デザイン" },
+              { id: "categories", label: "分類" },
+              { id: "recurring", label: "繰り返し" },
+              { id: "guide", label: "使い方" },
+              { id: "account", label: "アカウント" },
+            ].map((item) => (
+              <button
+                key={item.id}
+                className={`h-10 rounded-xl px-3 text-sm font-black transition ${
+                  activeSection === item.id
+                    ? "bg-[#0f766e] text-white shadow-sm"
+                    : "bg-[#f8fafc] text-[#334155] hover:bg-[#e0f2fe]"
+                }`}
+                onClick={() => setActiveSection(item.id as SettingsSection)}
+              >
+                {item.label}
+              </button>
+            ))}
+          </div>
+        </section>
+
+        {activeSection === "design" && (
         <section className="rounded-2xl border border-[#d9e2ef] bg-white p-4 shadow-sm">
           <div className="grid gap-4">
             <div>
@@ -364,7 +511,9 @@ export default function SettingsPage() {
             保存する
           </button>
         </section>
+        )}
 
+        {activeSection === "categories" && (
         <section className="rounded-2xl border border-[#d9e2ef] bg-white p-4 shadow-sm">
           <h2 className="mb-4 text-base font-bold text-[#0f172a]">分類</h2>
           <div className="rounded-2xl border border-[#d9e2ef] bg-[#f8fafc] p-3">
@@ -458,7 +607,150 @@ export default function SettingsPage() {
           </div>
           </div>
         </section>
+        )}
 
+        {activeSection === "recurring" && (
+        <section className="rounded-2xl border border-[#d9e2ef] bg-white p-4 shadow-sm">
+          <div className="mb-4">
+            <h2 className="text-base font-bold text-[#0f172a]">繰り返し予定</h2>
+            <p className="mt-1 text-sm text-[#64748b]">
+              誕生日、月次予定、週次ミーティングなど、定期的に出る予定をここで登録できます。
+            </p>
+          </div>
+
+          <div className="rounded-2xl border border-[#d9e2ef] bg-[#f8fafc] p-3">
+            <h3 className="text-sm font-bold text-[#0f172a]">新しい繰り返し予定</h3>
+            <div className="mt-3 grid gap-3 sm:grid-cols-2">
+              <label className="space-y-1 sm:col-span-2">
+                <span className="text-xs font-bold text-[#64748b]">予定名</span>
+                <input
+                  className="h-11 w-full rounded-lg border border-[#cbd5e1] bg-white px-3 text-sm outline-none transition focus:border-[#0f766e] focus:ring-2 focus:ring-[#99f6e4]"
+                  placeholder="例: 誕生日、週次ミーティング"
+                  value={recurringForm.title}
+                  onChange={(event) =>
+                    setRecurringForm((current) => ({ ...current, title: event.target.value }))
+                  }
+                />
+              </label>
+              <label className="space-y-1">
+                <span className="text-xs font-bold text-[#64748b]">開始</span>
+                <input
+                  className="h-11 w-full rounded-lg border border-[#cbd5e1] bg-white px-3 text-sm"
+                  type="datetime-local"
+                  value={recurringForm.start}
+                  onChange={(event) =>
+                    setRecurringForm((current) => ({ ...current, start: event.target.value }))
+                  }
+                />
+              </label>
+              <label className="space-y-1">
+                <span className="text-xs font-bold text-[#64748b]">終了</span>
+                <input
+                  className="h-11 w-full rounded-lg border border-[#cbd5e1] bg-white px-3 text-sm"
+                  type="datetime-local"
+                  value={recurringForm.end}
+                  onChange={(event) =>
+                    setRecurringForm((current) => ({ ...current, end: event.target.value }))
+                  }
+                />
+              </label>
+              <label className="space-y-1">
+                <span className="text-xs font-bold text-[#64748b]">繰り返し</span>
+                <select
+                  className="h-11 w-full rounded-lg border border-[#cbd5e1] bg-white px-3 text-sm"
+                  value={recurringForm.recurrenceRule}
+                  onChange={(event) =>
+                    setRecurringForm((current) => ({
+                      ...current,
+                      recurrenceRule: event.target.value as RecurrenceRule,
+                    }))
+                  }
+                >
+                  <option value="weekly">毎週</option>
+                  <option value="monthly">毎月</option>
+                  <option value="yearly">毎年</option>
+                </select>
+              </label>
+              <label className="space-y-1">
+                <span className="text-xs font-bold text-[#64748b]">終了日</span>
+                <input
+                  className="h-11 w-full rounded-lg border border-[#cbd5e1] bg-white px-3 text-sm"
+                  type="date"
+                  value={recurringForm.recurrenceUntil}
+                  onChange={(event) =>
+                    setRecurringForm((current) => ({
+                      ...current,
+                      recurrenceUntil: event.target.value,
+                    }))
+                  }
+                />
+              </label>
+              <label className="space-y-1 sm:col-span-2">
+                <span className="text-xs font-bold text-[#64748b]">分類</span>
+                <select
+                  className="h-11 w-full rounded-lg border border-[#cbd5e1] bg-white px-3 text-sm"
+                  value={recurringForm.categoryId}
+                  onChange={(event) =>
+                    setRecurringForm((current) => ({
+                      ...current,
+                      categoryId: event.target.value,
+                    }))
+                  }
+                >
+                  <option value="">未分類</option>
+                  {categories.map((category) => (
+                    <option key={category.id} value={category.id}>
+                      {category.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
+            <button
+              className="mt-4 h-11 w-full rounded-lg bg-[#0f766e] px-4 font-bold text-white disabled:opacity-50"
+              disabled={!recurringForm.title.trim()}
+              onClick={saveRecurringEvent}
+            >
+              繰り返し予定を追加
+            </button>
+          </div>
+
+          <div className="mt-5 grid gap-3">
+            {recurringEvents.map((event) => (
+              <div
+                key={event.id}
+                className="flex flex-col gap-3 rounded-2xl border border-[#d9e2ef] bg-white p-3 shadow-sm sm:flex-row sm:items-center sm:justify-between"
+              >
+                <div>
+                  <p className="font-black text-[#0f172a]">{event.title}</p>
+                  <p className="mt-1 text-sm text-[#64748b]">
+                    {event.recurrence_rule === "weekly"
+                      ? "毎週"
+                      : event.recurrence_rule === "monthly"
+                        ? "毎月"
+                        : "毎年"}
+                    {" / "}
+                    {new Date(event.start_at).toLocaleDateString("ja-JP")}
+                  </p>
+                </div>
+                <button
+                  className="h-10 rounded-lg border border-[#fecdd3] px-4 text-sm font-bold text-[#be123c]"
+                  onClick={() => deleteRecurringEvent(event)}
+                >
+                  削除
+                </button>
+              </div>
+            ))}
+            {recurringEvents.length === 0 && (
+              <p className="rounded-xl bg-[#f8fafc] p-4 text-sm text-[#64748b]">
+                繰り返し予定はまだありません。
+              </p>
+            )}
+          </div>
+        </section>
+        )}
+
+        {activeSection === "guide" && (
         <section className="rounded-2xl border border-[#d9e2ef] bg-white p-4 shadow-sm">
           <h2 className="mb-3 text-base font-bold text-[#0f172a]">使い方</h2>
           <div className="grid gap-3 text-sm text-[#475569] sm:grid-cols-2">
@@ -481,21 +773,30 @@ export default function SettingsPage() {
             </button>
           </div>
         </section>
+        )}
 
-        <section className="rounded-2xl border border-[#fecdd3] bg-white p-4 shadow-sm">
+        {activeSection === "account" && (
+        <section className="rounded-2xl border border-[#d9e2ef] bg-white p-4 shadow-sm">
           <h2 className="text-base font-bold text-[#0f172a]">アカウント</h2>
           <p className="mt-1 text-sm text-[#64748b]">
-            ログアウトやアカウント削除を行えます。アカウント削除は元に戻せません。
+            この端末からログアウトできます。
           </p>
-          <div className="mt-4 grid gap-2 sm:grid-cols-2">
+          <div className="mt-4">
             <button
-              className="h-11 rounded-lg border border-[#cbd5e1] px-4 font-semibold text-[#334155]"
+              className="h-11 w-full rounded-lg border border-[#cbd5e1] px-4 font-semibold text-[#334155] sm:w-auto"
               onClick={logout}
             >
               ログアウト
             </button>
+          </div>
+
+          <div className="mt-10 border-t border-[#e2e8f0] pt-5">
+            <p className="text-sm font-bold text-[#64748b]">アカウント削除</p>
+            <p className="mt-1 text-xs leading-5 text-[#94a3b8]">
+              退会する場合のみ使用します。予定、TODO、分類、共有情報は削除され、元に戻せません。
+            </p>
             <button
-              className="h-11 rounded-lg bg-[#be123c] px-4 font-semibold text-white"
+              className="mt-3 h-10 rounded-lg border border-[#fecdd3] px-4 text-sm font-semibold text-[#be123c]"
               onClick={() => {
                 setDeletePassword("");
                 setDeleteConfirmText("");
@@ -507,6 +808,7 @@ export default function SettingsPage() {
             </button>
           </div>
         </section>
+        )}
       </div>
       {deleteModalOpen && (
         <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-[#0f172a]/45 p-4 pt-8 sm:items-center">

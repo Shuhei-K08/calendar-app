@@ -10,6 +10,7 @@ export default function LoginPage() {
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [loginError, setLoginError] = useState("");
 
   const signIn = async () => {
     const { error } = await supabase.auth.signInWithPassword({
@@ -18,7 +19,11 @@ export default function LoginPage() {
     });
 
     if (error) {
-      alert(error.message);
+      setLoginError(
+        error.message === "Invalid login credentials"
+          ? "メールアドレスまたはパスワードが正しくありません。登録がまだの場合は、新規登録からアカウントを作成してください。"
+          : "ログインできませんでした。入力内容を確認して、もう一度お試しください。",
+      );
       return;
     }
 
@@ -104,6 +109,13 @@ export default function LoginPage() {
             >
               ログイン
             </button>
+
+            {loginError && (
+              <div className="rounded-2xl border border-[#fde68a] bg-[#fffbeb] p-3 text-sm leading-6 text-[#92400e]">
+                <p className="font-bold">ログイン情報を確認できませんでした</p>
+                <p className="mt-1">{loginError}</p>
+              </div>
+            )}
 
             <button
               className="h-12 w-full rounded-xl border border-[#cbd5e1] bg-white px-4 font-bold text-[#334155] transition hover:bg-[#f8fafc]"

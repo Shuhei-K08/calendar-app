@@ -7,19 +7,6 @@ import { ShareCalLogo } from "@/app/components/AppNavigation";
 
 const productionUrl = "https://calendar-app-alpha-nine.vercel.app";
 
-const getAppUrl = () => {
-  const envUrl = process.env.NEXT_PUBLIC_SITE_URL;
-  if (envUrl && !envUrl.includes("localhost") && !envUrl.includes("127.0.0.1")) {
-    return envUrl.replace(/\/$/, "");
-  }
-
-  if (typeof window !== "undefined" && !window.location.origin.includes("localhost")) {
-    return window.location.origin;
-  }
-
-  return productionUrl;
-};
-
 export default function SignupPage() {
   const router = useRouter();
 
@@ -42,7 +29,7 @@ export default function SignupPage() {
       email,
       password,
       options: {
-        emailRedirectTo: `${getAppUrl()}/auth/confirmed`,
+        emailRedirectTo: `${productionUrl}/auth/confirmed`,
       },
     });
 
