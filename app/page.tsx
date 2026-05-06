@@ -1220,19 +1220,13 @@ export default function Home() {
       {isEventModalOpen && (
         <div className="fixed inset-0 z-50 flex items-start overflow-hidden bg-[#0f172a]/40 p-3 pt-4 sm:items-center sm:justify-center">
           <div className="max-h-[88vh] w-full max-w-full overflow-y-auto overflow-x-hidden rounded-2xl bg-white p-4 shadow-2xl sm:max-w-2xl sm:p-6">
-            <div className="mb-4 flex items-start justify-between gap-4 border-b border-[#e2e8f0] bg-white pb-4">
+            <div className="mb-4 border-b border-[#e2e8f0] bg-white pb-4">
               <div>
                 <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[#64748b]">
                   New Schedule
                 </p>
                 <h2 className="text-xl font-bold text-[#0f172a]">予定を登録</h2>
               </div>
-              <button
-                className="rounded-lg border border-[#cbd5e1] px-3 py-2 text-sm text-[#334155]"
-                onClick={() => setIsEventModalOpen(false)}
-              >
-                閉じる
-              </button>
             </div>
 
             <div className="mb-4 rounded-2xl border border-[#d9e2ef] bg-[#f8fafc] p-3">
@@ -1414,13 +1408,21 @@ export default function Home() {
               </div>
             </div>
 
-            <button
-              className="mt-6 h-11 w-full rounded-lg bg-[#0f766e] px-5 text-sm font-semibold text-white shadow-sm transition hover:bg-[#115e59] disabled:cursor-not-allowed disabled:opacity-50"
-              disabled={!eventForm.title.trim()}
-              onClick={addEvent}
-            >
-              登録する
-            </button>
+            <div className="mt-6 grid gap-2 sm:grid-cols-2">
+              <button
+                className="h-11 rounded-lg border border-[#cbd5e1] px-5 text-sm font-semibold text-[#334155]"
+                onClick={() => setIsEventModalOpen(false)}
+              >
+                閉じる
+              </button>
+              <button
+                className="h-11 rounded-lg bg-[#0f766e] px-5 text-sm font-semibold text-white shadow-sm transition hover:bg-[#115e59] disabled:cursor-not-allowed disabled:opacity-50"
+                disabled={!eventForm.title.trim()}
+                onClick={addEvent}
+              >
+                登録する
+              </button>
+            </div>
           </div>
         </div>
       )}
@@ -1428,19 +1430,13 @@ export default function Home() {
       {detailEvent && (
         <div className="fixed inset-0 z-50 flex items-start overflow-hidden bg-[#0f172a]/40 p-3 pt-4 sm:items-center sm:justify-center">
           <div className="max-h-[88vh] w-full max-w-full overflow-y-auto overflow-x-hidden rounded-2xl bg-white p-4 shadow-2xl sm:max-w-lg sm:p-6">
-            <div className="mb-4 flex items-start justify-between gap-4 border-b border-[#e2e8f0] bg-white pb-4">
+            <div className="mb-4 border-b border-[#e2e8f0] bg-white pb-4">
               <div>
                 <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[#64748b]">
                   Schedule Detail
                 </p>
                 <h2 className="text-xl font-bold text-[#0f172a]">{detailEvent.title}</h2>
               </div>
-              <button
-                className="rounded-lg border border-[#cbd5e1] px-3 py-2 text-sm text-[#334155]"
-                onClick={() => setDetailEvent(null)}
-              >
-                閉じる
-              </button>
             </div>
 
             {detailEvent.canDelete && isDetailEditing ? (
@@ -1698,6 +1694,18 @@ export default function Home() {
                 </div>
               </div>
             )}
+            <button
+              className="mt-5 h-11 w-full rounded-lg border border-[#cbd5e1] px-5 text-sm font-semibold text-[#334155]"
+              onClick={() => {
+                if (isDetailEditing) {
+                  setIsDetailEditing(false);
+                  return;
+                }
+                setDetailEvent(null);
+              }}
+            >
+              {isDetailEditing ? "プレビューに戻る" : "閉じる"}
+            </button>
           </div>
         </div>
       )}

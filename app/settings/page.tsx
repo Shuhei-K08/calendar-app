@@ -79,7 +79,7 @@ type RecurringForm = {
   categoryId: string;
 };
 
-type SettingsSection = "design" | "categories" | "recurring" | "guide" | "account";
+type SettingsSection = "profile" | "design" | "categories" | "recurring" | "guide";
 
 const formatDateTimeLocal = (date: Date) => {
   const offsetDate = new Date(date.getTime() - date.getTimezoneOffset() * 60000);
@@ -131,7 +131,12 @@ export default function SettingsPage() {
   const [recurringForm, setRecurringForm] = useState<RecurringForm>(() =>
     createBlankRecurringForm(),
   );
-  const [activeSection, setActiveSection] = useState<SettingsSection>("design");
+  const [activeSection, setActiveSection] = useState<SettingsSection>("profile");
+  const [email, setEmail] = useState("");
+  const [username, setUsername] = useState("");
+  const [shareCode, setShareCode] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [savingProfile, setSavingProfile] = useState(false);
   const [categoryName, setCategoryName] = useState("");
   const [categoryColor, setCategoryColor] = useState("#2563eb");
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
@@ -139,6 +144,7 @@ export default function SettingsPage() {
   const [deleteConfirmText, setDeleteConfirmText] = useState("");
   const [deleteError, setDeleteError] = useState("");
   const [deletingAccount, setDeletingAccount] = useState(false);
+  const normalizedDeleteConfirmText = deleteConfirmText.replace(/\s/g, "");
 
   const fetchCategories = useCallback(async () => {
     const {
@@ -176,11 +182,31 @@ export default function SettingsPage() {
     setRecurringEvents((data ?? []) as RecurringEvent[]);
   }, []);
 
+  const fetchProfile = useCallback(async () => {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) return;
+
+    setEmail(user.email ?? "");
+
+    const { data } = await supabase
+      .from("profiles")
+      .select("username, share_code")
+      .eq("id", user.id)
+      .maybeSingle();
+
+    setUsername(data?.username ?? "");
+    setShareCode(data?.share_code ?? "");
+  }, []);
+
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
+    void fetchProfile();
     void fetchCategories();
     void fetchRecurringEvents();
-  }, [fetchCategories, fetchRecurringEvents]);
+  }, [fetchCategories, fetchProfile, fetchRecurringEvents]);
 
   const save = () => {
     const selectedTheme =
@@ -254,6 +280,58 @@ export default function SettingsPage() {
     await fetchCategories();
   };
 
+  const copyShareCode = async () => {
+    if (!shareCode) return;
+    await navigator.clipboard.writeText(shareCode);
+    alert("コピーしました");
+  };
+
+  const saveUsername = async () => {
+    if (!username.trim()) return;
+    setSavingProfile(true);
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) {
+      setSavingProfile(false);
+      return;
+    }
+
+    const { error } = await supabase
+      .from("profiles")
+      .update({ username: username.trim() })
+      .eq("id", user.id);
+
+    setSavingProfile(false);
+
+    if (error) {
+      alert(error.message);
+      return;
+    }
+
+    alert("ユーザー名を更新しました");
+  };
+
+  const updatePassword = async () => {
+    if (newPassword.length < 6) {
+      alert("パスワードは6文字以上にしてください");
+      return;
+    }
+
+    const { error } = await supabase.auth.updateUser({
+      password: newPassword,
+    });
+
+    if (error) {
+      alert(error.message);
+      return;
+    }
+
+    setNewPassword("");
+    alert("パスワードを更新しました");
+  };
+
   const saveRecurringEvent = async () => {
     if (!recurringForm.title.trim()) return;
 
@@ -315,7 +393,7 @@ export default function SettingsPage() {
 
   const deleteAccount = async () => {
     setDeleteError("");
-    if (!deletePassword || deleteConfirmText !== "削除する") {
+    if (!deletePassword || normalizedDeleteConfirmText !== "削除する") {
       setDeleteError("パスワードを入力し、確認欄に「削除する」と入力してください。");
       return;
     }
@@ -390,11 +468,11 @@ export default function SettingsPage() {
         <section className="rounded-2xl border border-[#d9e2ef] bg-white p-3 shadow-sm">
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
             {[
+              { id: "profile", label: "プロフィール" },
               { id: "design", label: "デザイン" },
               { id: "categories", label: "分類" },
-              { id: "recurring", label: "繰り返し" },
+              { id: "recurring", label: "繰り返し予定登録" },
               { id: "guide", label: "使い方" },
-              { id: "account", label: "アカウント" },
             ].map((item) => (
               <button
                 key={item.id}
@@ -410,6 +488,93 @@ export default function SettingsPage() {
             ))}
           </div>
         </section>
+
+        {activeSection === "profile" && (
+        <section className="rounded-2xl border border-[#d9e2ef] bg-white p-4 shadow-sm">
+          <div className="mb-4">
+            <h2 className="text-base font-bold text-[#0f172a]">プロフィール</h2>
+            <p className="mt-1 text-sm text-[#64748b]">
+              アカウント情報、共有ID、パスワードを管理できます。
+            </p>
+          </div>
+
+          <div className="grid gap-4">
+            <div className="rounded-2xl bg-[#f8fafc] p-3">
+              <p className="text-xs font-bold text-[#64748b]">メールアドレス</p>
+              <p className="mt-2 break-all font-bold text-[#0f172a]">{email || "読み込み中"}</p>
+            </div>
+
+            <div className="rounded-2xl border border-[#d9e2ef] bg-[#f8fafc] p-3">
+              <label className="space-y-1">
+                <span className="text-xs font-bold text-[#64748b]">ユーザー名</span>
+                <input
+                  className="h-11 w-full rounded-lg border border-[#cbd5e1] bg-white px-3 text-sm outline-none transition focus:border-[#0f766e] focus:ring-2 focus:ring-[#99f6e4]"
+                  value={username}
+                  onChange={(event) => setUsername(event.target.value)}
+                />
+              </label>
+              <button
+                className="mt-3 h-10 rounded-lg bg-[#0f766e] px-4 text-sm font-bold text-white disabled:opacity-50"
+                disabled={savingProfile || !username.trim()}
+                onClick={saveUsername}
+              >
+                ユーザー名を保存
+              </button>
+            </div>
+
+            <div className="rounded-2xl border border-[#d9e2ef] bg-[#f8fafc] p-3">
+              <p className="text-xs font-bold text-[#64748b]">あなたの共有ID</p>
+              <div className="mt-2 flex items-center gap-2">
+                <p className="min-w-0 flex-1 rounded-lg bg-white px-3 py-3 text-lg font-black tracking-[0.12em] text-[#0f172a]">
+                  {shareCode || "読み込み中"}
+                </p>
+                <button
+                  className="h-11 rounded-lg bg-[#0f766e] px-3 text-sm font-bold text-white"
+                  onClick={copyShareCode}
+                >
+                  コピー
+                </button>
+              </div>
+            </div>
+
+            <div className="rounded-2xl border border-[#d9e2ef] bg-[#f8fafc] p-3">
+              <label className="space-y-1">
+                <span className="text-xs font-bold text-[#64748b]">新しいパスワード</span>
+                <input
+                  className="h-11 w-full rounded-lg border border-[#cbd5e1] bg-white px-3 text-sm outline-none transition focus:border-[#0f766e] focus:ring-2 focus:ring-[#99f6e4]"
+                  type="password"
+                  value={newPassword}
+                  onChange={(event) => setNewPassword(event.target.value)}
+                />
+              </label>
+              <button
+                className="mt-3 h-10 rounded-lg border border-[#0f766e] px-4 text-sm font-bold text-[#0f766e]"
+                onClick={updatePassword}
+              >
+                パスワードを変更
+              </button>
+            </div>
+
+            <div className="mt-6 border-t border-[#e2e8f0] pt-5">
+              <p className="text-sm font-bold text-[#64748b]">アカウント削除</p>
+              <p className="mt-1 text-xs leading-5 text-[#94a3b8]">
+                退会する場合のみ使用します。予定、TODO、分類、共有情報は削除され、元に戻せません。
+              </p>
+              <button
+                className="mt-3 h-10 rounded-lg border border-[#fecdd3] px-4 text-sm font-semibold text-[#be123c]"
+                onClick={() => {
+                  setDeletePassword("");
+                  setDeleteConfirmText("");
+                  setDeleteError("");
+                  setDeleteModalOpen(true);
+                }}
+              >
+                アカウント削除
+              </button>
+            </div>
+          </div>
+        </section>
+        )}
 
         {activeSection === "design" && (
         <section className="rounded-2xl border border-[#d9e2ef] bg-white p-4 shadow-sm">
@@ -631,7 +796,7 @@ export default function SettingsPage() {
         {activeSection === "recurring" && (
         <section className="rounded-2xl border border-[#d9e2ef] bg-white p-4 shadow-sm">
           <div className="mb-4">
-            <h2 className="text-base font-bold text-[#0f172a]">繰り返し予定</h2>
+            <h2 className="text-base font-bold text-[#0f172a]">繰り返し予定登録</h2>
             <p className="mt-1 text-sm text-[#64748b]">
               誕生日、月次予定、週次ミーティングなど、定期的に出る予定をここで登録できます。
             </p>
@@ -794,40 +959,22 @@ export default function SettingsPage() {
         </section>
         )}
 
-        {activeSection === "account" && (
         <section className="rounded-2xl border border-[#d9e2ef] bg-white p-4 shadow-sm">
-          <h2 className="text-base font-bold text-[#0f172a]">アカウント</h2>
-          <p className="mt-1 text-sm text-[#64748b]">
-            この端末からログアウトできます。
-          </p>
-          <div className="mt-4">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h2 className="text-base font-bold text-[#0f172a]">ログアウト</h2>
+              <p className="mt-1 text-sm text-[#64748b]">
+                この端末からログアウトします。
+              </p>
+            </div>
             <button
-              className="h-11 w-full rounded-lg border border-[#cbd5e1] px-4 font-semibold text-[#334155] sm:w-auto"
+              className="h-11 rounded-lg border border-[#cbd5e1] px-5 font-semibold text-[#334155]"
               onClick={logout}
             >
               ログアウト
             </button>
           </div>
-
-          <div className="mt-10 border-t border-[#e2e8f0] pt-5">
-            <p className="text-sm font-bold text-[#64748b]">アカウント削除</p>
-            <p className="mt-1 text-xs leading-5 text-[#94a3b8]">
-              退会する場合のみ使用します。予定、TODO、分類、共有情報は削除され、元に戻せません。
-            </p>
-            <button
-              className="mt-3 h-10 rounded-lg border border-[#fecdd3] px-4 text-sm font-semibold text-[#be123c]"
-              onClick={() => {
-                setDeletePassword("");
-                setDeleteConfirmText("");
-                setDeleteError("");
-                setDeleteModalOpen(true);
-              }}
-            >
-              アカウント削除
-            </button>
-          </div>
         </section>
-        )}
       </div>
       {deleteModalOpen && (
         <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-[#0f172a]/45 p-4 pt-8 sm:items-center">
@@ -898,7 +1045,7 @@ export default function SettingsPage() {
                   disabled={
                     deletingAccount ||
                     !deletePassword ||
-                    deleteConfirmText !== "削除する"
+                    normalizedDeleteConfirmText !== "削除する"
                   }
                   onClick={deleteAccount}
                 >

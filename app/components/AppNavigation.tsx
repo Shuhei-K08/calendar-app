@@ -47,12 +47,6 @@ const ConnectIcon = () => (
   </svg>
 );
 
-const ProfileIcon = () => (
-  <svg className="nav-svg" viewBox="0 0 24 24" aria-hidden="true">
-    <path d="M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8ZM4 20a8 8 0 0 1 16 0" />
-  </svg>
-);
-
 const SettingsIcon = () => (
   <svg className="nav-svg" viewBox="0 0 24 24" aria-hidden="true">
     <path d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z" />
@@ -72,7 +66,6 @@ const items = [
   { href: "/patterns", label: "定型", desktopLabel: "定型予定", icon: <PatternIcon /> },
   { href: "/todos", label: "TODO", desktopLabel: "TODO", icon: <TodoIcon /> },
   { href: "/connect", label: "共有", desktopLabel: "つながる", icon: <ConnectIcon /> },
-  { href: "/profile", label: "自分", desktopLabel: "プロフィール", icon: <ProfileIcon /> },
   { href: "/settings", label: "設定", desktopLabel: "設定", icon: <SettingsIcon /> },
 ];
 
@@ -136,7 +129,7 @@ export function MobileNavigation() {
   const navItems = isAdmin ? [...items, adminItem] : items;
 
   return (
-    <nav className={`fixed inset-x-3 bottom-3 z-40 grid ${isAdmin ? "grid-cols-7" : "grid-cols-6"} rounded-2xl border border-[#d9e2ef] bg-white/95 p-2 text-center text-[10px] font-semibold text-[#334155] shadow-xl backdrop-blur sm:hidden`}>
+    <nav className={`fixed inset-x-3 bottom-3 z-40 grid ${isAdmin ? "grid-cols-6" : "grid-cols-5"} rounded-2xl border border-[#d9e2ef] bg-white/95 p-2 text-center text-[10px] font-semibold text-[#334155] shadow-xl backdrop-blur sm:hidden`}>
       {navItems.map((item) => (
         <Link key={item.href} className="mobile-nav-link" href={item.href} aria-label={item.desktopLabel}>
           {item.href === "/connect" && pendingCount > 0 && <span className="nav-badge mobile" />}
