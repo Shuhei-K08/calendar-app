@@ -195,9 +195,9 @@ export default function PatternsPage() {
             <ShareCalLogo compact />
             <div>
             <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[#64748b]">
-              Schedule Templates
+              Favorite Schedules
             </p>
-            <h1 className="mt-1 text-2xl font-bold text-[#0f172a]">定型予定</h1>
+            <h1 className="mt-1 text-2xl font-bold text-[#0f172a]">よく使う予定</h1>
             </div>
           </div>
           <DesktopNavigation />
@@ -206,11 +206,11 @@ export default function PatternsPage() {
         <section className="rounded-2xl border border-[#d9e2ef] bg-white p-4 shadow-sm">
           {!schemaReady && (
             <div className="mb-4 rounded-xl border border-[#fde68a] bg-[#fffbeb] p-3 text-sm text-[#92400e]">
-              Supabase SQLをまだ実行していないため、定型予定は使えません。
+              Supabase SQLをまだ実行していないため、よく使う予定は使えません。
             </div>
           )}
           <h2 className="mb-4 text-base font-semibold text-[#0f172a]">
-            {form.id ? "定型予定を編集" : "定型予定を追加"}
+            {form.id ? "よく使う予定を編集" : "よく使う予定を追加"}
           </h2>
           <p className="mb-4 text-sm text-[#64748b]">
             夜勤や休みなど、よく使う予定名と時間を保存しておくと登録画面でワンタップ入力できます。
@@ -378,7 +378,7 @@ export default function PatternsPage() {
               </div>
             ))}
             {patterns.length === 0 && (
-              <p className="text-sm text-[#64748b]">まだ定型予定はありません。</p>
+              <p className="text-sm text-[#64748b]">まだよく使う予定はありません。</p>
             )}
           </div>
         </section>

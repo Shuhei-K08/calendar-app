@@ -68,15 +68,23 @@ type RecurringEvent = {
   recurrence_rule: RecurrenceRule;
   recurrence_until: string | null;
   category_id: string | null;
+  sharedWith: ConnectedUser[];
 };
 
 type RecurringForm = {
+  id?: string;
   title: string;
   start: string;
   end: string;
   recurrenceRule: RecurrenceRule;
   recurrenceUntil: string;
   categoryId: string;
+  selectedUserIds: string[];
+};
+
+type ConnectedUser = {
+  id: string;
+  username: string;
 };
 
 type SettingsSection = "profile" | "design" | "categories" | "recurring" | "guide";
@@ -99,6 +107,7 @@ const createBlankRecurringForm = (): RecurringForm => {
     recurrenceRule: "weekly",
     recurrenceUntil: "",
     categoryId: "",
+    selectedUserIds: [],
   };
 };
 
@@ -127,6 +136,7 @@ export default function SettingsPage() {
     return defaultSettings;
   });
   const [categories, setCategories] = useState<Category[]>([]);
+  const [connections, setConnections] = useState<ConnectedUser[]>([]);
   const [recurringEvents, setRecurringEvents] = useState<RecurringEvent[]>([]);
   const [recurringForm, setRecurringForm] = useState<RecurringForm>(() =>
     createBlankRecurringForm(),
@@ -179,7 +189,72 @@ export default function SettingsPage() {
 
     if (error) return;
 
-    setRecurringEvents((data ?? []) as RecurringEvent[]);
+    const rows = (data ?? []) as Omit<RecurringEvent, "sharedWith">[];
+    const recurringIds = rows.map((event) => event.id);
+    let shareRows: { recurring_event_id: string; shared_with: string }[] = [];
+
+    if (recurringIds.length > 0) {
+      const { data: shares } = await supabase
+        .from("recurring_event_shares")
+        .select("recurring_event_id, shared_with")
+        .in("recurring_event_id", recurringIds);
+
+      shareRows = (shares ?? []) as { recurring_event_id: string; shared_with: string }[];
+    }
+
+    const userIds = Array.from(new Set(shareRows.map((share) => share.shared_with)));
+    let profileMap = new Map<string, string>();
+
+    if (userIds.length > 0) {
+      const { data: profiles } = await supabase
+        .from("profiles")
+        .select("id, username")
+        .in("id", userIds);
+
+      profileMap = new Map((profiles ?? []).map((profile) => [profile.id, profile.username]));
+    }
+
+    setRecurringEvents(
+      rows.map((event) => ({
+        ...event,
+        sharedWith: shareRows
+          .filter((share) => share.recurring_event_id === event.id)
+          .map((share) => ({
+            id: share.shared_with,
+            username: profileMap.get(share.shared_with) ?? "共有先",
+          })),
+      })),
+    );
+  }, []);
+
+  const fetchConnections = useCallback(async () => {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) return;
+
+    const { data: acceptedConnections } = await supabase
+      .from("connections")
+      .select("requester_id, receiver_id")
+      .eq("status", "accepted")
+      .or(`requester_id.eq.${user.id},receiver_id.eq.${user.id}`);
+
+    const userIds = (acceptedConnections ?? []).map((connection) =>
+      connection.requester_id === user.id ? connection.receiver_id : connection.requester_id,
+    );
+
+    if (userIds.length === 0) {
+      setConnections([]);
+      return;
+    }
+
+    const { data: profiles } = await supabase
+      .from("profiles")
+      .select("id, username")
+      .in("id", userIds);
+
+    setConnections(profiles ?? []);
   }, []);
 
   const fetchProfile = useCallback(async () => {
@@ -206,7 +281,8 @@ export default function SettingsPage() {
     void fetchProfile();
     void fetchCategories();
     void fetchRecurringEvents();
-  }, [fetchCategories, fetchProfile, fetchRecurringEvents]);
+    void fetchConnections();
+  }, [fetchCategories, fetchConnections, fetchProfile, fetchRecurringEvents]);
 
   const save = () => {
     const selectedTheme =
@@ -349,7 +425,7 @@ export default function SettingsPage() {
       return;
     }
 
-    const { error } = await supabase.from("recurring_events").insert({
+    const payload = {
       user_id: user.id,
       title: recurringForm.title.trim(),
       start_at: startAt,
@@ -361,15 +437,56 @@ export default function SettingsPage() {
       recurrence_until: recurringForm.recurrenceUntil
         ? new Date(`${recurringForm.recurrenceUntil}T23:59:59`).toISOString()
         : null,
-    });
+    };
+
+    const result = recurringForm.id
+      ? await supabase.from("recurring_events").update(payload).eq("id", recurringForm.id).select("id").single()
+      : await supabase.from("recurring_events").insert(payload).select("id").single();
+
+    const { data: savedEvent, error } = result;
 
     if (error) {
       alert(error.code === "PGRST205" ? "Supabase SQLを再実行してください。" : error.message);
       return;
     }
 
+    const recurringEventId = recurringForm.id ?? savedEvent.id;
+    await supabase
+      .from("recurring_event_shares")
+      .delete()
+      .eq("recurring_event_id", recurringEventId);
+
+    if (recurringForm.selectedUserIds.length > 0) {
+      const { error: shareError } = await supabase.from("recurring_event_shares").insert(
+        recurringForm.selectedUserIds.map((userId) => ({
+          recurring_event_id: recurringEventId,
+          shared_with: userId,
+        })),
+      );
+
+      if (shareError) {
+        alert(shareError.message);
+        return;
+      }
+    }
+
     setRecurringForm(createBlankRecurringForm());
     await fetchRecurringEvents();
+  };
+
+  const editRecurringEvent = (event: RecurringEvent) => {
+    setRecurringForm({
+      id: event.id,
+      title: event.title,
+      start: formatDateTimeLocal(new Date(event.start_at)),
+      end: formatDateTimeLocal(new Date(event.end_at)),
+      recurrenceRule: event.recurrence_rule,
+      recurrenceUntil: event.recurrence_until
+        ? event.recurrence_until.slice(0, 10)
+        : "",
+      categoryId: event.category_id ?? "",
+      selectedUserIds: event.sharedWith.map((user) => user.id),
+    });
   };
 
   const deleteRecurringEvent = async (event: RecurringEvent) => {
@@ -796,14 +913,16 @@ export default function SettingsPage() {
         {activeSection === "recurring" && (
         <section className="rounded-2xl border border-[#d9e2ef] bg-white p-4 shadow-sm">
           <div className="mb-4">
-            <h2 className="text-base font-bold text-[#0f172a]">繰り返し予定登録</h2>
+            <h2 className="text-base font-bold text-[#0f172a]">くり返し予定</h2>
             <p className="mt-1 text-sm text-[#64748b]">
               誕生日、月次予定、週次ミーティングなど、定期的に出る予定をここで登録できます。
             </p>
           </div>
 
           <div className="rounded-2xl border border-[#d9e2ef] bg-[#f8fafc] p-3">
-            <h3 className="text-sm font-bold text-[#0f172a]">新しい繰り返し予定</h3>
+            <h3 className="text-sm font-bold text-[#0f172a]">
+              {recurringForm.id ? "くり返し予定を編集" : "新しいくり返し予定"}
+            </h3>
             <div className="mt-3 grid gap-3 sm:grid-cols-2">
               <label className="space-y-1 sm:col-span-2">
                 <span className="text-xs font-bold text-[#64748b]">予定名</span>
@@ -889,14 +1008,57 @@ export default function SettingsPage() {
                   ))}
                 </select>
               </label>
+              <div className="space-y-2 sm:col-span-2">
+                <p className="text-xs font-bold text-[#64748b]">共有する相手</p>
+                <div className="flex flex-wrap gap-2">
+                  {connections.map((connection) => (
+                    <label
+                      key={connection.id}
+                      className={`flex cursor-pointer items-center gap-2 rounded-full border px-3 py-2 text-sm transition ${
+                        recurringForm.selectedUserIds.includes(connection.id)
+                          ? "border-[#0f766e] bg-[#ecfdf5] text-[#0f766e]"
+                          : "border-[#cbd5e1] bg-white text-[#334155]"
+                      }`}
+                    >
+                      <input
+                        className="h-4 w-4 accent-[#0f766e]"
+                        type="checkbox"
+                        checked={recurringForm.selectedUserIds.includes(connection.id)}
+                        onChange={(event) =>
+                          setRecurringForm((current) => ({
+                            ...current,
+                            selectedUserIds: event.target.checked
+                              ? [...current.selectedUserIds, connection.id]
+                              : current.selectedUserIds.filter((id) => id !== connection.id),
+                          }))
+                        }
+                      />
+                      {connection.username}
+                    </label>
+                  ))}
+                  {connections.length === 0 && (
+                    <p className="text-sm text-[#64748b]">共有できる相手はいません。</p>
+                  )}
+                </div>
+              </div>
             </div>
-            <button
-              className="mt-4 h-11 w-full rounded-lg bg-[#0f766e] px-4 font-bold text-white disabled:opacity-50"
-              disabled={!recurringForm.title.trim()}
-              onClick={saveRecurringEvent}
-            >
-              繰り返し予定を追加
-            </button>
+            <div className="mt-4 grid gap-2 sm:grid-cols-2">
+              {recurringForm.id && (
+                <button
+                  className="h-11 rounded-lg border border-[#cbd5e1] px-4 font-bold text-[#334155]"
+                  onClick={() => setRecurringForm(createBlankRecurringForm())}
+                >
+                  編集をやめる
+                </button>
+              )}
+              <button
+                className="h-11 rounded-lg bg-[#0f766e] px-4 font-bold text-white disabled:opacity-50"
+                disabled={!recurringForm.title.trim()}
+                onClick={saveRecurringEvent}
+              >
+                {recurringForm.id ? "変更を保存" : "くり返し予定を追加"}
+              </button>
+            </div>
           </div>
 
           <div className="mt-5 grid gap-3">
@@ -917,12 +1079,20 @@ export default function SettingsPage() {
                     {new Date(event.start_at).toLocaleDateString("ja-JP")}
                   </p>
                 </div>
-                <button
-                  className="h-10 rounded-lg border border-[#fecdd3] px-4 text-sm font-bold text-[#be123c]"
-                  onClick={() => deleteRecurringEvent(event)}
-                >
-                  削除
-                </button>
+                <div className="flex gap-2">
+                  <button
+                    className="h-10 rounded-lg border border-[#cbd5e1] px-4 text-sm font-bold text-[#334155]"
+                    onClick={() => editRecurringEvent(event)}
+                  >
+                    編集
+                  </button>
+                  <button
+                    className="h-10 rounded-lg border border-[#fecdd3] px-4 text-sm font-bold text-[#be123c]"
+                    onClick={() => deleteRecurringEvent(event)}
+                  >
+                    削除
+                  </button>
+                </div>
               </div>
             ))}
             {recurringEvents.length === 0 && (
@@ -940,7 +1110,7 @@ export default function SettingsPage() {
           <div className="grid gap-3 text-sm text-[#475569] sm:grid-cols-2">
             <p className="rounded-xl bg-[#f8fafc] p-3">カレンダーの日付を押すと、その日の予定を登録できます。</p>
             <p className="rounded-xl bg-[#f8fafc] p-3">予定を押すと詳細を確認でき、作成した予定はタイトル・時間・メモ・分類を編集できます。</p>
-            <p className="rounded-xl bg-[#f8fafc] p-3">よく使う勤務や休みは「定型予定」に登録しておくと、登録画面でワンタップ入力できます。</p>
+            <p className="rounded-xl bg-[#f8fafc] p-3">よく使う勤務や休みは「よく使う予定」に登録しておくと、登録画面でワンタップ入力できます。</p>
             <p className="rounded-xl bg-[#f8fafc] p-3">「つながる」で共有IDを使って接続すると、予定ごとに共有相手を選べます。</p>
             <p className="rounded-xl bg-[#f8fafc] p-3">共有された予定は色と共有元の名前で見分けられます。自分が共有している相手も詳細で確認できます。</p>
             <p className="rounded-xl bg-[#f8fafc] p-3">TODOでは期限日時と通知日時を設定できます。通知はこの設定画面でオン/オフできます。</p>

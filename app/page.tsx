@@ -91,6 +91,7 @@ type CalendarEvent = Event & {
   isShared: boolean;
   ownerId: string;
   ownerName: string;
+  ownerDeleted: boolean;
   sharedWith: ConnectedUser[];
   categoryId: string | null;
   categoryName: string;
@@ -125,6 +126,11 @@ type ConnectedUser = {
 
 type EventShareIdRow = {
   event_id: string;
+  shared_with?: string;
+};
+
+type RecurringShareIdRow = {
+  recurring_event_id: string;
   shared_with?: string;
 };
 
@@ -232,6 +238,14 @@ const addByRecurrence = (date: Date, rule: RecurrenceRule) => {
 const expandRecurringEvents = (
   rows: DbRecurringEvent[],
   categoryMap: Map<string, ScheduleCategory>,
+  meta: {
+    canDelete: boolean;
+    isShared: boolean;
+    ownerName: string;
+    ownerDeleted?: boolean;
+    sharedWith?: ConnectedUser[];
+    visibility?: EventVisibility;
+  },
 ): CalendarEvent[] => {
   const now = new Date();
   const windowStart = addYears(now, -1);
@@ -259,22 +273,29 @@ const expandRecurringEvents = (
           end: occurrenceEnd,
           allDay: row.all_day ?? false,
           note: row.note ?? "",
-          canDelete: true,
-          isShared: false,
+          canDelete: meta.canDelete,
+          isShared: meta.isShared,
           ownerId: row.user_id,
-          ownerName: "自分",
+          ownerName: meta.ownerName,
+          ownerDeleted: meta.ownerDeleted ?? false,
           categoryId: row.category_id,
           categoryName: row.category_id
             ? categoryMap.get(row.category_id)?.name ?? "分類"
             : "未分類",
-          categoryColor: row.category_id
+          categoryColor: meta.isShared
+            ? null
+            : row.category_id
             ? categoryMap.get(row.category_id)?.color ?? null
             : null,
-          sharedWith: [],
+          sharedWith: meta.sharedWith ?? [],
           recurringId: row.id,
           recurringRule: row.recurrence_rule,
-          visibility: "private",
-          displayKind: "own",
+          visibility: meta.visibility ?? "private",
+          displayKind: getDisplayKind(
+            meta.isShared,
+            (meta.sharedWith ?? []).length > 0,
+            meta.visibility ?? "private",
+          ),
         });
       }
 
@@ -466,6 +487,28 @@ export default function Home() {
       recurringEvents = [];
     }
 
+    const { data: sharedRecurringRows } = await supabase
+      .from("recurring_event_shares")
+      .select("recurring_event_id, shared_with")
+      .eq("shared_with", user.id);
+
+    const sharedRecurringIds = ((sharedRecurringRows ?? []) as RecurringShareIdRow[]).map(
+      (row) => row.recurring_event_id,
+    );
+
+    let sharedRecurringEvents: DbRecurringEvent[] = [];
+
+    if (sharedRecurringIds.length > 0) {
+      const { data, error } = await supabase
+        .from("recurring_events")
+        .select("id, title, start_at, end_at, user_id, note, all_day, category_id, recurrence_rule, recurrence_until")
+        .in("id", sharedRecurringIds);
+
+      if (!error) {
+        sharedRecurringEvents = (data ?? []) as DbRecurringEvent[];
+      }
+    }
+
     const { data: sharedRows, error: sharedError } = await supabase
       .from("event_shares")
       .select("event_id, shared_with")
@@ -528,6 +571,7 @@ export default function Home() {
 
     const profileIds = Array.from(new Set([
       ...sharedEvents.map((event) => event.user_id),
+      ...sharedRecurringEvents.map((event) => event.user_id),
       ...myShareRows.map((row) => row.shared_with),
     ]));
     let profileMap = new Map<string, string>();
@@ -535,6 +579,7 @@ export default function Home() {
       ...(myEvents ?? []).map((event) => event.category_id).filter(Boolean),
       ...sharedEvents.map((event) => event.category_id).filter(Boolean),
       ...(recurringEvents ?? []).map((event) => event.category_id).filter(Boolean),
+      ...sharedRecurringEvents.map((event) => event.category_id).filter(Boolean),
     ])) as string[];
     let categoryMap = new Map<string, ScheduleCategory>();
 
@@ -567,13 +612,15 @@ export default function Home() {
         isShared: false,
         ownerId: user.id,
         ownerName: "自分",
+        ownerDeleted: false,
       })),
       ...sharedEvents.map((event) => ({
         ...event,
         canDelete: false,
         isShared: true,
         ownerId: event.user_id,
-        ownerName: profileMap.get(event.user_id) ?? "共有元",
+        ownerName: profileMap.get(event.user_id) ?? "削除されたアカウント",
+        ownerDeleted: !profileMap.has(event.user_id),
       })),
     ].map((event) => {
       const sharedWith = myShareRows
@@ -595,11 +642,14 @@ export default function Home() {
         isShared: event.isShared,
         ownerId: event.ownerId,
         ownerName: event.ownerName,
+        ownerDeleted: event.ownerDeleted ?? false,
         categoryId: event.category_id,
         categoryName: event.category_id
           ? categoryMap.get(event.category_id)?.name ?? "分類"
           : "未分類",
-        categoryColor: event.category_id
+        categoryColor: event.isShared
+          ? null
+          : event.category_id
           ? categoryMap.get(event.category_id)?.color ?? null
           : null,
         sharedWith,
@@ -611,9 +661,25 @@ export default function Home() {
     const expandedRecurring = expandRecurringEvents(
       (recurringEvents ?? []) as DbRecurringEvent[],
       categoryMap,
+      {
+        canDelete: true,
+        isShared: false,
+        ownerName: "自分",
+      },
     );
 
-    setEvents([...formatted, ...expandedRecurring]);
+    const expandedSharedRecurring = expandRecurringEvents(
+      sharedRecurringEvents,
+      categoryMap,
+      {
+        canDelete: false,
+        isShared: true,
+        ownerName: "共有元",
+        visibility: "together",
+      },
+    );
+
+    setEvents([...formatted, ...expandedRecurring, ...expandedSharedRecurring]);
     notifyNewSharedEvents(
       formatted.filter((event) => event.isShared),
       user.id,
@@ -925,6 +991,33 @@ export default function Home() {
   const deleteEvent = async (event: CalendarEvent) => {
     if (!event.id) return;
     if (!event.canDelete) {
+      if (event.isShared && event.ownerDeleted) {
+        const {
+          data: { user },
+        } = await supabase.auth.getUser();
+
+        if (!user) return;
+
+        if (event.recurringId) {
+          await supabase
+            .from("recurring_event_shares")
+            .delete()
+            .eq("recurring_event_id", event.recurringId)
+            .eq("shared_with", user.id);
+        } else {
+          await supabase
+            .from("event_shares")
+            .delete()
+            .eq("event_id", event.id)
+            .eq("shared_with", user.id);
+        }
+
+        setDetailEvent(null);
+        setDayDetail(null);
+        await fetchEvents();
+        return;
+      }
+
       alert("共有された予定は作成者だけが削除できます");
       return;
     }
@@ -1231,7 +1324,7 @@ export default function Home() {
 
             <div className="mb-4 rounded-2xl border border-[#d9e2ef] bg-[#f8fafc] p-3">
               <p className="mb-2 text-xs font-bold text-[#64748b]">
-                定型予定から入力
+                よく使う予定から入力
               </p>
               <div className="flex gap-2 overflow-x-auto px-1 py-1">
               {patterns.map((pattern) => (
@@ -1569,7 +1662,9 @@ export default function Home() {
                 </div>
                 {detailEvent.isShared ? (
                   <div className="rounded-xl bg-[#fffbeb] p-3 text-[#92400e]">
-                    {detailEvent.displayKind === "together"
+                    {detailEvent.ownerDeleted
+                      ? "削除されたアカウントから共有"
+                      : detailEvent.displayKind === "together"
                       ? `${detailEvent.ownerName}さんとの共有の予定`
                       : `${detailEvent.ownerName}さんから共有された予定`}
                   </div>
@@ -1582,19 +1677,21 @@ export default function Home() {
                     共有していない自分の予定です。
                   </div>
                 )}
-                {detailEvent.canDelete && (
+                {(detailEvent.canDelete || detailEvent.ownerDeleted) && (
                   <div className="grid gap-2 sm:grid-cols-2">
+                    {detailEvent.canDelete && (
                     <button
                       className="h-11 rounded-lg bg-[#0f766e] px-5 text-sm font-semibold text-white shadow-sm transition hover:bg-[#115e59]"
                       onClick={() => setIsDetailEditing(true)}
                     >
                       編集する
                     </button>
+                    )}
                     <button
                       className="h-11 rounded-lg border border-[#fecdd3] px-5 text-sm font-semibold text-[#be123c]"
                       onClick={() => deleteEvent(detailEvent)}
                     >
-                      削除する
+                      {detailEvent.ownerDeleted ? "表示から削除" : "削除する"}
                     </button>
                   </div>
                 )}
@@ -1732,8 +1829,8 @@ export default function Home() {
                 <p className="mt-1">カレンダーの日付を押すと、その日の登録画面が開きます。</p>
               </div>
               <div className="rounded-2xl bg-[#f8fafc] p-3">
-                <p className="font-bold text-[#0f172a]">2. 定型予定で時短</p>
-                <p className="mt-1">夜勤や休みは定型予定にしておくと、ワンタップで入力できます。</p>
+                <p className="font-bold text-[#0f172a]">2. よく使う予定で時短</p>
+                <p className="mt-1">夜勤や休みはよく使う予定にしておくと、ワンタップで入力できます。</p>
               </div>
               <div className="rounded-2xl bg-[#f8fafc] p-3">
                 <p className="font-bold text-[#0f172a]">3. 必要な予定だけ共有</p>

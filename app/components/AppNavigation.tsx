@@ -63,7 +63,7 @@ const AdminIcon = () => (
 
 const items = [
   { href: "/", label: "予定", desktopLabel: "カレンダー", icon: <CalendarIcon /> },
-  { href: "/patterns", label: "定型", desktopLabel: "定型予定", icon: <PatternIcon /> },
+  { href: "/patterns", label: "よく使う", desktopLabel: "よく使う予定", icon: <PatternIcon /> },
   { href: "/todos", label: "TODO", desktopLabel: "TODO", icon: <TodoIcon /> },
   { href: "/connect", label: "共有", desktopLabel: "つながる", icon: <ConnectIcon /> },
   { href: "/settings", label: "設定", desktopLabel: "設定", icon: <SettingsIcon /> },

@@ -66,6 +66,14 @@ create table if not exists public.recurring_events (
   created_at timestamptz not null default now()
 );
 
+create table if not exists public.recurring_event_shares (
+  id uuid primary key default gen_random_uuid(),
+  recurring_event_id uuid not null references public.recurring_events(id) on delete cascade,
+  shared_with uuid not null references auth.users(id) on delete cascade,
+  created_at timestamptz not null default now(),
+  unique (recurring_event_id, shared_with)
+);
+
 create table if not exists public.todos (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null references auth.users(id) on delete cascade,
@@ -94,6 +102,12 @@ create index if not exists todos_user_id_idx
 
 create index if not exists recurring_events_user_id_idx
   on public.recurring_events(user_id);
+
+create index if not exists recurring_event_shares_event_id_idx
+  on public.recurring_event_shares(recurring_event_id);
+
+create index if not exists recurring_event_shares_shared_with_idx
+  on public.recurring_event_shares(shared_with);
 
 create or replace function public.is_event_owner(target_event_id uuid, target_user_id uuid)
 returns boolean
@@ -169,6 +183,7 @@ alter table public.schedule_patterns enable row level security;
 alter table public.schedule_categories enable row level security;
 alter table public.todos enable row level security;
 alter table public.recurring_events enable row level security;
+alter table public.recurring_event_shares enable row level security;
 
 grant usage on schema public to authenticated;
 grant select, insert, update, delete on public.events to authenticated;
@@ -177,6 +192,7 @@ grant select, insert, update, delete on public.schedule_patterns to authenticate
 grant select, insert, update, delete on public.schedule_categories to authenticated;
 grant select, insert, update, delete on public.todos to authenticated;
 grant select, insert, update, delete on public.recurring_events to authenticated;
+grant select, insert, update, delete on public.recurring_event_shares to authenticated;
 grant select, insert, update, delete on public.connections to authenticated;
 
 drop policy if exists "users can view own events" on public.events;
@@ -246,7 +262,10 @@ with check (
 create policy "event owners can delete shares"
 on public.event_shares
 for delete
-using (public.is_event_owner(event_id, auth.uid()));
+using (
+  public.is_event_owner(event_id, auth.uid())
+  or shared_with = auth.uid()
+);
 
 drop policy if exists "users can view own patterns" on public.schedule_patterns;
 drop policy if exists "users can insert own patterns" on public.schedule_patterns;
@@ -334,7 +353,15 @@ drop policy if exists "users can delete own recurring events" on public.recurrin
 create policy "users can view own recurring events"
 on public.recurring_events
 for select
-using (user_id = auth.uid());
+using (
+  user_id = auth.uid()
+  or exists (
+    select 1
+    from public.recurring_event_shares res
+    where res.recurring_event_id = id
+      and res.shared_with = auth.uid()
+  )
+);
 
 create policy "users can insert own recurring events"
 on public.recurring_events
@@ -351,6 +378,50 @@ create policy "users can delete own recurring events"
 on public.recurring_events
 for delete
 using (user_id = auth.uid());
+
+drop policy if exists "recurring event owners can create shares" on public.recurring_event_shares;
+drop policy if exists "users can view recurring shares involving them" on public.recurring_event_shares;
+drop policy if exists "recurring event owners can delete shares" on public.recurring_event_shares;
+drop policy if exists "shared users can remove deleted recurring shares" on public.recurring_event_shares;
+
+create policy "recurring event owners can create shares"
+on public.recurring_event_shares
+for insert
+with check (
+  exists (
+    select 1
+    from public.recurring_events re
+    where re.id = recurring_event_id
+      and re.user_id = auth.uid()
+  )
+  and public.are_connected(auth.uid(), shared_with)
+);
+
+create policy "users can view recurring shares involving them"
+on public.recurring_event_shares
+for select
+using (
+  shared_with = auth.uid()
+  or exists (
+    select 1
+    from public.recurring_events re
+    where re.id = recurring_event_id
+      and re.user_id = auth.uid()
+  )
+);
+
+create policy "recurring event owners can delete shares"
+on public.recurring_event_shares
+for delete
+using (
+  exists (
+    select 1
+    from public.recurring_events re
+    where re.id = recurring_event_id
+      and re.user_id = auth.uid()
+  )
+  or shared_with = auth.uid()
+);
 
 drop policy if exists "users can delete own connections" on public.connections;
 
