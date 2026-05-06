@@ -15,11 +15,19 @@ type AdminUser = {
   banned_until: string | null;
 };
 
+type AdminDebug = {
+  email?: string;
+  userId?: string;
+  profileRole?: string | null;
+  adminEmailsConfigured?: boolean;
+};
+
 export default function AdminPage() {
   const router = useRouter();
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState("");
+  const [debug, setDebug] = useState<AdminDebug | null>(null);
 
   const fetchUsers = useCallback(async () => {
     setLoading(true);
@@ -41,10 +49,13 @@ export default function AdminPage() {
 
     if (!response.ok) {
       setMessage(result.error ?? "管理者情報を取得できませんでした。");
+      setDebug(result.debug ?? null);
       setLoading(false);
       return;
     }
 
+    setMessage("");
+    setDebug(null);
     setUsers(result.users ?? []);
     setLoading(false);
   }, [router]);
@@ -119,6 +130,14 @@ export default function AdminPage() {
               <p className="mt-2 text-xs leading-5">
                 管理者登録が完了しているか確認してください。設定後は再デプロイ、または再ログインが必要な場合があります。
               </p>
+              {debug && (
+                <div className="mt-3 rounded-lg bg-white/70 p-2 text-xs leading-5 text-[#78350f]">
+                  <p>ログイン中: {debug.email ?? "不明"}</p>
+                  <p>ユーザーID: {debug.userId ?? "不明"}</p>
+                  <p>profiles.role: {debug.profileRole ?? "未取得"}</p>
+                  <p>ADMIN_EMAILS: {debug.adminEmailsConfigured ? "設定あり" : "未設定"}</p>
+                </div>
+              )}
             </div>
           )}
         </section>

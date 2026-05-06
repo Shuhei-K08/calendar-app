@@ -7,7 +7,11 @@ const getAdminEmails = () =>
     .map((email) => email.trim().toLowerCase())
     .filter(Boolean);
 
-const isAdminRole = (role?: string | null) => role === "admin" || role === "admine";
+const normalizeRole = (role?: string | null) => (role ?? "").trim().toLowerCase();
+const isAdminRole = (role?: string | null) => {
+  const normalizedRole = normalizeRole(role);
+  return normalizedRole === "admin" || normalizedRole === "admine";
+};
 
 const requireAdmin = async (request: Request) => {
   const admin = createSupabaseAdmin();
@@ -41,11 +45,17 @@ const requireAdmin = async (request: Request) => {
     return {
       error:
         "このアカウントはまだ管理者として登録されていません。",
+      debug: {
+        email: user.email,
+        userId: user.id,
+        profileRole: profile?.role ?? null,
+        adminEmailsConfigured: getAdminEmails().length > 0,
+      },
       status: 403 as const,
     };
   }
 
-  if ((isEnvAdmin || profile?.role === "admine") && profile?.role !== "admin") {
+  if ((isEnvAdmin || isAdminRole(profile?.role)) && normalizeRole(profile?.role) !== "admin") {
     await admin.from("profiles").update({ role: "admin" }).eq("id", user.id);
   }
 
