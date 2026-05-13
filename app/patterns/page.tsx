@@ -12,6 +12,8 @@ type Pattern = {
   end_time: string;
   next_day_end: boolean;
   category_id: string | null;
+  event_visibility: EventVisibility | null;
+  share_user_ids: string[] | null;
 };
 
 type PatternForm = {
@@ -22,12 +24,21 @@ type PatternForm = {
   end_time: string;
   next_day_end: boolean;
   category_id: string;
+  event_visibility: EventVisibility;
+  share_user_ids: string[];
 };
+
+type EventVisibility = "private" | "partner" | "together";
 
 type Category = {
   id: string;
   name: string;
   color: string;
+};
+
+type ConnectedUser = {
+  id: string;
+  username: string;
 };
 
 const blankForm: PatternForm = {
@@ -37,11 +48,14 @@ const blankForm: PatternForm = {
   end_time: "18:00",
   next_day_end: false,
   category_id: "",
+  event_visibility: "together",
+  share_user_ids: [],
 };
 
 export default function PatternsPage() {
   const [patterns, setPatterns] = useState<Pattern[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
+  const [connections, setConnections] = useState<ConnectedUser[]>([]);
   const [form, setForm] = useState<PatternForm>(blankForm);
   const [newCategoryName, setNewCategoryName] = useState("");
   const [newCategoryColor, setNewCategoryColor] = useState("#2563eb");
@@ -57,7 +71,7 @@ export default function PatternsPage() {
 
     const { data, error } = await supabase
       .from("schedule_patterns")
-      .select("id, label, title, start_time, end_time, next_day_end, category_id")
+      .select("id, label, title, start_time, end_time, next_day_end, category_id, event_visibility, share_user_ids")
       .eq("user_id", user.id)
       .order("created_at", { ascending: true });
 
@@ -68,6 +82,36 @@ export default function PatternsPage() {
 
     setSchemaReady(true);
     setPatterns(data ?? []);
+  }, []);
+
+  const fetchConnections = useCallback(async () => {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) return;
+
+    const { data: acceptedConnections } = await supabase
+      .from("connections")
+      .select("requester_id, receiver_id")
+      .eq("status", "accepted")
+      .or(`requester_id.eq.${user.id},receiver_id.eq.${user.id}`);
+
+    const userIds = (acceptedConnections ?? []).map((connection) =>
+      connection.requester_id === user.id ? connection.receiver_id : connection.requester_id,
+    );
+
+    if (userIds.length === 0) {
+      setConnections([]);
+      return;
+    }
+
+    const { data: profiles } = await supabase
+      .from("profiles")
+      .select("id, username")
+      .in("id", userIds);
+
+    setConnections(profiles ?? []);
   }, []);
 
   const fetchCategories = useCallback(async () => {
@@ -90,7 +134,8 @@ export default function PatternsPage() {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     void fetchPatterns();
     void fetchCategories();
-  }, [fetchCategories, fetchPatterns]);
+    void fetchConnections();
+  }, [fetchCategories, fetchConnections, fetchPatterns]);
 
   const addCategory = async () => {
     if (!newCategoryName.trim()) return;
@@ -146,6 +191,13 @@ export default function PatternsPage() {
       end_time: form.end_time,
       next_day_end: form.next_day_end,
       category_id: form.category_id || null,
+      event_visibility:
+        form.share_user_ids.length > 0
+          ? form.event_visibility === "private"
+            ? "together"
+            : form.event_visibility
+          : "private",
+      share_user_ids: form.share_user_ids,
       user_id: user.id,
     };
 
@@ -308,6 +360,77 @@ export default function PatternsPage() {
               />
               終了時刻を翌日にする
             </label>
+            <div className="space-y-3 rounded-2xl border border-[#d9e2ef] bg-[#f8fafc] p-3 sm:col-span-2">
+              <div>
+                <p className="text-xs font-bold text-[#64748b]">共有する相手</p>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {connections.map((connection) => (
+                    <label
+                      key={connection.id}
+                      className={`flex cursor-pointer items-center gap-2 rounded-full border px-3 py-2 text-sm transition ${
+                        form.share_user_ids.includes(connection.id)
+                          ? "border-[#0f766e] bg-[#ecfdf5] text-[#0f766e]"
+                          : "border-[#cbd5e1] bg-white text-[#334155]"
+                      }`}
+                    >
+                      <input
+                        className="h-4 w-4 accent-[#0f766e]"
+                        type="checkbox"
+                        checked={form.share_user_ids.includes(connection.id)}
+                        onChange={(event) =>
+                          setForm((current) => ({
+                            ...current,
+                            share_user_ids: event.target.checked
+                              ? [...current.share_user_ids, connection.id]
+                              : current.share_user_ids.filter((id) => id !== connection.id),
+                            event_visibility:
+                              event.target.checked && current.event_visibility === "private"
+                                ? "together"
+                                : current.event_visibility,
+                          }))
+                        }
+                      />
+                      {connection.username}
+                    </label>
+                  ))}
+                  {connections.length === 0 && (
+                    <p className="text-sm text-[#64748b]">共有できる相手はいません。</p>
+                  )}
+                </div>
+              </div>
+              {form.share_user_ids.length > 0 && (
+                <div className="grid gap-2 sm:grid-cols-2">
+                  {[
+                    { value: "partner", title: "自分の予定を相手に共有" },
+                    { value: "together", title: "私たちの予定" },
+                  ].map((option) => (
+                    <label
+                      key={option.value}
+                      className={`cursor-pointer rounded-2xl border p-3 text-sm font-bold ${
+                        form.event_visibility === option.value
+                          ? "border-[#0f766e] bg-[#ecfdf5] text-[#0f766e]"
+                          : "border-[#d9e2ef] bg-white text-[#334155]"
+                      }`}
+                    >
+                      <input
+                        className="sr-only"
+                        type="radio"
+                        name="pattern-share-type"
+                        value={option.value}
+                        checked={form.event_visibility === option.value}
+                        onChange={(event) =>
+                          setForm((current) => ({
+                            ...current,
+                            event_visibility: event.target.value as EventVisibility,
+                          }))
+                        }
+                      />
+                      {option.title}
+                    </label>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
 
           <div className="mt-4 grid gap-2 sm:flex">
@@ -360,8 +483,18 @@ export default function PatternsPage() {
                       className="rounded-lg border border-[#cbd5e1] px-3 py-2 text-sm text-[#334155]"
                       onClick={() =>
                         setForm({
-                          ...pattern,
+                          id: pattern.id,
+                          label: pattern.label,
+                          title: pattern.title,
+                          start_time: pattern.start_time,
+                          end_time: pattern.end_time,
+                          next_day_end: pattern.next_day_end,
                           category_id: pattern.category_id ?? "",
+                          event_visibility:
+                            pattern.event_visibility && pattern.event_visibility !== "private"
+                              ? pattern.event_visibility
+                              : "together",
+                          share_user_ids: pattern.share_user_ids ?? [],
                         })
                       }
                     >

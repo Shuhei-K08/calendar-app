@@ -10,6 +10,7 @@ const defaultSettings = {
   background: "#f5f7fb",
   ownEventBackground: "#e0f2fe",
   partnerEventBackground: "#e0f2fe",
+  incomingEventBackground: "#ede9fe",
   sharedEventBackground: "#fef3c7",
   unclassifiedEvent: "#22c8d6",
   notificationsEnabled: true,
@@ -129,6 +130,8 @@ export default function SettingsPage() {
           parsed.partnerEventBackground ??
           parsed.ownEventBackground ??
           defaultSettings.partnerEventBackground,
+        incomingEventBackground:
+          parsed.incomingEventBackground ?? defaultSettings.incomingEventBackground,
         unclassifiedEvent:
           parsed.unclassifiedEvent ?? parsed.ownEvent ?? defaultSettings.unclassifiedEvent,
       };
@@ -292,6 +295,7 @@ export default function SettingsPage() {
     document.documentElement.style.setProperty("--app-accent", selectedTheme.accent);
     document.documentElement.style.setProperty("--own-event-bg", settings.ownEventBackground);
     document.documentElement.style.setProperty("--partner-event-bg", settings.partnerEventBackground);
+    document.documentElement.style.setProperty("--incoming-event-bg", settings.incomingEventBackground);
     document.documentElement.style.setProperty("--shared-event-bg", settings.sharedEventBackground);
     document.documentElement.style.setProperty(
       "--uncategorized-event",
@@ -754,6 +758,19 @@ export default function SettingsPage() {
                   setSettings((current) => ({
                     ...current,
                     partnerEventBackground: event.target.value,
+                  }))
+                }
+              />
+            </label>
+            <label className="flex items-center justify-between gap-4 rounded-xl bg-[#f8fafc] p-3">
+              <span className="font-semibold text-[#334155]">相手から共有された予定の塗り色</span>
+              <input
+                type="color"
+                value={settings.incomingEventBackground}
+                onChange={(event) =>
+                  setSettings((current) => ({
+                    ...current,
+                    incomingEventBackground: event.target.value,
                   }))
                 }
               />

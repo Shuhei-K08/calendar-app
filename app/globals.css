@@ -7,6 +7,7 @@
   --app-accent: #0f766e;
   --own-event-bg: #e0f2fe;
   --partner-event-bg: #e0f2fe;
+  --incoming-event-bg: #ede9fe;
   --shared-event-bg: #fef3c7;
   --uncategorized-event: #22c8d6;
 }
@@ -405,6 +406,11 @@ button,
   color: #075985 !important;
 }
 
+.calendar-shell .rbc-event.incoming-event {
+  background: var(--incoming-event-bg);
+  color: #5b21b6 !important;
+}
+
 .calendar-shell .rbc-overlay .rbc-event.own-event,
 .calendar-shell .rbc-overlay .own-event {
   background: var(--own-event-bg);
@@ -421,6 +427,12 @@ button,
 .calendar-shell .rbc-overlay .partner-event {
   background: var(--partner-event-bg);
   color: #075985 !important;
+}
+
+.calendar-shell .rbc-overlay .rbc-event.incoming-event,
+.calendar-shell .rbc-overlay .incoming-event {
+  background: var(--incoming-event-bg);
+  color: #5b21b6 !important;
 }
 
 .calendar-shell .rbc-event-content {

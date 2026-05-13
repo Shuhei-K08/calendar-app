@@ -46,6 +46,13 @@ create table if not exists public.schedule_patterns (
 alter table public.schedule_patterns
   add column if not exists category_id uuid references public.schedule_categories(id) on delete set null;
 
+alter table public.schedule_patterns
+  add column if not exists event_visibility text not null default 'private'
+  check (event_visibility in ('private', 'partner', 'together'));
+
+alter table public.schedule_patterns
+  add column if not exists share_user_ids uuid[] not null default '{}';
+
 alter table public.profiles
   add column if not exists role text not null default 'user';
 

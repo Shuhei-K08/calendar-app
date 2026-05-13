@@ -142,6 +142,8 @@ type SchedulePattern = {
   end_time: string;
   next_day_end: boolean;
   category_id: string | null;
+  event_visibility?: EventVisibility | null;
+  share_user_ids?: string[] | null;
 };
 
 type ScheduleCategory = {
@@ -168,7 +170,8 @@ type EventForm = {
 
 type RecurrenceRule = "none" | "weekly" | "monthly" | "yearly";
 type EventVisibility = "private" | "partner" | "together";
-type EventDisplayKind = "own" | "partner" | "together";
+type EventDisplayKind = "own" | "partner" | "incoming" | "together";
+type CalendarFilter = "all" | "own" | `person:${string}` | `together:${string}`;
 
 const createBlankForm = (date = new Date()): EventForm => {
   const startDate = new Date(date);
@@ -195,16 +198,26 @@ const getDisplayKind = (
   visibility: EventVisibility | null,
 ): EventDisplayKind => {
   if (!isShared && !hasShareTargets) return "own";
-  return visibility === "partner" ? "partner" : "together";
+  if (visibility === "partner") return isShared ? "incoming" : "partner";
+  return "together";
 };
 
 const getDisplayLabel = (kind: EventDisplayKind) => {
   if (kind === "own") return "自分の予定";
   if (kind === "partner") return "自分の予定を相手に共有";
+  if (kind === "incoming") return "相手から共有された予定";
   return "私たちの予定";
 };
 
 const getDisplayStyle = (kind: EventDisplayKind) => {
+  if (kind === "incoming") {
+    return {
+      background: "var(--incoming-event-bg)",
+      text: "#5b21b6",
+      border: "#8b5cf6",
+    };
+  }
+
   if (kind === "partner") {
     return {
       background: "var(--partner-event-bg)",
@@ -344,6 +357,7 @@ export default function Home() {
   const [sharedNotification, setSharedNotification] =
     useState<SharedNotification | null>(null);
   const [showTutorial, setShowTutorial] = useState(false);
+  const [calendarFilter, setCalendarFilter] = useState<CalendarFilter>("all");
 
   const fetchConnections = useCallback(async (userId: string) => {
     const { data: acceptedConnections, error } = await supabase
@@ -381,7 +395,7 @@ export default function Home() {
   const fetchPatterns = useCallback(async (userId: string) => {
     const { data, error } = await supabase
       .from("schedule_patterns")
-      .select("id, label, title, start_time, end_time, next_day_end, category_id")
+      .select("id, label, title, start_time, end_time, next_day_end, category_id, event_visibility, share_user_ids")
       .eq("user_id", userId)
       .order("created_at", { ascending: true });
 
@@ -731,6 +745,10 @@ export default function Home() {
         settings.partnerEventBackground ?? settings.ownEventBackground ?? "#e0f2fe",
       );
       document.documentElement.style.setProperty(
+        "--incoming-event-bg",
+        settings.incomingEventBackground ?? "#ede9fe",
+      );
+      document.documentElement.style.setProperty(
         "--uncategorized-event",
         settings.unclassifiedEvent ?? settings.ownEvent ?? "#22c8d6",
       );
@@ -817,6 +835,11 @@ export default function Home() {
       start: startValue,
       end: buildDateTimeLocal(endBase, pattern.end_time),
       categoryId: pattern.category_id ?? current.categoryId,
+      selectedUserIds: pattern.share_user_ids ?? [],
+      shareType:
+        pattern.event_visibility && pattern.event_visibility !== "private"
+          ? pattern.event_visibility
+          : current.shareType,
     }));
   };
 
@@ -1102,8 +1125,50 @@ export default function Home() {
     setDetailEvent(null);
   };
 
+  const filterEvents = useCallback((items: CalendarEvent[]) => {
+    if (calendarFilter === "all") return items;
+    if (calendarFilter === "own") {
+      return items.filter((event) => event.displayKind === "own");
+    }
+    if (calendarFilter.startsWith("person:")) {
+      const personId = calendarFilter.replace("person:", "");
+      return items.filter(
+        (event) =>
+          event.displayKind === "incoming" &&
+          event.ownerId === personId,
+      );
+    }
+    if (calendarFilter.startsWith("together:")) {
+      const personId = calendarFilter.replace("together:", "");
+      return items.filter(
+        (event) =>
+          event.displayKind === "together" &&
+          (event.ownerId === personId || event.sharedWith.some((user) => user.id === personId)),
+      );
+    }
+    return items;
+  }, [calendarFilter]);
+
+  const visibleEvents = filterEvents(events);
   const selectedDayDate = dayDetail?.date ?? calendarDate;
-  const selectedDayEvents = dayDetail?.events ?? getEventsOnDate(events, selectedDayDate);
+  const selectedDayEvents = dayDetail?.events
+    ? filterEvents(dayDetail.events)
+    : getEventsOnDate(visibleEvents, selectedDayDate);
+  const filterOptions = [
+    { value: "all" as CalendarFilter, label: "すべて" },
+    { value: "own" as CalendarFilter, label: "自分の予定" },
+    ...connections.flatMap((connection) => [
+      {
+        value: `person:${connection.id}` as CalendarFilter,
+        label: `${connection.username}さんの予定`,
+      },
+      {
+        value: `together:${connection.id}` as CalendarFilter,
+        label: `${connection.username}さんとの予定`,
+      },
+    ]),
+  ];
+
   const openDateForRegistration = (date: Date) => {
     setDayDetail({
       date,
@@ -1153,6 +1218,27 @@ export default function Home() {
             </button>
           </section>
         )}
+
+        <section className="rounded-2xl border border-[#d9e2ef] bg-white p-3 shadow-sm">
+          <p className="mb-2 text-xs font-black uppercase tracking-[0.14em] text-[#64748b]">
+            表示フィルター
+          </p>
+          <div className="flex gap-2 overflow-x-auto pb-1">
+            {filterOptions.map((option) => (
+              <button
+                key={option.value}
+                className={`shrink-0 rounded-full border px-4 py-2 text-sm font-bold transition ${
+                  calendarFilter === option.value
+                    ? "border-[#0f766e] bg-[#0f766e] text-white"
+                    : "border-[#cbd5e1] bg-[#f8fafc] text-[#334155]"
+                }`}
+                onClick={() => setCalendarFilter(option.value)}
+              >
+                {option.label}
+              </button>
+            ))}
+          </div>
+        </section>
 
         <section className="rounded-2xl border border-[#d9e2ef] bg-white p-3 shadow-sm">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -1226,7 +1312,7 @@ export default function Home() {
           <div className="calendar-shell h-[calc(100vh-255px)] min-h-[430px] sm:h-[calc(100vh-205px)] sm:min-h-[560px]">
             <Calendar<CalendarEvent>
               localizer={localizer}
-              events={events}
+              events={visibleEvents}
               startAccessor="start"
               endAccessor="end"
               allDayAccessor="allDay"
