@@ -61,6 +61,7 @@ export default function PatternsPage() {
   const [newCategoryColor, setNewCategoryColor] = useState("#2563eb");
   const [saving, setSaving] = useState(false);
   const [schemaReady, setSchemaReady] = useState(true);
+  const [isFormOpen, setIsFormOpen] = useState(false);
 
   const fetchPatterns = useCallback(async () => {
     const {
@@ -214,6 +215,7 @@ export default function PatternsPage() {
     }
 
     setForm(blankForm);
+    setIsFormOpen(false);
     await fetchPatterns();
   };
 
@@ -234,9 +236,39 @@ export default function PatternsPage() {
 
     if (form.id === pattern.id) {
       setForm(blankForm);
+      setIsFormOpen(false);
     }
 
     await fetchPatterns();
+  };
+
+  const openNewForm = () => {
+    setForm(blankForm);
+    setIsFormOpen(true);
+  };
+
+  const openEditForm = (pattern: Pattern) => {
+    setForm({
+      id: pattern.id,
+      label: pattern.label,
+      title: pattern.title,
+      start_time: pattern.start_time,
+      end_time: pattern.end_time,
+      next_day_end: pattern.next_day_end,
+      category_id: pattern.category_id ?? "",
+      event_visibility:
+        pattern.event_visibility && pattern.event_visibility !== "private"
+          ? pattern.event_visibility
+          : "together",
+      share_user_ids: pattern.share_user_ids ?? [],
+    });
+    setIsFormOpen(true);
+    window.requestAnimationFrame(() => {
+      document.getElementById("pattern-form")?.scrollIntoView({
+        behavior: "smooth",
+        block: "start",
+      });
+    });
   };
 
   return (
@@ -261,12 +293,49 @@ export default function PatternsPage() {
               Supabase SQLをまだ実行していないため、よく使う予定は使えません。
             </div>
           )}
-          <h2 className="mb-4 text-base font-semibold text-[#0f172a]">
-            {form.id ? "よく使う予定を編集" : "よく使う予定を追加"}
-          </h2>
-          <p className="mb-4 text-sm text-[#64748b]">
-            夜勤や休みなど、よく使う予定名と時間を保存しておくと登録画面でワンタップ入力できます。
-          </p>
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="text-xs font-black uppercase tracking-[0.14em] text-[#64748b]">
+                Favorite
+              </p>
+              <h2 className="mt-1 text-lg font-black text-[#0f172a]">よく使う予定を管理</h2>
+              <p className="mt-1 text-sm text-[#64748b]">
+                夜勤や休みなどを保存して、登録画面でワンタップ入力できます。
+              </p>
+            </div>
+            <button
+              className="h-11 rounded-xl bg-[#0f766e] px-5 text-sm font-black text-white shadow-sm transition hover:bg-[#0b5f59]"
+              onClick={openNewForm}
+            >
+              よく使う予定を追加
+            </button>
+          </div>
+        </section>
+
+        {isFormOpen && (
+        <section
+          id="pattern-form"
+          className="rounded-2xl border border-[#b6e7df] bg-white p-4 shadow-sm"
+        >
+          <div className="mb-4 flex items-start justify-between gap-3">
+            <div>
+              <p className="text-xs font-black uppercase tracking-[0.14em] text-[#0f766e]">
+                {form.id ? "Edit Favorite" : "New Favorite"}
+              </p>
+              <h2 className="mt-1 text-xl font-black text-[#0f172a]">
+                {form.id ? "よく使う予定を編集" : "よく使う予定を追加"}
+              </h2>
+            </div>
+            <button
+              className="h-10 rounded-xl border border-[#cbd5e1] px-4 text-sm font-bold text-[#334155]"
+              onClick={() => {
+                setForm(blankForm);
+                setIsFormOpen(false);
+              }}
+            >
+              閉じる
+            </button>
+          </div>
 
           <div className="grid gap-3 sm:grid-cols-2">
             <label className="space-y-1 sm:col-span-2">
@@ -444,13 +513,17 @@ export default function PatternsPage() {
             {form.id && (
               <button
               className="h-11 rounded-lg border border-[#cbd5e1] px-5 text-sm font-semibold text-[#334155]"
-              onClick={() => setForm(blankForm)}
+              onClick={() => {
+                setForm(blankForm);
+                setIsFormOpen(false);
+              }}
             >
                 編集をやめる
               </button>
             )}
           </div>
         </section>
+        )}
 
         <section className="rounded-2xl border border-[#d9e2ef] bg-white p-4 shadow-sm">
           <h2 className="mb-4 text-base font-semibold text-[#0f172a]">登録済み</h2>
@@ -481,22 +554,7 @@ export default function PatternsPage() {
                   <div className="flex gap-2">
                     <button
                       className="rounded-lg border border-[#cbd5e1] px-3 py-2 text-sm text-[#334155]"
-                      onClick={() =>
-                        setForm({
-                          id: pattern.id,
-                          label: pattern.label,
-                          title: pattern.title,
-                          start_time: pattern.start_time,
-                          end_time: pattern.end_time,
-                          next_day_end: pattern.next_day_end,
-                          category_id: pattern.category_id ?? "",
-                          event_visibility:
-                            pattern.event_visibility && pattern.event_visibility !== "private"
-                              ? pattern.event_visibility
-                              : "together",
-                          share_user_ids: pattern.share_user_ids ?? [],
-                        })
-                      }
+                      onClick={() => openEditForm(pattern)}
                     >
                       編集
                     </button>

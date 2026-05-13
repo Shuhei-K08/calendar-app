@@ -1155,16 +1155,30 @@ export default function Home() {
     ? filterEvents(dayDetail.events)
     : getEventsOnDate(visibleEvents, selectedDayDate);
   const filterOptions = [
-    { value: "all" as CalendarFilter, label: "すべて" },
-    { value: "own" as CalendarFilter, label: "自分の予定" },
+    {
+      value: "all" as CalendarFilter,
+      label: "すべて",
+      description: `${events.length}件`,
+      color: "#0f766e",
+    },
+    {
+      value: "own" as CalendarFilter,
+      label: "自分だけ",
+      description: `${events.filter((event) => event.displayKind === "own").length}件`,
+      color: "#38bdf8",
+    },
     ...connections.flatMap((connection) => [
       {
         value: `person:${connection.id}` as CalendarFilter,
-        label: `${connection.username}さんの予定`,
+        label: connection.username,
+        description: "相手の予定",
+        color: "#8b5cf6",
       },
       {
         value: `together:${connection.id}` as CalendarFilter,
-        label: `${connection.username}さんとの予定`,
+        label: `${connection.username}さんと`,
+        description: "私たちの予定",
+        color: "#f59e0b",
       },
     ]),
   ];
@@ -1220,21 +1234,47 @@ export default function Home() {
         )}
 
         <section className="rounded-2xl border border-[#d9e2ef] bg-white p-3 shadow-sm">
-          <p className="mb-2 text-xs font-black uppercase tracking-[0.14em] text-[#64748b]">
-            表示フィルター
-          </p>
-          <div className="flex gap-2 overflow-x-auto pb-1">
+          <div className="mb-3 flex items-center justify-between gap-3">
+            <div>
+              <p className="text-xs font-black uppercase tracking-[0.14em] text-[#64748b]">
+                View
+              </p>
+              <h2 className="text-base font-black text-[#0f172a]">表示をしぼる</h2>
+            </div>
+            {calendarFilter !== "all" && (
+              <button
+                className="shrink-0 rounded-full border border-[#cbd5e1] bg-[#f8fafc] px-3 py-2 text-xs font-bold text-[#475569]"
+                onClick={() => setCalendarFilter("all")}
+              >
+                解除
+              </button>
+            )}
+          </div>
+          <div className="grid grid-flow-col auto-cols-[minmax(138px,1fr)] gap-2 overflow-x-auto pb-1 sm:auto-cols-fr sm:grid-flow-row sm:grid-cols-2 lg:grid-cols-4">
             {filterOptions.map((option) => (
               <button
                 key={option.value}
-                className={`shrink-0 rounded-full border px-4 py-2 text-sm font-bold transition ${
+                className={`group flex min-h-[68px] items-center gap-3 rounded-2xl border p-3 text-left transition ${
                   calendarFilter === option.value
-                    ? "border-[#0f766e] bg-[#0f766e] text-white"
-                    : "border-[#cbd5e1] bg-[#f8fafc] text-[#334155]"
+                    ? "border-[#0f766e] bg-[#ecfdf5] shadow-sm"
+                    : "border-[#d9e2ef] bg-[#f8fafc] hover:border-[#99f6e4] hover:bg-white"
                 }`}
                 onClick={() => setCalendarFilter(option.value)}
               >
-                {option.label}
+                <span
+                  className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl text-sm font-black text-white shadow-sm"
+                  style={{ backgroundColor: option.color }}
+                >
+                  {option.value === "all" ? "All" : option.label.slice(0, 1)}
+                </span>
+                <span className="min-w-0">
+                  <span className="block truncate text-sm font-black text-[#0f172a]">
+                    {option.label}
+                  </span>
+                  <span className="mt-0.5 block truncate text-xs font-bold text-[#64748b]">
+                    {option.description}
+                  </span>
+                </span>
               </button>
             ))}
           </div>
