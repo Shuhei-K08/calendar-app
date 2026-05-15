@@ -73,6 +73,10 @@ create table if not exists public.recurring_events (
   created_at timestamptz not null default now()
 );
 
+alter table public.recurring_events
+  add column if not exists event_visibility text not null default 'private'
+  check (event_visibility in ('private', 'partner', 'together'));
+
 create table if not exists public.recurring_event_shares (
   id uuid primary key default gen_random_uuid(),
   recurring_event_id uuid not null references public.recurring_events(id) on delete cascade,

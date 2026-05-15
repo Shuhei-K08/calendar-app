@@ -358,6 +358,7 @@ export default function Home() {
     useState<SharedNotification | null>(null);
   const [showTutorial, setShowTutorial] = useState(false);
   const [calendarFilter, setCalendarFilter] = useState<CalendarFilter>("all");
+  const [isFilterOpen, setIsFilterOpen] = useState(false);
 
   const fetchConnections = useCallback(async (userId: string) => {
     const { data: acceptedConnections, error } = await supabase
@@ -488,7 +489,7 @@ export default function Home() {
 
     let { data: recurringEvents, error: recurringError } = await supabase
       .from("recurring_events")
-      .select("id, title, start_at, end_at, user_id, note, all_day, category_id, recurrence_rule, recurrence_until")
+      .select("id, title, start_at, end_at, user_id, note, all_day, category_id, event_visibility, recurrence_rule, recurrence_until")
       .eq("user_id", user.id);
 
     if (recurringError?.code === "PGRST205") {
@@ -515,7 +516,7 @@ export default function Home() {
     if (sharedRecurringIds.length > 0) {
       const { data, error } = await supabase
         .from("recurring_events")
-        .select("id, title, start_at, end_at, user_id, note, all_day, category_id, recurrence_rule, recurrence_until")
+        .select("id, title, start_at, end_at, user_id, note, all_day, category_id, event_visibility, recurrence_rule, recurrence_until")
         .in("id", sharedRecurringIds);
 
       if (!error) {
@@ -571,6 +572,8 @@ export default function Home() {
 
     const myEventIds = (myEvents ?? []).map((event) => event.id);
     let myShareRows: Required<EventShareIdRow>[] = [];
+    const myRecurringIds = ((recurringEvents ?? []) as DbRecurringEvent[]).map((event) => event.id);
+    let myRecurringShareRows: Required<RecurringShareIdRow>[] = [];
 
     if (myEventIds.length > 0) {
       const { data, error } = await supabase
@@ -583,10 +586,22 @@ export default function Home() {
       }
     }
 
+    if (myRecurringIds.length > 0) {
+      const { data, error } = await supabase
+        .from("recurring_event_shares")
+        .select("recurring_event_id, shared_with")
+        .in("recurring_event_id", myRecurringIds);
+
+      if (!error) {
+        myRecurringShareRows = (data ?? []) as Required<RecurringShareIdRow>[];
+      }
+    }
+
     const profileIds = Array.from(new Set([
       ...sharedEvents.map((event) => event.user_id),
       ...sharedRecurringEvents.map((event) => event.user_id),
       ...myShareRows.map((row) => row.shared_with),
+      ...myRecurringShareRows.map((row) => row.shared_with),
     ]));
     let profileMap = new Map<string, string>();
     const categoryIds = Array.from(new Set([
@@ -672,25 +687,31 @@ export default function Home() {
       };
     });
 
-    const expandedRecurring = expandRecurringEvents(
-      (recurringEvents ?? []) as DbRecurringEvent[],
-      categoryMap,
-      {
+    const expandedRecurring = ((recurringEvents ?? []) as DbRecurringEvent[]).flatMap((event) => {
+      const sharedWith = myRecurringShareRows
+        .filter((row) => row.recurring_event_id === event.id)
+        .map((row) => ({
+          id: row.shared_with,
+          username: profileMap.get(row.shared_with) ?? "共有先",
+        }));
+
+      return expandRecurringEvents([event], categoryMap, {
         canDelete: true,
         isShared: false,
         ownerName: "自分",
-      },
-    );
+        sharedWith,
+        visibility: event.event_visibility ?? (sharedWith.length > 0 ? "together" : "private"),
+      });
+    });
 
-    const expandedSharedRecurring = expandRecurringEvents(
-      sharedRecurringEvents,
-      categoryMap,
-      {
+    const expandedSharedRecurring = sharedRecurringEvents.flatMap((event) =>
+      expandRecurringEvents([event], categoryMap, {
         canDelete: false,
         isShared: true,
-        ownerName: "共有元",
-        visibility: "together",
-      },
+        ownerName: profileMap.get(event.user_id) ?? "削除されたアカウント",
+        ownerDeleted: !profileMap.has(event.user_id),
+        visibility: event.event_visibility ?? "together",
+      }),
     );
 
     setEvents([...formatted, ...expandedRecurring, ...expandedSharedRecurring]);
@@ -977,6 +998,26 @@ export default function Home() {
         return;
       }
 
+      await supabase
+        .from("recurring_event_shares")
+        .delete()
+        .eq("recurring_event_id", detailEvent.recurringId);
+
+      if (shareDraftIds.length > 0) {
+        const { error: shareError } = await supabase.from("recurring_event_shares").insert(
+          shareDraftIds.map((userId) => ({
+            recurring_event_id: detailEvent.recurringId,
+            shared_with: userId,
+          })),
+        );
+
+        if (shareError) {
+          console.error(shareError);
+          alert(shareError.message);
+          return;
+        }
+      }
+
       await fetchEvents();
       setDetailEvent(null);
       return;
@@ -1085,6 +1126,43 @@ export default function Home() {
   const updateEventShares = async () => {
     if (!detailEvent?.id || !detailEvent.canDelete) return;
 
+    if (detailEvent.recurringId) {
+      const { error: deleteError } = await supabase
+        .from("recurring_event_shares")
+        .delete()
+        .eq("recurring_event_id", detailEvent.recurringId);
+
+      if (deleteError) {
+        console.error(deleteError);
+        alert(deleteError.message);
+        return;
+      }
+
+      await supabase
+        .from("recurring_events")
+        .update({ event_visibility: shareDraftIds.length > 0 ? editForm.shareType : "private" })
+        .eq("id", detailEvent.recurringId);
+
+      if (shareDraftIds.length > 0) {
+        const { error: insertError } = await supabase.from("recurring_event_shares").insert(
+          shareDraftIds.map((userId) => ({
+            recurring_event_id: detailEvent.recurringId,
+            shared_with: userId,
+          })),
+        );
+
+        if (insertError) {
+          console.error(insertError);
+          alert(insertError.message);
+          return;
+        }
+      }
+
+      await fetchEvents();
+      setDetailEvent(null);
+      return;
+    }
+
     const { error: deleteError } = await supabase
       .from("event_shares")
       .delete()
@@ -1154,30 +1232,56 @@ export default function Home() {
   const selectedDayEvents = dayDetail?.events
     ? filterEvents(dayDetail.events)
     : getEventsOnDate(visibleEvents, selectedDayDate);
+  const monthStart = new Date(calendarDate.getFullYear(), calendarDate.getMonth(), 1);
+  const monthEnd = new Date(calendarDate.getFullYear(), calendarDate.getMonth() + 1, 0, 23, 59, 59, 999);
+  const isInSelectedMonth = (event: CalendarEvent) =>
+    event.start <= monthEnd && event.end >= monthStart;
+  const getFilterCount = (value: CalendarFilter) => {
+    const monthlyEvents = events.filter(isInSelectedMonth);
+    if (value === "all") return monthlyEvents.length;
+    if (value === "own") {
+      return monthlyEvents.filter((event) => event.displayKind === "own").length;
+    }
+    if (value.startsWith("person:")) {
+      const personId = value.replace("person:", "");
+      return monthlyEvents.filter(
+        (event) => event.displayKind === "incoming" && event.ownerId === personId,
+      ).length;
+    }
+    if (value.startsWith("together:")) {
+      const personId = value.replace("together:", "");
+      return monthlyEvents.filter(
+        (event) =>
+          event.displayKind === "together" &&
+          (event.ownerId === personId || event.sharedWith.some((user) => user.id === personId)),
+      ).length;
+    }
+    return monthlyEvents.length;
+  };
   const filterOptions = [
     {
       value: "all" as CalendarFilter,
       label: "すべて",
-      description: `${events.length}件`,
+      description: `${format(calendarDate, "M月", { locale: ja })} ${getFilterCount("all")}件`,
       color: "#0f766e",
     },
     {
       value: "own" as CalendarFilter,
       label: "自分だけ",
-      description: `${events.filter((event) => event.displayKind === "own").length}件`,
+      description: `${format(calendarDate, "M月", { locale: ja })} ${getFilterCount("own")}件`,
       color: "#38bdf8",
     },
     ...connections.flatMap((connection) => [
       {
         value: `person:${connection.id}` as CalendarFilter,
         label: connection.username,
-        description: "相手の予定",
+        description: `相手の予定 ${getFilterCount(`person:${connection.id}`)}件`,
         color: "#8b5cf6",
       },
       {
         value: `together:${connection.id}` as CalendarFilter,
         label: `${connection.username}さんと`,
-        description: "私たちの予定",
+        description: `私たちの予定 ${getFilterCount(`together:${connection.id}`)}件`,
         color: "#f59e0b",
       },
     ]),
@@ -1234,13 +1338,19 @@ export default function Home() {
         )}
 
         <section className="rounded-2xl border border-[#d9e2ef] bg-white p-3 shadow-sm">
-          <div className="mb-3 flex items-center justify-between gap-3">
+          <div className="flex items-center justify-between gap-3">
             <div>
               <p className="text-xs font-black uppercase tracking-[0.14em] text-[#64748b]">
                 View
               </p>
-              <h2 className="text-base font-black text-[#0f172a]">表示をしぼる</h2>
+              <h2 className="text-base font-black text-[#0f172a]">
+                {filterOptions.find((option) => option.value === calendarFilter)?.label ?? "表示をしぼる"}
+              </h2>
+              <p className="mt-0.5 text-xs font-bold text-[#64748b]">
+                {filterOptions.find((option) => option.value === calendarFilter)?.description}
+              </p>
             </div>
+            <div className="flex shrink-0 gap-2">
             {calendarFilter !== "all" && (
               <button
                 className="shrink-0 rounded-full border border-[#cbd5e1] bg-[#f8fafc] px-3 py-2 text-xs font-bold text-[#475569]"
@@ -1249,7 +1359,15 @@ export default function Home() {
                 解除
               </button>
             )}
+            <button
+              className="shrink-0 rounded-full bg-[#0f766e] px-4 py-2 text-xs font-black text-white shadow-sm"
+              onClick={() => setIsFilterOpen((current) => !current)}
+            >
+              {isFilterOpen ? "閉じる" : "絞り込み"}
+            </button>
+            </div>
           </div>
+          {isFilterOpen && (
           <div className="grid grid-flow-col auto-cols-[minmax(138px,1fr)] gap-2 overflow-x-auto pb-1 sm:auto-cols-fr sm:grid-flow-row sm:grid-cols-2 lg:grid-cols-4">
             {filterOptions.map((option) => (
               <button
@@ -1278,6 +1396,7 @@ export default function Home() {
               </button>
             ))}
           </div>
+          )}
         </section>
 
         <section className="rounded-2xl border border-[#d9e2ef] bg-white p-3 shadow-sm">
@@ -1831,7 +1950,6 @@ export default function Home() {
                     この予定は繰り返し予定です。保存や削除は同じ繰り返し予定全体に反映されます。
                   </div>
                 )}
-                {!detailEvent.recurringId && (
                 <div>
                   <p className="mb-2 text-xs font-semibold text-[#64748b]">共有先を変更</p>
                   {shareDraftIds.length > 0 && (
@@ -1897,17 +2015,14 @@ export default function Home() {
                     )}
                   </div>
                 </div>
-                )}
 
                 <div className="grid gap-2 sm:grid-cols-2">
-                  {!detailEvent.recurringId && (
                   <button
                     className="h-11 rounded-lg bg-[#0f766e] px-5 text-sm font-semibold text-white shadow-sm transition hover:bg-[#115e59]"
                     onClick={updateEventShares}
                   >
                     共有を保存
                   </button>
-                  )}
                   <button
                     className="h-11 rounded-lg bg-[#be123c] px-5 text-sm font-semibold text-white shadow-sm transition hover:bg-[#9f1239]"
                     onClick={() => deleteEvent(detailEvent)}

@@ -60,6 +60,7 @@ type Category = {
 };
 
 type RecurrenceRule = "weekly" | "monthly" | "yearly";
+type EventVisibility = "private" | "partner" | "together";
 
 type RecurringEvent = {
   id: string;
@@ -69,6 +70,7 @@ type RecurringEvent = {
   recurrence_rule: RecurrenceRule;
   recurrence_until: string | null;
   category_id: string | null;
+  event_visibility: EventVisibility | null;
   sharedWith: ConnectedUser[];
 };
 
@@ -81,6 +83,7 @@ type RecurringForm = {
   recurrenceUntil: string;
   categoryId: string;
   selectedUserIds: string[];
+  shareType: EventVisibility;
 };
 
 type ConnectedUser = {
@@ -109,6 +112,7 @@ const createBlankRecurringForm = (): RecurringForm => {
     recurrenceUntil: "",
     categoryId: "",
     selectedUserIds: [],
+    shareType: "together",
   };
 };
 
@@ -186,7 +190,7 @@ export default function SettingsPage() {
 
     const { data, error } = await supabase
       .from("recurring_events")
-      .select("id, title, start_at, end_at, recurrence_rule, recurrence_until, category_id")
+      .select("id, title, start_at, end_at, recurrence_rule, recurrence_until, category_id, event_visibility")
       .eq("user_id", user.id)
       .order("created_at", { ascending: false });
 
@@ -437,6 +441,8 @@ export default function SettingsPage() {
       note: null,
       all_day: false,
       category_id: recurringForm.categoryId || null,
+      event_visibility:
+        recurringForm.selectedUserIds.length > 0 ? recurringForm.shareType : "private",
       recurrence_rule: recurringForm.recurrenceRule,
       recurrence_until: recurringForm.recurrenceUntil
         ? new Date(`${recurringForm.recurrenceUntil}T23:59:59`).toISOString()
@@ -490,6 +496,10 @@ export default function SettingsPage() {
         : "",
       categoryId: event.category_id ?? "",
       selectedUserIds: event.sharedWith.map((user) => user.id),
+      shareType:
+        event.event_visibility && event.event_visibility !== "private"
+          ? event.event_visibility
+          : "together",
     });
   };
 
@@ -1047,6 +1057,10 @@ export default function SettingsPage() {
                             selectedUserIds: event.target.checked
                               ? [...current.selectedUserIds, connection.id]
                               : current.selectedUserIds.filter((id) => id !== connection.id),
+                            shareType:
+                              event.target.checked && current.shareType === "private"
+                                ? "together"
+                                : current.shareType,
                           }))
                         }
                       />
@@ -1057,6 +1071,51 @@ export default function SettingsPage() {
                     <p className="text-sm text-[#64748b]">共有できる相手はいません。</p>
                   )}
                 </div>
+                {recurringForm.selectedUserIds.length > 0 && (
+                  <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                    {[
+                      {
+                        value: "partner",
+                        title: "自分の予定を相手に共有",
+                        desc: "自分側の予定として共有します",
+                      },
+                      {
+                        value: "together",
+                        title: "私たちの予定",
+                        desc: "二人の共有予定として表示します",
+                      },
+                    ].map((option) => (
+                      <label
+                        key={option.value}
+                        className={`cursor-pointer rounded-2xl border p-3 transition ${
+                          recurringForm.shareType === option.value
+                            ? "border-[#0f766e] bg-[#ecfdf5]"
+                            : "border-[#d9e2ef] bg-white"
+                        }`}
+                      >
+                        <input
+                          className="sr-only"
+                          type="radio"
+                          name="recurring-share-type"
+                          value={option.value}
+                          checked={recurringForm.shareType === option.value}
+                          onChange={(event) =>
+                            setRecurringForm((current) => ({
+                              ...current,
+                              shareType: event.target.value as EventVisibility,
+                            }))
+                          }
+                        />
+                        <span className="block text-sm font-black text-[#0f172a]">
+                          {option.title}
+                        </span>
+                        <span className="mt-1 block text-xs font-semibold text-[#64748b]">
+                          {option.desc}
+                        </span>
+                      </label>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
             <div className="mt-4 grid gap-2 sm:grid-cols-2">
