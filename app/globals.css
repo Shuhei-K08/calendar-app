@@ -1,5 +1,6 @@
 @import "tailwindcss";
 
+/* ── Design Tokens ── */
 :root {
   --background: #f5f7fb;
   --foreground: #172033;
@@ -19,6 +20,7 @@
   --font-mono: var(--font-geist-mono);
 }
 
+/* ── Base ── */
 body {
   background: var(--background);
   color: var(--foreground);
@@ -52,6 +54,7 @@ a:active {
   transform: translateY(1px) scale(0.985);
 }
 
+/* ── Loading Screen ── */
 .loading-screen {
   align-items: center;
   background:
@@ -110,24 +113,15 @@ a:active {
 }
 
 @keyframes spin {
-  to {
-    transform: rotate(360deg);
-  }
+  to { transform: rotate(360deg); }
 }
 
 @keyframes pulse {
-  0%,
-  100% {
-    background-position: 0% 0;
-    opacity: 0.65;
-  }
-
-  50% {
-    background-position: 100% 0;
-    opacity: 1;
-  }
+  0%, 100% { background-position: 0% 0; opacity: 0.65; }
+  50% { background-position: 100% 0; opacity: 1; }
 }
 
+/* ── Navigation: Desktop ── */
 .top-nav-link {
   align-items: center;
   border: 1px solid #cbd5e1;
@@ -145,6 +139,29 @@ a:active {
   white-space: nowrap;
 }
 
+.top-nav-link:hover {
+  background: #f8fafc;
+  border-color: #94a3b8;
+}
+
+.top-nav-link:active {
+  background: #ccfbf1;
+  border-color: #5eead4;
+  color: #0f766e;
+}
+
+.top-nav-link[data-active="true"] {
+  background: #ecfdf5;
+  border-color: #5eead4;
+  color: #0f766e;
+}
+
+.top-nav-link[data-active="true"] .nav-svg {
+  background: #0f766e;
+  color: #fff;
+}
+
+/* ── Navigation: Logo ── */
 header h1,
 button,
 .top-nav-link,
@@ -200,18 +217,7 @@ button,
   text-transform: uppercase;
 }
 
-.top-nav-link:hover {
-  background: #f8fafc;
-  border-color: #94a3b8;
-}
-
-.top-nav-link:active,
-.mobile-nav-link:active {
-  background: #ccfbf1;
-  border-color: #5eead4;
-  color: #0f766e;
-}
-
+/* ── Navigation: Icons ── */
 .nav-svg {
   align-items: center;
   background: #e0f2fe;
@@ -226,8 +232,10 @@ button,
   stroke-width: 1.9;
   fill: none;
   width: 24px;
+  transition: background-color 160ms ease, color 160ms ease;
 }
 
+/* ── Navigation: Mobile ── */
 .mobile-nav-link {
   align-items: center;
   border-radius: 12px;
@@ -238,25 +246,7 @@ button,
   min-width: 0;
   padding: 5px 1px;
   position: relative;
-}
-
-.nav-badge {
-  background: #ef4444;
-  border: 2px solid #fff;
-  border-radius: 999px;
-  box-shadow: 0 2px 8px rgb(239 68 68 / 35%);
-  height: 10px;
-  position: absolute;
-  right: 7px;
-  top: 6px;
-  width: 10px;
-}
-
-.nav-badge.mobile {
-  min-width: 10px;
-  right: 12px;
-  top: 3px;
-  width: 10px;
+  transition: background-color 160ms ease;
 }
 
 .mobile-nav-link:active {
@@ -276,6 +266,147 @@ button,
   width: 100%;
 }
 
+.mobile-nav-link[data-active="true"] {
+  color: #0f766e;
+}
+
+.mobile-nav-link[data-active="true"] .nav-svg {
+  background: #0f766e;
+  color: #fff;
+}
+
+.mobile-nav-link[data-active="true"] > span:not(.nav-badge) {
+  color: #0f766e;
+  font-weight: 800;
+}
+
+/* ── Nav Badge ── */
+.nav-badge {
+  background: #ef4444;
+  border: 2px solid #fff;
+  border-radius: 999px;
+  box-shadow: 0 2px 8px rgb(239 68 68 / 35%);
+  height: 10px;
+  position: absolute;
+  right: 7px;
+  top: 6px;
+  width: 10px;
+}
+
+.nav-badge.mobile {
+  min-width: 10px;
+  right: 12px;
+  top: 3px;
+  width: 10px;
+}
+
+/* ── Toast Notifications ── */
+.toast-stack {
+  bottom: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  pointer-events: none;
+  position: fixed;
+  right: 16px;
+  top: 16px;
+  z-index: 200;
+}
+
+@media (max-width: 640px) {
+  .toast-stack {
+    left: 12px;
+    right: 12px;
+    top: 12px;
+  }
+}
+
+.toast {
+  animation: toast-slide-in 0.22s cubic-bezier(0.22, 1, 0.36, 1);
+  border: 1px solid;
+  border-radius: 14px;
+  box-shadow: 0 8px 30px rgb(15 23 42 / 14%);
+  font-size: 14px;
+  font-weight: 600;
+  padding: 12px 16px;
+  pointer-events: auto;
+}
+
+.toast-success {
+  background: #f0fdf4;
+  border-color: #86efac;
+  color: #15803d;
+}
+
+.toast-error {
+  background: #fff1f2;
+  border-color: #fda4af;
+  color: #be123c;
+}
+
+.toast-info {
+  background: #f0f9ff;
+  border-color: #7dd3fc;
+  color: #0369a1;
+}
+
+@keyframes toast-slide-in {
+  from { opacity: 0; transform: translateX(24px) scale(0.97); }
+  to { opacity: 1; transform: translateX(0) scale(1); }
+}
+
+/* ── FAB (Floating Action Button) ── */
+.fab {
+  align-items: center;
+  background: #0f766e;
+  border-radius: 20px;
+  bottom: 88px;
+  box-shadow: 0 6px 24px rgb(15 118 110 / 40%);
+  color: white;
+  display: flex;
+  font-size: 14px;
+  font-weight: 800;
+  gap: 8px;
+  justify-content: center;
+  padding: 14px 20px;
+  position: fixed;
+  right: 16px;
+  z-index: 39;
+}
+
+.fab:hover {
+  background: #115e59;
+  box-shadow: 0 8px 32px rgb(15 118 110 / 50%);
+}
+
+@media (min-width: 640px) {
+  .fab {
+    bottom: 24px;
+  }
+}
+
+/* ── Confirm Modal ── */
+.confirm-overlay {
+  align-items: center;
+  background: rgb(15 23 42 / 45%);
+  display: flex;
+  inset: 0;
+  justify-content: center;
+  padding: 16px;
+  position: fixed;
+  z-index: 60;
+}
+
+.confirm-card {
+  background: white;
+  border-radius: 24px;
+  box-shadow: 0 24px 70px rgb(15 23 42 / 18%);
+  max-width: 420px;
+  padding: 24px;
+  width: 100%;
+}
+
+/* ── Calendar Shell ── */
 .calendar-shell .rbc-calendar {
   color: #172033;
 }
@@ -488,6 +619,50 @@ button,
   padding: 24px;
 }
 
+/* ── Password Strength Bars ── */
+.pw-strength-bar {
+  background: #e2e8f0;
+  border-radius: 999px;
+  flex: 1;
+  height: 4px;
+  overflow: hidden;
+  transition: background-color 200ms ease;
+}
+
+.pw-strength-bar.met {
+  background: #0f766e;
+}
+
+/* ── Onboarding Step Progress ── */
+.onboarding-step {
+  animation: step-in 0.28s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@keyframes step-in {
+  from { opacity: 0; transform: translateX(16px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+/* ── Color Swatch Picker ── */
+.color-swatch {
+  border-radius: 999px;
+  cursor: pointer;
+  height: 28px;
+  outline: 2px solid transparent;
+  outline-offset: 3px;
+  transition: outline-color 140ms ease, transform 120ms ease;
+  width: 28px;
+}
+
+.color-swatch:hover {
+  transform: scale(1.12);
+}
+
+.color-swatch.selected {
+  outline-color: #0f766e;
+}
+
+/* ── Responsive Mobile ── */
 @media (max-width: 640px) {
   .sharecal-logo-mark {
     height: 40px;

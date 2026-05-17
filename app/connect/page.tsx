@@ -1,9 +1,38 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { DesktopNavigation, MobileNavigation, ShareCalLogo } from "@/app/components/AppNavigation";
 
+/* ── Toast ── */
+type ToastItem = { id: number; msg: string; type: "success" | "error" | "info" };
+
+function useToast() {
+  const [toasts, setToasts] = useState<ToastItem[]>([]);
+  const counter = useRef(0);
+
+  const show = (msg: string, type: ToastItem["type"] = "success") => {
+    const id = ++counter.current;
+    setToasts((prev) => [...prev, { id, msg, type }]);
+    window.setTimeout(() => setToasts((prev) => prev.filter((t) => t.id !== id)), 3500);
+  };
+
+  return { toasts, show };
+}
+
+function ToastStack({ toasts }: { toasts: ToastItem[] }) {
+  return (
+    <div className="toast-stack">
+      {toasts.map((t) => (
+        <div key={t.id} className={`toast toast-${t.type}`}>
+          {t.msg}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/* ── Types ── */
 type Request = {
   id: string;
   requester_id: string;
@@ -16,18 +45,21 @@ type ConnectedUser = {
   username: string;
 };
 
+/* ── Confirm Inline ── */
+type ConfirmState = { type: "disconnect"; user: ConnectedUser } | { type: "reject"; request: Request } | null;
+
 export default function ConnectPage() {
   const [code, setCode] = useState("");
   const [shareCode, setShareCode] = useState("");
   const [requests, setRequests] = useState<Request[]>([]);
   const [connectedUsers, setConnectedUsers] = useState<ConnectedUser[]>([]);
   const [approvingId, setApprovingId] = useState<string | null>(null);
+  const [sendingRequest, setSendingRequest] = useState(false);
+  const [confirm, setConfirm] = useState<ConfirmState>(null);
+  const { toasts, show } = useToast();
 
   const fetchRequests = useCallback(async () => {
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-
+    const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
 
     const { data: connections, error } = await supabase
@@ -36,47 +68,25 @@ export default function ConnectPage() {
       .eq("receiver_id", user.id)
       .eq("status", "pending");
 
-    if (error) {
-      console.error(error);
-      return;
-    }
+    if (error) { console.error(error); return; }
 
     const pendingConnections = connections ?? [];
-    const requesterIds = pendingConnections.map((connection) => connection.requester_id);
+    const requesterIds = pendingConnections.map((c) => c.requester_id);
 
-    if (requesterIds.length === 0) {
-      setRequests([]);
-      return;
-    }
+    if (requesterIds.length === 0) { setRequests([]); return; }
 
-    const { data: profiles, error: profileError } = await supabase
-      .from("profiles")
-      .select("id, username")
-      .in("id", requesterIds);
+    const { data: profiles } = await supabase
+      .from("profiles").select("id, username").in("id", requesterIds);
 
-    if (profileError) {
-      console.error(profileError);
-      return;
-    }
-
-    setRequests(
-      pendingConnections.map((connection) => {
-        const profile = profiles?.find((item) => item.id === connection.requester_id);
-
-        return {
-          id: connection.id,
-          requester_id: connection.requester_id,
-          requester_name: profile?.username ?? "名前未設定",
-        };
-      }),
-    );
+    setRequests(pendingConnections.map((c) => ({
+      id: c.id,
+      requester_id: c.requester_id,
+      requester_name: profiles?.find((p) => p.id === c.requester_id)?.username ?? "名前未設定",
+    })));
   }, []);
 
   const fetchConnectedUsers = useCallback(async () => {
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-
+    const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
 
     const { data: connections, error } = await supabase
@@ -85,85 +95,93 @@ export default function ConnectPage() {
       .eq("status", "accepted")
       .or(`requester_id.eq.${user.id},receiver_id.eq.${user.id}`);
 
-    if (error) {
-      console.error(error);
-      return;
-    }
+    if (error) { console.error(error); return; }
 
-    const acceptedConnections = connections ?? [];
-    const userIds = acceptedConnections.map((connection) =>
-      connection.requester_id === user.id ? connection.receiver_id : connection.requester_id,
+    const accepted = connections ?? [];
+    const userIds = accepted.map((c) =>
+      c.requester_id === user.id ? c.receiver_id : c.requester_id,
     );
 
-    if (userIds.length === 0) {
-      setConnectedUsers([]);
-      return;
-    }
+    if (userIds.length === 0) { setConnectedUsers([]); return; }
 
     const { data: profiles } = await supabase
-      .from("profiles")
-      .select("id, username")
-      .in("id", userIds);
+      .from("profiles").select("id, username").in("id", userIds);
 
-    setConnectedUsers(
-      acceptedConnections.map((connection) => {
-        const targetId =
-          connection.requester_id === user.id ? connection.receiver_id : connection.requester_id;
-        const profile = profiles?.find((item) => item.id === targetId);
-
-        return {
-          connection_id: connection.id,
-          user_id: targetId,
-          username: profile?.username ?? "名前未設定",
-        };
-      }),
-    );
+    setConnectedUsers(accepted.map((c) => {
+      const targetId = c.requester_id === user.id ? c.receiver_id : c.requester_id;
+      return {
+        connection_id: c.id,
+        user_id: targetId,
+        username: profiles?.find((p) => p.id === targetId)?.username ?? "名前未設定",
+      };
+    }));
   }, []);
 
   useEffect(() => {
     const fetchMyShareCode = async () => {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-
+      const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
-
-      const { data, error } = await supabase
-        .from("profiles")
-        .select("share_code")
-        .eq("id", user.id)
-        .single();
-
-      if (error) {
-        console.error(error);
-        return;
-      }
-
-      setShareCode(data.share_code);
+      const { data } = await supabase
+        .from("profiles").select("share_code").eq("id", user.id).single();
+      setShareCode(data?.share_code ?? "");
     };
-
     void fetchMyShareCode();
-    const timer = window.setTimeout(() => {
-      void fetchRequests();
-      void fetchConnectedUsers();
-    }, 0);
-
-    return () => window.clearTimeout(timer);
+    void fetchRequests();
+    void fetchConnectedUsers();
   }, [fetchConnectedUsers, fetchRequests]);
+
+  const copyShareCode = async () => {
+    if (!shareCode) return;
+    await navigator.clipboard.writeText(shareCode);
+    show("共有IDをコピーしました", "info");
+  };
+
+  const sendRequest = async () => {
+    if (!code.trim()) { show("IDを入力してください", "error"); return; }
+
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) { show("ログインしてください", "error"); return; }
+
+    setSendingRequest(true);
+
+    const { data: target, error: findError } = await supabase
+      .from("profiles").select("id").eq("share_code", code.trim().toUpperCase()).single();
+
+    if (findError || !target) {
+      show("ユーザーが見つかりません", "error");
+      setSendingRequest(false);
+      return;
+    }
+
+    if (target.id === user.id) {
+      show("自分自身には申請できません", "error");
+      setSendingRequest(false);
+      return;
+    }
+
+    const { error } = await supabase.from("connections").insert({
+      requester_id: user.id,
+      receiver_id: target.id,
+      status: "pending",
+    });
+
+    setSendingRequest(false);
+
+    if (error) {
+      show(error.message.includes("duplicate") ? "すでに申請済みです" : error.message, "error");
+      return;
+    }
+
+    show("申請を送信しました", "success");
+    setCode("");
+  };
 
   const approve = async (request: Request) => {
     if (approvingId) return;
     setApprovingId(request.id);
 
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-
-    if (!user) {
-      alert("ログインしてください");
-      setApprovingId(null);
-      return;
-    }
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) { show("ログインしてください", "error"); setApprovingId(null); return; }
 
     const { error } = await supabase
       .from("connections")
@@ -174,158 +192,65 @@ export default function ConnectPage() {
 
     setApprovingId(null);
 
-    if (error) {
-      console.error(error);
-      alert(error.message);
-      return;
-    }
+    if (error) { show(error.message, "error"); return; }
 
+    show(`${request.requester_name}さんの申請を承認しました`, "success");
     await fetchRequests();
     await fetchConnectedUsers();
-    alert("承認しました");
   };
 
   const reject = async (request: Request) => {
-    const ok = window.confirm(`「${request.requester_name}」さんの申請を却下しますか？`);
-    if (!ok) return;
-
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-
+    const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
 
     const { error } = await supabase
-      .from("connections")
-      .delete()
-      .eq("id", request.id)
-      .eq("receiver_id", user.id)
-      .eq("status", "pending");
+      .from("connections").delete()
+      .eq("id", request.id).eq("receiver_id", user.id).eq("status", "pending");
 
-    if (error) {
-      console.error(error);
-      alert(error.message);
-      return;
-    }
+    if (error) { show(error.message, "error"); return; }
 
+    show(`${request.requester_name}さんの申請を却下しました`, "info");
+    setConfirm(null);
     await fetchRequests();
   };
 
   const disconnect = async (connectedUser: ConnectedUser) => {
-    const ok = window.confirm(
-      `「${connectedUser.username}」さんとのつながりを解除しますか？\n今後、新しく予定を共有できなくなります。`,
-    );
-    if (!ok) return;
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
 
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-
-    if (user) {
-      const { data: myEvents } = await supabase
-        .from("events")
-        .select("id")
-        .eq("user_id", user.id);
-
-      const myEventIds = (myEvents ?? []).map((event) => event.id);
-      if (myEventIds.length > 0) {
-        await supabase
-          .from("event_shares")
-          .delete()
-          .eq("shared_with", connectedUser.user_id)
-          .in("event_id", myEventIds);
-      }
-
-      const { data: otherEvents } = await supabase
-        .from("events")
-        .select("id")
-        .eq("user_id", connectedUser.user_id);
-
-      const otherEventIds = (otherEvents ?? []).map((event) => event.id);
-      if (otherEventIds.length > 0) {
-        await supabase
-          .from("event_shares")
-          .delete()
-          .eq("shared_with", user.id)
-          .in("event_id", otherEventIds);
-      }
+    // Remove shared events
+    const { data: myEvents } = await supabase.from("events").select("id").eq("user_id", user.id);
+    const myEventIds = (myEvents ?? []).map((e) => e.id);
+    if (myEventIds.length > 0) {
+      await supabase.from("event_shares").delete()
+        .eq("shared_with", connectedUser.user_id).in("event_id", myEventIds);
+    }
+    const { data: otherEvents } = await supabase.from("events").select("id").eq("user_id", connectedUser.user_id);
+    const otherEventIds = (otherEvents ?? []).map((e) => e.id);
+    if (otherEventIds.length > 0) {
+      await supabase.from("event_shares").delete()
+        .eq("shared_with", user.id).in("event_id", otherEventIds);
     }
 
-    const { error } = await supabase
-      .from("connections")
-      .delete()
-      .eq("id", connectedUser.connection_id);
+    const { error } = await supabase.from("connections").delete().eq("id", connectedUser.connection_id);
+    if (error) { show(error.message, "error"); return; }
 
-    if (error) {
-      console.error(error);
-      alert(error.message);
-      return;
-    }
-
+    show(`${connectedUser.username}さんとのつながりを解除しました`, "info");
+    setConfirm(null);
     await fetchConnectedUsers();
-  };
-
-  const sendRequest = async () => {
-    if (!code) {
-      alert("IDを入力してください");
-      return;
-    }
-
-    // 自分のユーザー取得
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-
-    if (!user) {
-      alert("ログインしてください");
-      return;
-    }
-
-    // 相手のIDからユーザー取得
-    const { data: target, error: findError } = await supabase
-      .from("profiles")
-      .select("id")
-      .eq("share_code", code)
-      .single();
-
-    if (findError || !target) {
-      alert("ユーザーが見つかりません");
-      return;
-    }
-
-    if (target.id === user.id) {
-      alert("自分自身には申請できません");
-      return;
-    }
-
-    // 申請作成
-    const { error } = await supabase.from("connections").insert({
-      requester_id: user.id,
-      receiver_id: target.id,
-      status: "pending",
-    });
-
-    if (error) {
-      console.error("connection error:", error);
-      alert(error.message);
-      return;
-    }
-
-    alert("申請を送信しました");
-    setCode("");
   };
 
   return (
     <main className="min-h-screen bg-[#f5f7fb] px-4 pb-24 pt-4 text-[#172033] sm:px-6 sm:pb-4">
+      <ToastStack toasts={toasts} />
+
       <div className="mx-auto flex max-w-5xl flex-col gap-4">
         <header className="rounded-2xl border border-[#d9e2ef] bg-white p-4 shadow-sm">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex items-center gap-3">
               <ShareCalLogo compact />
               <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[#64748b]">
-                  Connect
-                </p>
+                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[#64748b]">Connect</p>
                 <h1 className="mt-1 text-2xl font-bold text-[#0f172a]">つながる</h1>
               </div>
             </div>
@@ -333,118 +258,189 @@ export default function ConnectPage() {
           </div>
         </header>
 
-        <section className="rounded-2xl border border-[#d9e2ef] bg-white p-4 shadow-sm">
-          <p className="text-sm font-semibold text-[#64748b]">あなたの共有ID</p>
-          <div className="mt-2 flex items-center gap-2">
-            <p className="min-w-0 flex-1 rounded-lg bg-[#f8fafc] px-3 py-3 text-xl font-bold tracking-[0.12em] text-[#0f172a]">
-              {shareCode || "読み込み中"}
-            </p>
+        {/* My Share Code */}
+        <section className="rounded-2xl border border-[#d9e2ef] bg-white p-5 shadow-sm">
+          <p className="text-xs font-bold uppercase tracking-[0.14em] text-[#64748b]">Your ID</p>
+          <h2 className="mt-1 text-sm font-bold text-[#0f172a]">あなたの共有ID</h2>
+          <p className="mt-1 text-xs text-[#64748b]">このIDを相手に教えると、つながり申請を受け取れます。</p>
+          <div className="mt-3 flex items-center gap-2">
+            <div className="flex-1 rounded-xl border border-[#d9e2ef] bg-[#f8fafc] px-4 py-3">
+              <p className="text-xl font-black tracking-[0.16em] text-[#0f172a]">
+                {shareCode || <span className="text-[#94a3b8]">読み込み中</span>}
+              </p>
+            </div>
             <button
-              className="rounded-lg bg-[#0f766e] px-3 py-3 text-sm font-semibold text-white"
+              className="flex h-12 items-center gap-2 rounded-xl bg-[#0f766e] px-4 text-sm font-bold text-white transition hover:bg-[#115e59] disabled:opacity-50"
               disabled={!shareCode}
-              onClick={async () => {
-                await navigator.clipboard.writeText(shareCode);
-                alert("コピーしました");
-              }}
+              onClick={copyShareCode}
             >
+              <svg viewBox="0 0 24 24" className="h-4 w-4" stroke="currentColor" fill="none" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <rect x="9" y="9" width="13" height="13" rx="2" />
+                <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+              </svg>
               コピー
             </button>
           </div>
         </section>
 
-        <section className="space-y-3 rounded-2xl border border-[#d9e2ef] bg-white p-4 shadow-sm">
-          <div>
-            <p className="text-sm font-semibold text-[#64748b]">相手の共有ID</p>
-            <p className="mt-1 text-sm text-[#64748b]">
-              相手から教えてもらった共有IDを入力すると、つながり申請を送れます。
-            </p>
+        {/* Send Request */}
+        <section className="rounded-2xl border border-[#d9e2ef] bg-white p-5 shadow-sm">
+          <p className="text-xs font-bold uppercase tracking-[0.14em] text-[#64748b]">Add</p>
+          <h2 className="mt-1 text-sm font-bold text-[#0f172a]">相手の共有IDで申請</h2>
+          <p className="mt-1 text-xs text-[#64748b]">相手から教えてもらった共有IDを入力してつながり申請を送ります。</p>
+          <div className="mt-3 flex gap-2">
+            <input
+              className="h-12 flex-1 rounded-xl border border-[#cbd5e1] bg-[#f8fafc] px-4 text-sm font-bold uppercase tracking-[0.1em] outline-none transition placeholder:normal-case placeholder:tracking-normal focus:border-[#0f766e] focus:bg-white focus:ring-4 focus:ring-[#99f6e4]/50"
+              placeholder="共有IDを入力"
+              value={code}
+              onChange={(e) => setCode(e.target.value.toUpperCase())}
+              onKeyDown={(e) => e.key === "Enter" && sendRequest()}
+              maxLength={12}
+            />
+            <button
+              className="flex h-12 items-center gap-2 rounded-xl bg-[#0f766e] px-5 text-sm font-bold text-white transition hover:bg-[#115e59] disabled:opacity-50"
+              onClick={sendRequest}
+              disabled={!code.trim() || sendingRequest}
+            >
+              {sendingRequest ? (
+                <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />
+              ) : "申請"}
+            </button>
           </div>
-          <input
-            className="h-11 w-full rounded-lg border border-[#cbd5e1] px-3 text-sm outline-none transition focus:border-[#0f766e] focus:ring-2 focus:ring-[#99f6e4]"
-            placeholder="共有IDを入力"
-            value={code}
-            onChange={(e) => setCode(e.target.value)}
-          />
-
-          <button
-            className="h-11 w-full rounded-lg bg-[#0f766e] px-4 py-2 font-semibold text-white"
-            onClick={sendRequest}
-          >
-            申請する
-          </button>
         </section>
 
-        <section className="rounded-2xl border border-[#d9e2ef] bg-white p-4 shadow-sm">
+        {/* Connected Users */}
+        <section className="rounded-2xl border border-[#d9e2ef] bg-white p-5 shadow-sm">
           <div className="mb-4">
-            <h2 className="text-base font-bold text-[#0f172a]">共有できるユーザー</h2>
-            <p className="mt-1 text-sm leading-6 text-[#64748b]">
-              ここに表示されている相手は、予定登録や予定編集で共有先として選べます。解除すると共有先として選べなくなります。
+            <p className="text-xs font-bold uppercase tracking-[0.14em] text-[#64748b]">Connected</p>
+            <h2 className="mt-1 text-sm font-bold text-[#0f172a]">つながっているユーザー</h2>
+            <p className="mt-1 text-xs text-[#64748b]">
+              ここに表示されている相手に予定を共有できます。解除すると新しく共有できなくなります。
             </p>
           </div>
 
           <div className="grid gap-3 sm:grid-cols-2">
-            {connectedUsers.map((connectedUser) => (
-              <div
-                key={connectedUser.connection_id}
-                className="flex items-center justify-between gap-3 rounded-xl border border-[#d9e2ef] bg-[#f8fafc] p-3"
-              >
-                <div className="min-w-0">
-                  <p className="text-xs font-bold text-[#64748b]">ユーザー</p>
-                  <p className="truncate font-bold text-[#0f172a]">{connectedUser.username}</p>
+            {connectedUsers.map((cu) => (
+              <div key={cu.connection_id} className="rounded-2xl border border-[#d9e2ef] bg-[#f8fafc] p-4">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#0f766e] text-sm font-black text-white">
+                      {cu.username.slice(0, 1)}
+                    </div>
+                    <div>
+                      <p className="font-bold text-[#0f172a]">{cu.username}</p>
+                      <p className="text-xs text-[#64748b]">つながり済み</p>
+                    </div>
+                  </div>
+                  {confirm?.type === "disconnect" && confirm.user.connection_id === cu.connection_id ? (
+                    <div className="flex gap-1.5">
+                      <button
+                        className="h-8 rounded-lg bg-[#be123c] px-3 text-xs font-bold text-white"
+                        onClick={() => disconnect(cu)}
+                      >
+                        解除
+                      </button>
+                      <button
+                        className="h-8 rounded-lg border border-[#cbd5e1] px-3 text-xs font-bold text-[#475569]"
+                        onClick={() => setConfirm(null)}
+                      >
+                        キャンセル
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      className="h-9 rounded-lg border border-[#fecdd3] px-3 text-xs font-bold text-[#be123c]"
+                      onClick={() => setConfirm({ type: "disconnect", user: cu })}
+                    >
+                      解除
+                    </button>
+                  )}
                 </div>
-                <button
-                  className="h-10 rounded-lg border border-[#fecdd3] px-3 text-sm font-bold text-[#be123c]"
-                  onClick={() => disconnect(connectedUser)}
-                >
-                  解除
-                </button>
+                {confirm?.type === "disconnect" && confirm.user.connection_id === cu.connection_id && (
+                  <p className="mt-2 text-xs font-bold text-[#be123c]">本当に解除しますか？</p>
+                )}
               </div>
             ))}
             {connectedUsers.length === 0 && (
-              <p className="rounded-xl bg-[#f8fafc] p-4 text-sm text-[#64748b] sm:col-span-2">
-                まだ共有できるユーザーはいません。共有IDで申請するか、届いた申請を承認してください。
+              <p className="rounded-2xl border border-dashed border-[#cbd5e1] bg-[#f8fafc] p-5 text-sm text-[#64748b] sm:col-span-2">
+                まだつながっているユーザーはいません。<br />
+                共有IDで申請するか、届いた申請を承認してください。
               </p>
             )}
           </div>
         </section>
 
-        <section className="rounded-2xl border border-[#d9e2ef] bg-white p-4 shadow-sm">
-          <div className="mb-4 rounded-2xl border border-[#bae6fd] bg-[#f0f9ff] p-4">
-            <h2 className="text-base font-bold text-[#075985]">届いた申請</h2>
-            <p className="mt-2 text-sm leading-6 text-[#475569]">
-              相手があなたの共有IDを入力すると、ここに申請が届きます。承認すると予定登録や予定編集で共有相手として選べます。
-            </p>
+        {/* Incoming Requests */}
+        <section className="rounded-2xl border border-[#d9e2ef] bg-white p-5 shadow-sm">
+          <div className="mb-4 flex items-start gap-3">
+            <div className="flex-1">
+              <p className="text-xs font-bold uppercase tracking-[0.14em] text-[#64748b]">Requests</p>
+              <h2 className="mt-1 flex items-center gap-2 text-sm font-bold text-[#0f172a]">
+                届いた申請
+                {requests.length > 0 && (
+                  <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-[#ef4444] px-1.5 text-xs font-black text-white">
+                    {requests.length}
+                  </span>
+                )}
+              </h2>
+              <p className="mt-1 text-xs text-[#64748b]">
+                承認すると予定登録・編集時に共有相手として選べます。
+              </p>
+            </div>
           </div>
 
           <div className="grid gap-3">
-            {requests.map((request) => (
-              <div
-                key={request.id}
-                className="flex items-center justify-between gap-3 rounded-xl border border-[#d9e2ef] bg-[#f8fafc] p-3"
-              >
-                <div>
-                  <p className="text-xs font-bold text-[#64748b]">申請者</p>
-                  <p className="font-bold text-[#0f172a]">{request.requester_name}</p>
-                </div>
-                <div className="flex gap-2">
-                  <button
-                    className="h-10 rounded-lg bg-[#0f766e] px-4 text-sm font-bold text-white disabled:opacity-50"
-                    disabled={approvingId === request.id}
-                    onClick={() => approve(request)}
-                  >
-                    {approvingId === request.id ? "承認中" : "承認"}
-                  </button>
-                  <button
-                    className="h-10 rounded-lg border border-[#fecdd3] px-4 text-sm font-bold text-[#be123c]"
-                    onClick={() => reject(request)}
-                  >
-                    却下
-                  </button>
+            {requests.map((req) => (
+              <div key={req.id} className="rounded-2xl border border-[#bae6fd] bg-[#f0f9ff] p-4">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#0369a1] text-sm font-black text-white">
+                      {req.requester_name.slice(0, 1)}
+                    </div>
+                    <div>
+                      <p className="font-bold text-[#0f172a]">{req.requester_name}</p>
+                      <p className="text-xs text-[#0369a1]">つながり申請</p>
+                    </div>
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      className="h-9 rounded-lg bg-[#0f766e] px-4 text-sm font-bold text-white disabled:opacity-50"
+                      disabled={approvingId === req.id}
+                      onClick={() => approve(req)}
+                    >
+                      {approvingId === req.id ? (
+                        <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white inline-block" />
+                      ) : "承認"}
+                    </button>
+                    {confirm?.type === "reject" && confirm.request.id === req.id ? (
+                      <div className="flex gap-1.5">
+                        <button
+                          className="h-9 rounded-lg bg-[#be123c] px-3 text-xs font-bold text-white"
+                          onClick={() => reject(req)}
+                        >
+                          却下
+                        </button>
+                        <button
+                          className="h-9 rounded-lg border border-[#cbd5e1] px-3 text-xs font-bold text-[#475569]"
+                          onClick={() => setConfirm(null)}
+                        >
+                          戻る
+                        </button>
+                      </div>
+                    ) : (
+                      <button
+                        className="h-9 rounded-lg border border-[#fecdd3] px-3 text-sm font-bold text-[#be123c]"
+                        onClick={() => setConfirm({ type: "reject", request: req })}
+                      >
+                        却下
+                      </button>
+                    )}
+                  </div>
                 </div>
               </div>
             ))}
             {requests.length === 0 && (
-              <p className="rounded-xl bg-[#f8fafc] p-4 text-sm text-[#64748b]">
+              <p className="rounded-2xl border border-dashed border-[#cbd5e1] bg-[#f8fafc] p-5 text-sm text-[#64748b]">
                 届いている申請はありません。
               </p>
             )}

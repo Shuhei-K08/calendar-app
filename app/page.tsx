@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Calendar, dateFnsLocalizer, Event, View } from "react-big-calendar";
 import { addMonths, addWeeks, addYears, format, getDay, parse, startOfWeek } from "date-fns";
@@ -60,6 +60,31 @@ const DESIGN_THEMES = {
   sky: { background: "#eef6ff", accent: "#2563eb" },
   rose: { background: "#fff7f7", accent: "#e11d48" },
 };
+
+// ── Toast ──────────────────────────────────────────────────────────────────
+type ToastType = "success" | "error" | "info";
+type ToastItem = { id: number; message: string; type: ToastType };
+
+function useToast() {
+  const [toasts, setToasts] = useState<ToastItem[]>([]);
+  const counter = useRef(0);
+  const show = (message: string, type: ToastType = "info") => {
+    const id = ++counter.current;
+    setToasts((prev) => [...prev, { id, message, type }]);
+    setTimeout(() => setToasts((prev) => prev.filter((t) => t.id !== id)), 3500);
+  };
+  return { toasts, show };
+}
+
+function ToastStack({ toasts }: { toasts: ToastItem[] }) {
+  return (
+    <div className="toast-stack">
+      {toasts.map((t) => (
+        <div key={t.id} className={`toast toast-${t.type}`}>{t.message}</div>
+      ))}
+    </div>
+  );
+}
 
 const LoadingScreen = () => (
   <main className="loading-screen">
@@ -340,7 +365,7 @@ export default function Home() {
     date: Date;
     events: CalendarEvent[];
   } | null>(null);
-  const [isDayEventsOpen, setIsDayEventsOpen] = useState(false);
+  const [isDayEventsOpen, setIsDayEventsOpen] = useState(true);
   const [notificationPermission, setNotificationPermission] = useState<
     NotificationPermission | "unsupported"
   >("unsupported");
@@ -359,6 +384,8 @@ export default function Home() {
   const [showTutorial, setShowTutorial] = useState(false);
   const [calendarFilter, setCalendarFilter] = useState<CalendarFilter>("all");
   const [isFilterOpen, setIsFilterOpen] = useState(false);
+  const { toasts, show } = useToast();
+  const [confirmDeleteEvent, setConfirmDeleteEvent] = useState<CalendarEvent | null>(null);
 
   const fetchConnections = useCallback(async (userId: string) => {
     const { data: acceptedConnections, error } = await supabase
@@ -823,7 +850,7 @@ export default function Home() {
   const requestNotificationPermission = async () => {
     if (typeof window === "undefined" || !("Notification" in window)) {
       setNotificationPermission("unsupported");
-      alert("このブラウザでは通知が使えません。");
+      show("このブラウザでは通知が使えません。", "error");
       return;
     }
 
@@ -897,7 +924,7 @@ export default function Home() {
 
     const { startAt, endAt } = normalizeEventTimes(eventForm);
     if (new Date(endAt).getTime() <= new Date(startAt).getTime()) {
-      alert("終了日時は開始日時より後にしてください");
+      show("終了日時は開始日時より後にしてください", "error");
       return;
     }
     const eventPayload = {
@@ -930,13 +957,13 @@ export default function Home() {
       error = fallback.error;
 
       if (!fallback.error && (note || all_day || category_id || event_visibility !== "private")) {
-        alert("DB列がまだ不足しています。SQL実行後はメモ・終日・分類も保存されます。");
+        show("DB列がまだ不足しています。SQL実行後はメモ・終日・分類も保存されます。", "error");
       }
     }
 
     if (error || !insertedEvent) {
       console.error(error);
-      alert("追加失敗");
+      show("予定の追加に失敗しました", "error");
       return;
     }
 
@@ -958,11 +985,12 @@ export default function Home() {
           hint: shareError.hint,
           shareRows,
         });
-        alert(`予定は追加しましたが、共有に失敗しました: ${shareError.message}`);
+        show(`予定は追加しましたが、共有に失敗しました: ${shareError.message}`, "error");
         return;
       }
     }
 
+    show("予定を追加しました", "success");
     setIsEventModalOpen(false);
     await fetchEvents();
   };
@@ -973,7 +1001,7 @@ export default function Home() {
 
     const { startAt, endAt } = normalizeEventTimes(editForm);
     if (new Date(endAt).getTime() <= new Date(startAt).getTime()) {
-      alert("終了日時は開始日時より後にしてください");
+      show("終了日時は開始日時より後にしてください", "error");
       return;
     }
     const payload = {
@@ -994,7 +1022,7 @@ export default function Home() {
 
       if (error) {
         console.error(error);
-        alert(error.message);
+        show(error.message, "error");
         return;
       }
 
@@ -1013,7 +1041,7 @@ export default function Home() {
 
         if (shareError) {
           console.error(shareError);
-          alert(shareError.message);
+          show(shareError.message, "error");
           return;
         }
       }
@@ -1038,21 +1066,22 @@ export default function Home() {
       error = fallback.error;
 
       if (!fallback.error && (note || all_day || category_id || event_visibility !== "private")) {
-        alert("DB列がまだ不足しています。SQL実行後はメモ・終日・分類も保存されます。");
+        show("DB列がまだ不足しています。SQL実行後はメモ・終日・分類も保存されます。", "error");
       }
     }
 
     if (error) {
       console.error(error);
-      alert(error.message);
+      show(error.message, "error");
       return;
     }
 
+    show("予定を更新しました", "success");
     await fetchEvents();
     setDetailEvent(null);
   };
 
-  const deleteEvent = async (event: CalendarEvent) => {
+  const deleteEvent = async (event: CalendarEvent, confirmed = false) => {
     if (!event.id) return;
     if (!event.canDelete) {
       if (event.isShared && event.ownerDeleted) {
@@ -1082,12 +1111,16 @@ export default function Home() {
         return;
       }
 
-      alert("共有された予定は作成者だけが削除できます");
+      show("共有された予定は作成者だけが削除できます", "error");
       return;
     }
 
-    const ok = window.confirm(`「${event.title}」を削除しますか？`);
-    if (!ok) return;
+    if (!confirmed) {
+      setConfirmDeleteEvent(event);
+      return;
+    }
+
+    setConfirmDeleteEvent(null);
 
     if (event.recurringId) {
       const { error } = await supabase
@@ -1097,10 +1130,11 @@ export default function Home() {
 
       if (error) {
         console.error(error);
-        alert("削除失敗");
+        show("削除に失敗しました", "error");
         return;
       }
 
+      show("予定を削除しました", "success");
       setDetailEvent(null);
       setDayDetail(null);
       await fetchEvents();
@@ -1114,10 +1148,11 @@ export default function Home() {
 
     if (error) {
       console.error(error);
-      alert("削除失敗");
+      show("削除に失敗しました", "error");
       return;
     }
 
+    show("予定を削除しました", "success");
     setDetailEvent(null);
     setDayDetail(null);
     await fetchEvents();
@@ -1134,7 +1169,7 @@ export default function Home() {
 
       if (deleteError) {
         console.error(deleteError);
-        alert(deleteError.message);
+        show(deleteError.message, "error");
         return;
       }
 
@@ -1153,11 +1188,12 @@ export default function Home() {
 
         if (insertError) {
           console.error(insertError);
-          alert(insertError.message);
+          show(insertError.message, "error");
           return;
         }
       }
 
+      show("共有設定を保存しました", "success");
       await fetchEvents();
       setDetailEvent(null);
       return;
@@ -1170,7 +1206,7 @@ export default function Home() {
 
     if (deleteError) {
       console.error(deleteError);
-      alert(deleteError.message);
+      show(deleteError.message, "error");
       return;
     }
 
@@ -1189,7 +1225,7 @@ export default function Home() {
 
       if (insertError) {
         console.error(insertError);
-        alert(insertError.message);
+        show(insertError.message, "error");
         return;
       }
     } else {
@@ -1199,6 +1235,7 @@ export default function Home() {
         .eq("id", detailEvent.id);
     }
 
+    show("共有設定を保存しました", "success");
     await fetchEvents();
     setDetailEvent(null);
   };
@@ -2090,6 +2127,48 @@ export default function Home() {
           </div>
         </div>
       )}
+      {/* FAB — quick add event */}
+      <button
+        className="fab sm:hidden"
+        aria-label="予定を追加"
+        onClick={() => openEventModal()}
+      >
+        <svg viewBox="0 0 24 24" className="h-7 w-7" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+          <line x1="12" y1="5" x2="12" y2="19" />
+          <line x1="5" y1="12" x2="19" y2="12" />
+        </svg>
+      </button>
+
+      {/* Delete confirmation modal */}
+      {confirmDeleteEvent && (
+        <div className="confirm-overlay">
+          <div className="confirm-card">
+            <p className="text-xs font-bold uppercase tracking-[0.14em] text-[#64748b]">確認</p>
+            <p className="mt-2 text-base font-black text-[#0f172a]">
+              「{confirmDeleteEvent.title}」を削除しますか？
+            </p>
+            {confirmDeleteEvent.recurringId && (
+              <p className="mt-1 text-sm text-[#64748b]">この操作は繰り返し予定全体に反映されます。</p>
+            )}
+            <div className="mt-5 grid grid-cols-2 gap-2">
+              <button
+                className="h-11 rounded-xl border border-[#cbd5e1] font-bold text-[#334155] transition hover:bg-[#f8fafc]"
+                onClick={() => setConfirmDeleteEvent(null)}
+              >
+                キャンセル
+              </button>
+              <button
+                className="h-11 rounded-xl bg-[#be123c] font-bold text-white transition hover:bg-[#9f1239]"
+                onClick={() => void deleteEvent(confirmDeleteEvent, true)}
+              >
+                削除する
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <ToastStack toasts={toasts} />
       <MobileNavigation />
     </main>
   );

@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 
 export function ShareCalLogo({ compact = false }: { compact?: boolean }) {
@@ -109,12 +110,24 @@ function useNavigationMeta() {
 
 export function DesktopNavigation() {
   const { pendingCount, isAdmin } = useNavigationMeta();
+  const pathname = usePathname();
   const navItems = isAdmin ? [...items, adminItem] : items;
+
+  const isActive = (href: string) => {
+    if (href === "/") return pathname === "/";
+    return pathname.startsWith(href);
+  };
 
   return (
     <nav className="hidden gap-2 sm:flex sm:flex-wrap sm:items-center">
       {navItems.map((item) => (
-        <Link key={item.href} className="top-nav-link" href={item.href} aria-label={item.desktopLabel}>
+        <Link
+          key={item.href}
+          className="top-nav-link"
+          href={item.href}
+          aria-label={item.desktopLabel}
+          data-active={isActive(item.href) ? "true" : undefined}
+        >
           {item.href === "/connect" && pendingCount > 0 && <span className="nav-badge" />}
           {item.icon}
           <span>{item.desktopLabel}</span>
@@ -126,12 +139,26 @@ export function DesktopNavigation() {
 
 export function MobileNavigation() {
   const { pendingCount, isAdmin } = useNavigationMeta();
+  const pathname = usePathname();
   const navItems = isAdmin ? [...items, adminItem] : items;
 
+  const isActive = (href: string) => {
+    if (href === "/") return pathname === "/";
+    return pathname.startsWith(href);
+  };
+
   return (
-    <nav className={`fixed inset-x-3 bottom-3 z-40 grid ${isAdmin ? "grid-cols-6" : "grid-cols-5"} rounded-2xl border border-[#d9e2ef] bg-white/95 p-2 text-center text-[10px] font-semibold text-[#334155] shadow-xl backdrop-blur sm:hidden`}>
+    <nav
+      className={`fixed inset-x-3 bottom-3 z-40 grid ${isAdmin ? "grid-cols-6" : "grid-cols-5"} rounded-2xl border border-[#d9e2ef] bg-white/95 p-2 text-center text-[10px] font-semibold text-[#334155] shadow-xl backdrop-blur sm:hidden`}
+    >
       {navItems.map((item) => (
-        <Link key={item.href} className="mobile-nav-link" href={item.href} aria-label={item.desktopLabel}>
+        <Link
+          key={item.href}
+          className="mobile-nav-link"
+          href={item.href}
+          aria-label={item.desktopLabel}
+          data-active={isActive(item.href) ? "true" : undefined}
+        >
           {item.href === "/connect" && pendingCount > 0 && <span className="nav-badge mobile" />}
           {item.icon}
           <span>{item.label}</span>
