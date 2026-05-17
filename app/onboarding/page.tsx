@@ -117,7 +117,7 @@ export default function OnboardingPage() {
   const stepLabels = ["ユーザー名", "分類", "よく使う予定"];
 
   return (
-    <main className="flex min-h-screen items-center justify-center bg-[#eef7fb] px-4 py-8 text-[#172033]">
+    <main className="page-shell flex min-h-screen items-center justify-center px-4 py-8 text-[var(--fg)]">
       <div className="w-full max-w-md">
 
         {/* Header */}

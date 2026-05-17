@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { DesktopNavigation, MobileNavigation, ShareCalLogo } from "@/app/components/AppNavigation";
 import { supabase } from "@/lib/supabase";
@@ -20,7 +20,10 @@ type AdminDebug = {
   userId?: string;
   profileRole?: string | null;
   adminEmailsConfigured?: boolean;
+  canClaim?: boolean;
 };
+
+type ToastItem = { id: number; message: string; type: "success" | "error" | "info" };
 
 export default function AdminPage() {
   const router = useRouter();
@@ -28,6 +31,23 @@ export default function AdminPage() {
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState("");
   const [debug, setDebug] = useState<AdminDebug | null>(null);
+  const [currentUserId, setCurrentUserId] = useState<string>("");
+  const [claiming, setClaiming] = useState(false);
+  const [query, setQuery] = useState("");
+  const [filterRole, setFilterRole] = useState<"all" | "admin" | "user" | "banned">("all");
+  const [toasts, setToasts] = useState<ToastItem[]>([]);
+  const [confirmAction, setConfirmAction] = useState<{
+    user: AdminUser;
+    action: "suspend" | "restore" | "make_admin" | "remove_admin" | "delete";
+  } | null>(null);
+
+  const showToast = (message: string, type: ToastItem["type"] = "info") => {
+    const id = Date.now() + Math.random();
+    setToasts((prev) => [...prev, { id, message, type }]);
+    window.setTimeout(() => {
+      setToasts((prev) => prev.filter((t) => t.id !== id));
+    }, 3500);
+  };
 
   const fetchUsers = useCallback(async () => {
     setLoading(true);
@@ -57,32 +77,45 @@ export default function AdminPage() {
     setMessage("");
     setDebug(null);
     setUsers(result.users ?? []);
+    setCurrentUserId(result.currentUserId ?? "");
     setLoading(false);
   }, [router]);
 
   useEffect(() => {
-    const timer = window.setTimeout(() => {
-      void fetchUsers();
-    }, 0);
-
-    return () => window.clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    void fetchUsers();
   }, [fetchUsers]);
 
-  const runAction = async (user: AdminUser, action: "suspend" | "restore" | "make_admin" | "remove_admin" | "delete") => {
-    const labels = {
-      suspend: "停止",
-      restore: "停止解除",
-      make_admin: "管理者化",
-      remove_admin: "管理者解除",
-      delete: "削除",
-    };
-    const ok = window.confirm(`「${user.username}」を${labels[action]}しますか？`);
-    if (!ok) return;
-
+  const claimFirstAdmin = async () => {
+    setClaiming(true);
     const {
       data: { session },
     } = await supabase.auth.getSession();
+    if (!session) {
+      router.push("/login");
+      return;
+    }
+    const response = await fetch("/api/admin/users", {
+      method: "POST",
+      headers: { authorization: `Bearer ${session.access_token}` },
+    });
+    const result = await response.json();
+    setClaiming(false);
+    if (!response.ok) {
+      showToast(result.error ?? "管理者登録に失敗しました", "error");
+      return;
+    }
+    showToast("管理者として登録しました", "success");
+    await fetchUsers();
+  };
 
+  const runAction = async (
+    user: AdminUser,
+    action: "suspend" | "restore" | "make_admin" | "remove_admin" | "delete",
+  ) => {
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
     if (!session) return;
 
     const response = await fetch("/api/admin/users", {
@@ -96,104 +129,338 @@ export default function AdminPage() {
     const result = await response.json();
 
     if (!response.ok) {
-      alert(result.error ?? "操作に失敗しました");
+      showToast(result.error ?? "操作に失敗しました", "error");
       return;
     }
 
+    showToast("操作を実行しました", "success");
     await fetchUsers();
   };
 
+  const [nowRef] = useState(() => Date.now());
+  const stats = useMemo(() => {
+    const total = users.length;
+    const admins = users.filter((u) => u.role === "admin").length;
+    const banned = users.filter((u) => u.banned_until).length;
+    const dayMs = 1000 * 60 * 60 * 24;
+    const recentLogin = users.filter((u) => {
+      if (!u.last_sign_in_at) return false;
+      return nowRef - new Date(u.last_sign_in_at).getTime() < 7 * dayMs;
+    }).length;
+    return { total, admins, banned, recentLogin };
+  }, [users, nowRef]);
+
+  const visibleUsers = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    return users.filter((u) => {
+      if (filterRole === "admin" && u.role !== "admin") return false;
+      if (filterRole === "user" && u.role !== "user") return false;
+      if (filterRole === "banned" && !u.banned_until) return false;
+      if (!q) return true;
+      return (
+        (u.username ?? "").toLowerCase().includes(q) ||
+        (u.email ?? "").toLowerCase().includes(q)
+      );
+    });
+  }, [users, query, filterRole]);
+
+  const labels: Record<
+    "suspend" | "restore" | "make_admin" | "remove_admin" | "delete",
+    { title: string; description: string; danger?: boolean }
+  > = {
+    suspend: {
+      title: "アカウントを停止しますか？",
+      description: "停止中のユーザーはログインできなくなります。後から解除できます。",
+    },
+    restore: {
+      title: "停止を解除しますか？",
+      description: "再度ログインできるようになります。",
+    },
+    make_admin: {
+      title: "管理者として登録しますか？",
+      description: "ユーザー管理を含むすべての管理機能を利用できるようになります。",
+    },
+    remove_admin: {
+      title: "管理者権限を解除しますか？",
+      description: "通常ユーザーに戻します。後から再度付与できます。",
+    },
+    delete: {
+      title: "アカウントを削除しますか？",
+      description: "この操作は元に戻せません。データが完全に削除されます。",
+      danger: true,
+    },
+  };
+
+  const canClaim = Boolean(debug?.canClaim);
+  const serviceKeyMissing = !!message && message.includes("SUPABASE_SERVICE_ROLE_KEY");
+
   return (
-    <main className="min-h-screen bg-[#f5f7fb] px-4 pb-24 pt-4 text-[#172033] sm:px-6 sm:pb-4">
-      <div className="mx-auto flex max-w-5xl flex-col gap-4">
-        <header className="flex flex-col gap-3 rounded-2xl border border-[#d9e2ef] bg-white p-4 shadow-sm sm:flex-row sm:items-center sm:justify-between">
+    <main className="page-shell min-h-screen px-4 pb-28 pt-4 text-[var(--fg)] sm:px-6 sm:pb-6">
+      <div className="mx-auto flex max-w-6xl flex-col gap-5">
+        <header className="page-header glass-card flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-3">
             <ShareCalLogo compact />
             <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[#64748b]">
-                Admin
-              </p>
-              <h1 className="mt-1 text-2xl font-bold text-[#0f172a]">管理</h1>
+              <p className="eyebrow">Admin Console</p>
+              <h1 className="mt-1 text-2xl font-black text-[var(--fg-strong)]">管理画面</h1>
             </div>
           </div>
           <DesktopNavigation />
         </header>
 
-        <section className="rounded-2xl border border-[#d9e2ef] bg-white p-4 shadow-sm">
-          <h2 className="text-base font-bold text-[#0f172a]">ユーザー管理</h2>
-          <p className="mt-1 text-sm leading-6 text-[#64748b]">
-            管理者だけが利用できます。停止、停止解除、管理者権限の変更、アカウント削除を行えます。
-          </p>
-          {message && (
-            <div className="mt-4 rounded-xl border border-[#fde68a] bg-[#fffbeb] p-3 text-sm font-semibold text-[#92400e]">
-              <p>{message}</p>
-              <p className="mt-2 text-xs leading-5">
-                管理者登録が完了しているか確認してください。設定後は再デプロイ、または再ログインが必要な場合があります。
+        {message && (
+          <section className="glass-card border border-[var(--amber-200)] bg-[var(--amber-50)] p-4 text-[var(--amber-900)]">
+            <p className="text-sm font-bold">{message}</p>
+            {canClaim && (
+              <div className="mt-3 rounded-xl bg-white/70 p-3 text-sm">
+                <p className="font-bold text-[var(--fg-strong)]">
+                  まだ管理者が登録されていません。最初の管理者として登録しますか？
+                </p>
+                <p className="mt-1 text-xs text-[var(--fg-muted)]">
+                  最初の1人目だけは、自分で登録できます。以降は既存の管理者に依頼してください。
+                </p>
+                <button
+                  className="btn btn-primary mt-3"
+                  disabled={claiming}
+                  onClick={claimFirstAdmin}
+                >
+                  {claiming ? "登録中…" : "最初の管理者として登録"}
+                </button>
+              </div>
+            )}
+            {serviceKeyMissing && (
+              <p className="mt-2 text-xs">
+                サーバー環境変数 SUPABASE_SERVICE_ROLE_KEY が必要です。
+                プロジェクト設定でキーを追加し再デプロイしてください。
               </p>
-              {debug && (
-                <div className="mt-3 rounded-lg bg-white/70 p-2 text-xs leading-5 text-[#78350f]">
+            )}
+            {debug && (
+              <details className="mt-3">
+                <summary className="cursor-pointer text-xs font-bold text-[var(--fg-muted)]">
+                  詳細を表示
+                </summary>
+                <div className="mt-2 rounded-lg bg-white/70 p-3 text-xs leading-6 text-[var(--fg-muted)]">
                   <p>ログイン中: {debug.email ?? "不明"}</p>
                   <p>ユーザーID: {debug.userId ?? "不明"}</p>
                   <p>profiles.role: {debug.profileRole ?? "未取得"}</p>
                   <p>ADMIN_EMAILS: {debug.adminEmailsConfigured ? "設定あり" : "未設定"}</p>
                 </div>
-              )}
-            </div>
-          )}
-        </section>
+              </details>
+            )}
+          </section>
+        )}
 
-        <section className="rounded-2xl border border-[#d9e2ef] bg-white p-4 shadow-sm">
-          {loading ? (
-            <p className="text-sm text-[#64748b]">読み込み中です。</p>
-          ) : (
-            <div className="grid gap-3">
-              {users.map((user) => (
-                <div
-                  key={user.id}
-                  className="rounded-2xl border border-[#d9e2ef] bg-[#f8fafc] p-3"
-                >
-                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                    <div className="min-w-0">
-                      <p className="truncate font-black text-[#0f172a]">{user.username}</p>
-                      <p className="truncate text-sm text-[#64748b]">{user.email}</p>
-                      <p className="mt-1 text-xs font-bold text-[#64748b]">
-                        {user.role === "admin" ? "管理者" : "ユーザー"}
-                        {user.banned_until && " / 停止中"}
-                      </p>
-                    </div>
-                    <div className="grid grid-cols-2 gap-2 sm:flex">
-                      <button
-                        className="h-10 rounded-lg border border-[#cbd5e1] px-3 text-sm font-bold text-[#334155]"
-                        onClick={() => runAction(user, user.banned_until ? "restore" : "suspend")}
-                      >
-                        {user.banned_until ? "停止解除" : "停止"}
-                      </button>
-                      <button
-                        className="h-10 rounded-lg border border-[#cbd5e1] px-3 text-sm font-bold text-[#334155]"
-                        onClick={() =>
-                          runAction(user, user.role === "admin" ? "remove_admin" : "make_admin")
-                        }
-                      >
-                        {user.role === "admin" ? "管理者解除" : "管理者にする"}
-                      </button>
-                      <button
-                        className="h-10 rounded-lg bg-[#be123c] px-3 text-sm font-bold text-white disabled:cursor-not-allowed disabled:opacity-50"
-                        disabled={user.role === "admin"}
-                        onClick={() => runAction(user, "delete")}
-                      >
-                        {user.role === "admin" ? "削除不可" : "削除"}
-                      </button>
-                    </div>
-                  </div>
+        {!message && (
+          <section className="grid gap-3 sm:grid-cols-4">
+            {[
+              { label: "総ユーザー", value: stats.total, accent: "var(--accent)" },
+              { label: "管理者", value: stats.admins, accent: "var(--violet)" },
+              { label: "停止中", value: stats.banned, accent: "var(--rose)" },
+              { label: "7日以内にログイン", value: stats.recentLogin, accent: "var(--amber-500)" },
+            ].map((stat) => (
+              <div
+                key={stat.label}
+                className="stat-card glass-card p-4"
+                style={{ borderTopColor: stat.accent }}
+              >
+                <p className="text-xs font-bold uppercase tracking-[0.12em] text-[var(--fg-muted)]">
+                  {stat.label}
+                </p>
+                <p className="mt-1 text-3xl font-black text-[var(--fg-strong)]">{stat.value}</p>
+              </div>
+            ))}
+          </section>
+        )}
+
+        {!message && (
+          <section className="glass-card p-4">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex flex-1 items-center gap-2">
+                <div className="search-input flex h-11 flex-1 items-center gap-2 rounded-xl border border-[var(--border)] bg-[var(--surface-alt)] px-3">
+                  <svg viewBox="0 0 24 24" className="h-5 w-5 text-[var(--fg-muted)]" stroke="currentColor" fill="none" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <circle cx="11" cy="11" r="7" />
+                    <path d="m21 21-4.3-4.3" />
+                  </svg>
+                  <input
+                    className="h-full flex-1 bg-transparent text-sm outline-none placeholder:text-[var(--fg-muted)]"
+                    placeholder="名前・メールで検索"
+                    value={query}
+                    onChange={(e) => setQuery(e.target.value)}
+                  />
+                  {query && (
+                    <button
+                      className="text-xs font-bold text-[var(--fg-muted)] hover:text-[var(--fg-strong)]"
+                      onClick={() => setQuery("")}
+                    >
+                      クリア
+                    </button>
+                  )}
                 </div>
-              ))}
-              {users.length === 0 && (
-                <p className="text-sm text-[#64748b]">ユーザーはいません。</p>
-              )}
+              </div>
+              <div className="flex gap-2 overflow-x-auto">
+                {([
+                  { id: "all", label: "すべて" },
+                  { id: "admin", label: "管理者" },
+                  { id: "user", label: "ユーザー" },
+                  { id: "banned", label: "停止中" },
+                ] as const).map((opt) => (
+                  <button
+                    key={opt.id}
+                    className={`chip ${filterRole === opt.id ? "chip-active" : ""}`}
+                    onClick={() => setFilterRole(opt.id)}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
             </div>
-          )}
-        </section>
+          </section>
+        )}
+
+        {!message && (
+          <section className="glass-card p-2 sm:p-3">
+            {loading ? (
+              <div className="grid gap-2 p-3">
+                {[1, 2, 3].map((i) => (
+                  <div key={i} className="skeleton-row" />
+                ))}
+              </div>
+            ) : (
+              <div className="grid gap-2">
+                {visibleUsers.map((user) => {
+                  const initial = (user.username || user.email || "?").charAt(0).toUpperCase();
+                  const isSelf = user.id === currentUserId;
+                  return (
+                    <div
+                      key={user.id}
+                      className="user-row rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-3 transition hover:border-[var(--accent)]"
+                    >
+                      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                        <div className="flex min-w-0 items-center gap-3">
+                          <span
+                            className="avatar flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-base font-black text-white"
+                            style={{
+                              background:
+                                user.role === "admin"
+                                  ? "linear-gradient(135deg, var(--violet), var(--violet-strong))"
+                                  : "linear-gradient(135deg, var(--accent), var(--accent-strong))",
+                            }}
+                          >
+                            {initial}
+                          </span>
+                          <div className="min-w-0">
+                            <p className="flex flex-wrap items-center gap-2">
+                              <span className="truncate font-black text-[var(--fg-strong)]">
+                                {user.username}
+                              </span>
+                              {user.role === "admin" && (
+                                <span className="badge badge-violet">管理者</span>
+                              )}
+                              {user.banned_until && (
+                                <span className="badge badge-rose">停止中</span>
+                              )}
+                              {isSelf && <span className="badge badge-slate">あなた</span>}
+                            </p>
+                            <p className="truncate text-sm text-[var(--fg-muted)]">
+                              {user.email}
+                            </p>
+                            <p className="mt-1 text-xs font-semibold text-[var(--fg-muted)]">
+                              {user.last_sign_in_at
+                                ? `最終ログイン ${new Date(user.last_sign_in_at).toLocaleString("ja-JP")}`
+                                : "未ログイン"}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="grid grid-cols-2 gap-2 sm:flex">
+                          <button
+                            className="btn btn-soft"
+                            onClick={() =>
+                              setConfirmAction({
+                                user,
+                                action: user.banned_until ? "restore" : "suspend",
+                              })
+                            }
+                            disabled={isSelf}
+                          >
+                            {user.banned_until ? "停止解除" : "停止"}
+                          </button>
+                          <button
+                            className="btn btn-soft"
+                            onClick={() =>
+                              setConfirmAction({
+                                user,
+                                action: user.role === "admin" ? "remove_admin" : "make_admin",
+                              })
+                            }
+                            disabled={isSelf && user.role === "admin"}
+                          >
+                            {user.role === "admin" ? "管理者解除" : "管理者にする"}
+                          </button>
+                          <button
+                            className="btn btn-danger"
+                            disabled={user.role === "admin" || isSelf}
+                            onClick={() => setConfirmAction({ user, action: "delete" })}
+                          >
+                            {user.role === "admin" ? "削除不可" : "削除"}
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+                {visibleUsers.length === 0 && (
+                  <p className="empty-state p-6 text-center">
+                    条件に一致するユーザーがいません。
+                  </p>
+                )}
+              </div>
+            )}
+          </section>
+        )}
       </div>
+
+      {confirmAction && (
+        <div className="confirm-overlay">
+          <div className="confirm-card">
+            <p className="eyebrow">確認</p>
+            <h3 className="mt-1 text-lg font-black text-[var(--fg-strong)]">
+              {labels[confirmAction.action].title}
+            </h3>
+            <p className="mt-2 text-sm leading-6 text-[var(--fg-muted)]">
+              対象: <span className="font-bold text-[var(--fg-strong)]">{confirmAction.user.username}</span>
+              <br />
+              {labels[confirmAction.action].description}
+            </p>
+            <div className="mt-5 flex justify-end gap-2">
+              <button
+                className="btn btn-soft"
+                onClick={() => setConfirmAction(null)}
+              >
+                キャンセル
+              </button>
+              <button
+                className={`btn ${labels[confirmAction.action].danger ? "btn-danger" : "btn-primary"}`}
+                onClick={async () => {
+                  const action = confirmAction;
+                  setConfirmAction(null);
+                  await runAction(action.user, action.action);
+                }}
+              >
+                実行
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <div className="toast-stack">
+        {toasts.map((t) => (
+          <div key={t.id} className={`toast toast-${t.type}`}>
+            {t.message}
+          </div>
+        ))}
+      </div>
+
       <MobileNavigation />
     </main>
   );

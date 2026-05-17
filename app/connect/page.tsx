@@ -126,7 +126,9 @@ export default function ConnectPage() {
       setShareCode(data?.share_code ?? "");
     };
     void fetchMyShareCode();
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     void fetchRequests();
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     void fetchConnectedUsers();
   }, [fetchConnectedUsers, fetchRequests]);
 
@@ -241,11 +243,11 @@ export default function ConnectPage() {
   };
 
   return (
-    <main className="min-h-screen bg-[#f5f7fb] px-4 pb-24 pt-4 text-[#172033] sm:px-6 sm:pb-4">
+    <main className="page-shell min-h-screen px-4 pb-28 pt-4 text-[var(--fg)] sm:px-6 sm:pb-6">
       <ToastStack toasts={toasts} />
 
       <div className="mx-auto flex max-w-5xl flex-col gap-4">
-        <header className="rounded-2xl border border-[#d9e2ef] bg-white p-4 shadow-sm">
+        <header className="page-header glass-card p-4">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex items-center gap-3">
               <ShareCalLogo compact />

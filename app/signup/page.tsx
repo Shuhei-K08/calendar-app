@@ -74,7 +74,7 @@ export default function SignupPage() {
 
   if (done) {
     return (
-      <main className="flex min-h-screen items-center justify-center bg-[#eef7fb] px-4 py-8">
+      <main className="page-shell flex min-h-screen items-center justify-center px-4 py-8 text-[var(--fg)]">
         <div className="w-full max-w-md rounded-3xl border border-[#d9e2ef] bg-white p-8 text-center shadow-[0_24px_70px_rgb(15_23_42_/_12%)]">
           <div className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-2xl bg-[#ecfdf5] text-3xl">
             ✉️
@@ -100,7 +100,7 @@ export default function SignupPage() {
   }
 
   return (
-    <main className="min-h-screen bg-[#eef7fb] px-4 py-8 text-[#172033] sm:px-6">
+    <main className="page-shell min-h-screen px-4 py-8 text-[var(--fg)] sm:px-6">
       <div className="mx-auto grid min-h-[calc(100vh-4rem)] max-w-5xl items-center gap-8 lg:grid-cols-[1fr_440px]">
 
         {/* ── Hero ── */}

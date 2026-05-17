@@ -99,7 +99,8 @@ function useNavigationMeta() {
       ]);
 
       setPendingCount(count ?? 0);
-      setIsAdmin(profile?.role === "admin");
+      const role = (profile?.role ?? "").toString().trim().toLowerCase();
+      setIsAdmin(role === "admin" || role === "admine");
     };
 
     void fetchMeta();
@@ -108,7 +109,55 @@ function useNavigationMeta() {
   return { pendingCount, isAdmin };
 }
 
-export function DesktopNavigation() {
+/* ── Theme toggle ── */
+export function ThemeToggle() {
+  const [theme, setTheme] = useState<"light" | "dark">("light");
+
+  useEffect(() => {
+    const initial = document.documentElement.getAttribute("data-theme") === "dark" ? "dark" : "light";
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setTheme(initial);
+  }, []);
+
+  const toggle = () => {
+    const next = theme === "dark" ? "light" : "dark";
+    setTheme(next);
+    if (next === "dark") {
+      document.documentElement.setAttribute("data-theme", "dark");
+    } else {
+      document.documentElement.removeAttribute("data-theme");
+    }
+    try {
+      localStorage.setItem("sharecal_theme", next);
+    } catch {
+      /* ignore quota errors */
+    }
+  };
+
+  return (
+    <button
+      type="button"
+      className="theme-toggle"
+      onClick={toggle}
+      aria-label={theme === "dark" ? "ライトモードに切替" : "ダークモードに切替"}
+      title={theme === "dark" ? "ライトモードに切替" : "ダークモードに切替"}
+    >
+      {theme === "dark" ? (
+        <svg viewBox="0 0 24 24" className="h-4 w-4" stroke="currentColor" fill="none" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <circle cx="12" cy="12" r="4" />
+          <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41" />
+        </svg>
+      ) : (
+        <svg viewBox="0 0 24 24" className="h-4 w-4" stroke="currentColor" fill="none" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79Z" />
+        </svg>
+      )}
+      <span className="hidden sm:inline">{theme === "dark" ? "ライト" : "ダーク"}</span>
+    </button>
+  );
+}
+
+export function DesktopNavigation({ withThemeToggle = true }: { withThemeToggle?: boolean }) {
   const { pendingCount, isAdmin } = useNavigationMeta();
   const pathname = usePathname();
   const navItems = isAdmin ? [...items, adminItem] : items;
@@ -133,6 +182,7 @@ export function DesktopNavigation() {
           <span>{item.desktopLabel}</span>
         </Link>
       ))}
+      {withThemeToggle && <ThemeToggle />}
     </nav>
   );
 }
@@ -149,7 +199,7 @@ export function MobileNavigation() {
 
   return (
     <nav
-      className={`fixed inset-x-3 bottom-3 z-40 grid ${isAdmin ? "grid-cols-6" : "grid-cols-5"} rounded-2xl border border-[#d9e2ef] bg-white/95 p-2 text-center text-[10px] font-semibold text-[#334155] shadow-xl backdrop-blur sm:hidden`}
+      className={`fixed inset-x-3 bottom-3 z-40 grid ${isAdmin ? "grid-cols-6" : "grid-cols-5"} rounded-2xl border border-[var(--border)] bg-[var(--surface-glass-strong)] p-2 text-center text-[10px] font-semibold text-[var(--fg-muted)] shadow-xl backdrop-blur sm:hidden`}
     >
       {navItems.map((item) => (
         <Link

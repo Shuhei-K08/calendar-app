@@ -40,7 +40,7 @@ export default function LoginPage() {
   };
 
   return (
-    <main className="min-h-screen bg-[#eef7fb] px-4 py-8 text-[#172033] sm:px-6">
+    <main className="page-shell min-h-screen px-4 py-8 text-[var(--fg)] sm:px-6">
       <div className="mx-auto grid min-h-[calc(100vh-4rem)] max-w-5xl items-center gap-8 lg:grid-cols-[1fr_440px]">
 
         {/* ── Hero (desktop only) ── */}

@@ -3,7 +3,7 @@ import { ShareCalLogo } from "@/app/components/AppNavigation";
 
 export default function AuthConfirmedPage() {
   return (
-    <main className="min-h-screen bg-[#eef7fb] px-4 py-8 text-[#172033] sm:px-6">
+    <main className="page-shell min-h-screen px-4 py-8 text-[var(--fg)] sm:px-6">
       <div className="mx-auto flex min-h-[calc(100vh-4rem)] max-w-md items-center">
         <section className="w-full rounded-3xl border border-[#d9e2ef] bg-white p-5 text-center shadow-[0_24px_70px_rgb(15_23_42_/_12%)] sm:p-8">
           <div className="mb-6 flex justify-center">

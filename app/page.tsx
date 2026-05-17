@@ -778,8 +778,13 @@ export default function Home() {
       const theme =
         DESIGN_THEMES[settings.designTheme as keyof typeof DESIGN_THEMES] ??
         DESIGN_THEMES.clean;
-      document.documentElement.style.setProperty("--app-bg", theme.background);
+      const isDarkMode = document.documentElement.getAttribute("data-theme") === "dark";
+      if (!isDarkMode) {
+        document.documentElement.style.setProperty("--app-bg", theme.background);
+        document.documentElement.style.setProperty("--background", theme.background);
+      }
       document.documentElement.style.setProperty("--app-accent", theme.accent);
+      document.documentElement.style.setProperty("--accent", theme.accent);
       document.documentElement.style.setProperty(
         "--own-event-bg",
         settings.ownEventBackground ?? settings.ownEvent ?? "#e0f2fe",
@@ -1332,14 +1337,45 @@ export default function Home() {
     openEventModal(date);
   };
 
+  // ── Keyboard shortcuts: T=today, N=new, /=filter focus, Esc=close ──
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
+      const target = e.target as HTMLElement | null;
+      if (target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable)) {
+        if (e.key === "Escape") (target as HTMLElement).blur();
+        return;
+      }
+      if (e.key === "Escape") {
+        if (isEventModalOpen) { setIsEventModalOpen(false); return; }
+        if (detailEvent) { setDetailEvent(null); return; }
+        if (dayDetail) { setDayDetail(null); return; }
+        if (showTutorial) { setShowTutorial(false); return; }
+        return;
+      }
+      if (e.key === "n" || e.key === "N") {
+        e.preventDefault();
+        openEventModal(calendarDate);
+      } else if (e.key === "t" || e.key === "T") {
+        e.preventDefault();
+        setCalendarDate(new Date());
+      } else if (e.key === "/" ) {
+        e.preventDefault();
+        setIsFilterOpen((v) => !v);
+      }
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [calendarDate, isEventModalOpen, detailEvent, dayDetail, showTutorial]);
+
   if (loading) {
     return <LoadingScreen />;
   }
 
   return (
-    <main className="min-h-screen bg-[var(--app-bg)] px-4 pb-24 pt-4 text-[#172033] sm:px-6 sm:pb-4 lg:px-8">
+    <main className="page-shell min-h-screen px-4 pb-28 pt-4 text-[var(--fg)] sm:px-6 sm:pb-4 lg:px-8">
       <div className="mx-auto flex max-w-7xl flex-col gap-5">
-        <header className="flex flex-col gap-3 rounded-2xl border border-[#d9e2ef] bg-white/95 p-3 shadow-sm sm:flex-row sm:items-center sm:justify-between">
+        <header className="page-header glass-card flex flex-col gap-3 p-3 sm:flex-row sm:items-center sm:justify-between">
           <ShareCalLogo />
 
           <div className="hidden sm:flex sm:flex-wrap sm:items-center sm:gap-2">

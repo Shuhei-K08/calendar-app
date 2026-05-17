@@ -195,6 +195,7 @@ export default function SettingsPage() {
   }, []);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     void fetchProfile();
     void fetchCategories();
     void fetchRecurringEvents();
@@ -204,8 +205,13 @@ export default function SettingsPage() {
   const saveDesign = () => {
     const theme = designThemes.find((t) => t.id === settings.designTheme) ?? designThemes[0];
     window.localStorage.setItem("calendar_settings", JSON.stringify(settings));
-    document.documentElement.style.setProperty("--app-bg", theme.background);
+    const isDarkMode = document.documentElement.getAttribute("data-theme") === "dark";
+    if (!isDarkMode) {
+      document.documentElement.style.setProperty("--app-bg", theme.background);
+      document.documentElement.style.setProperty("--background", theme.background);
+    }
     document.documentElement.style.setProperty("--app-accent", theme.accent);
+    document.documentElement.style.setProperty("--accent", theme.accent);
     document.documentElement.style.setProperty("--own-event-bg", settings.ownEventBackground);
     document.documentElement.style.setProperty("--partner-event-bg", settings.partnerEventBackground);
     document.documentElement.style.setProperty("--incoming-event-bg", settings.incomingEventBackground);
@@ -353,12 +359,12 @@ export default function SettingsPage() {
   ];
 
   return (
-    <main className="min-h-screen bg-[#f5f7fb] px-4 pb-24 pt-4 text-[#172033] sm:px-6 sm:pb-4">
+    <main className="page-shell min-h-screen px-4 pb-28 pt-4 text-[var(--fg)] sm:px-6 sm:pb-6">
       <ToastStack toasts={toasts} />
 
       <div className="mx-auto flex max-w-5xl flex-col gap-4">
         {/* Header */}
-        <header className="flex flex-col gap-3 rounded-2xl border border-[#d9e2ef] bg-white p-4 shadow-sm sm:flex-row sm:items-center sm:justify-between">
+        <header className="page-header glass-card flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-3">
             <ShareCalLogo compact />
             <div>
