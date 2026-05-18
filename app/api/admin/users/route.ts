@@ -112,18 +112,27 @@ export async function GET(request: Request) {
   }
 
   const userIds = data.users.map((user) => user.id);
-  const { data: profiles } = userIds.length
+  const { data: profiles, error: profilesError } = userIds.length
     ? await auth.admin.from("profiles").select("id, username, role").in("id", userIds)
-    : { data: [] };
+    : { data: [], error: null };
+
+  if (profilesError) {
+    console.error("[admin/users] Failed to fetch profiles:", profilesError);
+  }
 
   return NextResponse.json({
     currentUserId: auth.userId,
     users: data.users.map((user) => {
       const profile = profiles?.find((item) => item.id === user.id);
+      // Generate username from email if not set
+      const username = profile?.username?.trim() ||
+        user.email?.split("@")[0] ||
+        `User_${user.id.slice(0, 8)}`;
+
       return {
         id: user.id,
         email: user.email,
-        username: profile?.username ?? "名前未設定",
+        username: username,
         role: isAdminRole(profile?.role) ? "admin" : "user",
         created_at: user.created_at,
         last_sign_in_at: user.last_sign_in_at,
@@ -243,7 +252,18 @@ export async function PATCH(request: Request) {
     .update({ role: body.action === "make_admin" ? "admin" : "user" })
     .eq("id", body.userId);
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) {
+    console.error("[admin/users] profiles update error:", {
+      userId: body.userId,
+      action: body.action,
+      error: error.message,
+      details: error,
+    });
+    return NextResponse.json({
+      error: `権限更新に失敗しました: ${error.message}`,
+      debug: { errorCode: error.code, errorDetails: error.message },
+    }, { status: 500 });
+  }
 
   return NextResponse.json({ ok: true });
 }
