@@ -223,6 +223,7 @@ alter table public.schedule_categories enable row level security;
 alter table public.todos enable row level security;
 alter table public.recurring_events enable row level security;
 alter table public.recurring_event_shares enable row level security;
+alter table public.profiles enable row level security;
 
 grant usage on schema public to authenticated;
 grant select, insert, update, delete on public.events to authenticated;
@@ -233,6 +234,7 @@ grant select, insert, update, delete on public.todos to authenticated;
 grant select, insert, update, delete on public.recurring_events to authenticated;
 grant select, insert, update, delete on public.recurring_event_shares to authenticated;
 grant select, insert, update, delete on public.connections to authenticated;
+grant select, insert, update, delete on public.profiles to authenticated;
 
 drop policy if exists "users can view own events" on public.events;
 drop policy if exists "users can insert own events" on public.events;
@@ -448,3 +450,32 @@ create policy "users can delete own connections"
 on public.connections
 for delete
 using (requester_id = auth.uid() or receiver_id = auth.uid());
+
+drop policy if exists "users can view own profile" on public.profiles;
+drop policy if exists "users can update own profile" on public.profiles;
+drop policy if exists "admins can manage all profiles" on public.profiles;
+
+create policy "users can view own profile"
+on public.profiles
+for select
+using (id = auth.uid());
+
+create policy "users can update own profile"
+on public.profiles
+for update
+using (id = auth.uid())
+with check (id = auth.uid());
+
+create policy "admins can manage all profiles"
+on public.profiles
+for update
+using (
+  auth.uid() in (
+    select id from public.profiles where role = 'admin'
+  )
+)
+with check (
+  auth.uid() in (
+    select id from public.profiles where role = 'admin'
+  )
+);
