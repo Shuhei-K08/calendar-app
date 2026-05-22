@@ -33,32 +33,16 @@ export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   maximumScale: 1,
-  themeColor: [
-    { media: "(prefers-color-scheme: light)", color: "#f4f7fb" },
-    { media: "(prefers-color-scheme: dark)", color: "#0b1220" },
-  ],
+  themeColor: "#f4f7fb",
 };
 
 // Inline script — runs before React hydrates to prevent flash of light theme.
 const themeBootstrap = `
 (function () {
   try {
-    var saved = localStorage.getItem('sharecal_theme');
-    var settings = localStorage.getItem('calendar_settings');
-    var parsed = settings ? JSON.parse(settings) : null;
-    var mode = saved || (parsed && parsed.themeMode) || 'system';
-    var media = window.matchMedia ? window.matchMedia('(prefers-color-scheme: dark)') : null;
-    var apply = function () {
-      var dark = mode === 'dark' || (mode === 'system' && media && media.matches);
-      if (dark) document.documentElement.setAttribute('data-theme', 'dark');
-      else document.documentElement.removeAttribute('data-theme');
-      document.documentElement.style.colorScheme = dark ? 'dark' : 'light';
-    };
-    apply();
-    if (mode === 'system' && media) {
-      if (media.addEventListener) media.addEventListener('change', apply);
-      else if (media.addListener) media.addListener(apply);
-    }
+    document.documentElement.removeAttribute('data-theme');
+    document.documentElement.style.colorScheme = 'light';
+    localStorage.removeItem('sharecal_theme');
   } catch (e) {}
 })();
 `;

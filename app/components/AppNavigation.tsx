@@ -109,105 +109,7 @@ function useNavigationMeta() {
   return { pendingCount, isAdmin };
 }
 
-/* ── Theme toggle ── */
-type ThemeMode = "system" | "light" | "dark";
-
-const getSavedThemeMode = (): ThemeMode => {
-  try {
-    const saved = localStorage.getItem("sharecal_theme");
-    if (saved === "system" || saved === "light" || saved === "dark") return saved;
-
-    const settings = localStorage.getItem("calendar_settings");
-    if (settings) {
-      const parsed = JSON.parse(settings);
-      if (
-        parsed.themeMode === "system" ||
-        parsed.themeMode === "light" ||
-        parsed.themeMode === "dark"
-      ) {
-        return parsed.themeMode;
-      }
-    }
-  } catch {
-    /* ignore storage errors */
-  }
-
-  return "system";
-};
-
-const applyThemeMode = (mode: ThemeMode) => {
-  const systemDark = window.matchMedia?.("(prefers-color-scheme: dark)").matches;
-  const shouldUseDark = mode === "dark" || (mode === "system" && systemDark);
-
-  if (shouldUseDark) document.documentElement.setAttribute("data-theme", "dark");
-  else document.documentElement.removeAttribute("data-theme");
-
-  document.documentElement.style.colorScheme = shouldUseDark ? "dark" : "light";
-};
-
-const saveThemeMode = (mode: ThemeMode) => {
-  localStorage.setItem("sharecal_theme", mode);
-  const settings = localStorage.getItem("calendar_settings");
-  const parsed = settings ? JSON.parse(settings) : {};
-  localStorage.setItem(
-    "calendar_settings",
-    JSON.stringify({
-      ...parsed,
-      themeMode: mode,
-    }),
-  );
-};
-
-export function ThemeToggle() {
-  const [theme, setTheme] = useState<ThemeMode>("system");
-
-  useEffect(() => {
-    const initial = getSavedThemeMode();
-    applyThemeMode(initial);
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setTheme(initial);
-  }, []);
-
-  const toggle = () => {
-    const next: ThemeMode = theme === "system" ? "light" : theme === "light" ? "dark" : "system";
-    setTheme(next);
-    try {
-      saveThemeMode(next);
-      applyThemeMode(next);
-    } catch {
-      /* ignore quota errors */
-    }
-  };
-
-  const label =
-    theme === "system" ? "端末設定" : theme === "dark" ? "ダーク" : "ライト";
-  const nextLabel =
-    theme === "system" ? "ライトモードに切替" : theme === "light" ? "ダークモードに切替" : "端末設定に合わせる";
-
-  return (
-    <button
-      type="button"
-      className="theme-toggle"
-      onClick={toggle}
-      aria-label={nextLabel}
-      title={nextLabel}
-    >
-      {theme === "dark" ? (
-        <svg viewBox="0 0 24 24" className="h-4 w-4" stroke="currentColor" fill="none" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-          <circle cx="12" cy="12" r="4" />
-          <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41" />
-        </svg>
-      ) : (
-        <svg viewBox="0 0 24 24" className="h-4 w-4" stroke="currentColor" fill="none" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-          <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79Z" />
-        </svg>
-      )}
-      <span className="hidden sm:inline">{label}</span>
-    </button>
-  );
-}
-
-export function DesktopNavigation({ withThemeToggle = true }: { withThemeToggle?: boolean }) {
+export function DesktopNavigation() {
   const { pendingCount, isAdmin } = useNavigationMeta();
   const pathname = usePathname();
   const navItems = isAdmin ? [...items, adminItem] : items;
@@ -232,7 +134,6 @@ export function DesktopNavigation({ withThemeToggle = true }: { withThemeToggle?
           <span>{item.desktopLabel}</span>
         </Link>
       ))}
-      {withThemeToggle && <ThemeToggle />}
     </nav>
   );
 }

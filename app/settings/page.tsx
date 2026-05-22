@@ -33,7 +33,6 @@ function ToastStack({ toasts }: { toasts: ToastItem[] }) {
 const defaultSettings = {
   designTheme: "clean",
   background: "#f5f7fb",
-  themeMode: "system",
   calendarWeekStart: "monday",
   ownEventBackground: "#e0f2fe",
   partnerEventBackground: "#e0f2fe",
@@ -43,21 +42,6 @@ const defaultSettings = {
   notificationsEnabled: true,
 };
 type CalendarSettings = typeof defaultSettings;
-
-const applyThemeMode = (mode: string) => {
-  const systemDark =
-    typeof window !== "undefined" &&
-    window.matchMedia?.("(prefers-color-scheme: dark)").matches;
-  const shouldUseDark = mode === "dark" || (mode === "system" && systemDark);
-
-  if (shouldUseDark) {
-    document.documentElement.setAttribute("data-theme", "dark");
-  } else {
-    document.documentElement.removeAttribute("data-theme");
-  }
-
-  document.documentElement.style.colorScheme = shouldUseDark ? "dark" : "light";
-};
 
 const designThemes = [
   { id: "clean",  name: "クリーン", description: "明るく見やすい配色", background: "#f5f7fb", accent: "#0f766e", preview: ["#e0f2fe", "#fef3c7", "#ffffff"] },
@@ -129,11 +113,6 @@ export default function SettingsPage() {
         partnerEventBackground: p.partnerEventBackground ?? p.ownEventBackground ?? defaultSettings.partnerEventBackground,
         incomingEventBackground: p.incomingEventBackground ?? defaultSettings.incomingEventBackground,
         unclassifiedEvent: p.unclassifiedEvent ?? p.ownEvent ?? defaultSettings.unclassifiedEvent,
-        themeMode: ["system", "light", "dark"].includes(p.themeMode)
-          ? p.themeMode
-          : p.themeMode === "dark" || p.themeMode === "light"
-            ? p.themeMode
-            : defaultSettings.themeMode,
         calendarWeekStart: p.calendarWeekStart === "sunday" ? "sunday" : "monday",
       };
     }
@@ -228,13 +207,11 @@ export default function SettingsPage() {
   const saveDesign = () => {
     const theme = designThemes.find((t) => t.id === settings.designTheme) ?? designThemes[0];
     window.localStorage.setItem("calendar_settings", JSON.stringify(settings));
-    window.localStorage.setItem("sharecal_theme", settings.themeMode);
-    applyThemeMode(settings.themeMode);
-    const isDarkMode = document.documentElement.getAttribute("data-theme") === "dark";
-    if (!isDarkMode) {
-      document.documentElement.style.setProperty("--app-bg", theme.background);
-      document.documentElement.style.setProperty("--background", theme.background);
-    }
+    window.localStorage.removeItem("sharecal_theme");
+    document.documentElement.removeAttribute("data-theme");
+    document.documentElement.style.colorScheme = "light";
+    document.documentElement.style.setProperty("--app-bg", theme.background);
+    document.documentElement.style.setProperty("--background", theme.background);
     document.documentElement.style.setProperty("--app-accent", theme.accent);
     document.documentElement.style.setProperty("--accent", theme.accent);
     document.documentElement.style.setProperty("--own-event-bg", settings.ownEventBackground);
@@ -548,51 +525,6 @@ export default function SettingsPage() {
                         {theme.preview.map((c) => (
                           <span key={c} className="h-7 flex-1 rounded-lg border border-white shadow-sm" style={{ background: c }} />
                         ))}
-                      </span>
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <div className="rounded-2xl border border-[#d9e2ef] bg-[#f8fafc] p-4">
-                <p className="mb-3 text-sm font-bold text-[#475569]">画面モード</p>
-                <div className="grid gap-2 sm:grid-cols-3">
-                  {[
-                    {
-                      value: "system",
-                      label: "スマホ設定に合わせる",
-                      description: "端末のライト/ダーク設定に追従",
-                    },
-                    {
-                      value: "light",
-                      label: "ライト",
-                      description: "常に明るい表示",
-                    },
-                    {
-                      value: "dark",
-                      label: "ダーク",
-                      description: "常に暗い表示",
-                    },
-                  ].map((option) => (
-                    <button
-                      key={option.value}
-                      className={`rounded-2xl border p-4 text-left transition ${
-                        settings.themeMode === option.value
-                          ? "border-[#0f766e] bg-[#ecfdf5] shadow-sm"
-                          : "border-[#d9e2ef] bg-white hover:border-[#94a3b8]"
-                      }`}
-                      onClick={() =>
-                        setSettings((s) => ({
-                          ...s,
-                          themeMode: option.value,
-                        }))
-                      }
-                    >
-                      <span className="block text-sm font-black text-[#0f172a]">
-                        {option.label}
-                      </span>
-                      <span className="mt-1 block text-xs font-semibold text-[#64748b]">
-                        {option.description}
                       </span>
                     </button>
                   ))}
