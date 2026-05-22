@@ -33,6 +33,7 @@ function ToastStack({ toasts }: { toasts: ToastItem[] }) {
 const defaultSettings = {
   designTheme: "clean",
   background: "#f5f7fb",
+  calendarWeekStart: "monday",
   ownEventBackground: "#e0f2fe",
   partnerEventBackground: "#e0f2fe",
   incomingEventBackground: "#ede9fe",
@@ -112,6 +113,7 @@ export default function SettingsPage() {
         partnerEventBackground: p.partnerEventBackground ?? p.ownEventBackground ?? defaultSettings.partnerEventBackground,
         incomingEventBackground: p.incomingEventBackground ?? defaultSettings.incomingEventBackground,
         unclassifiedEvent: p.unclassifiedEvent ?? p.ownEvent ?? defaultSettings.unclassifiedEvent,
+        calendarWeekStart: p.calendarWeekStart === "sunday" ? "sunday" : "monday",
       };
     }
     return defaultSettings;
@@ -559,6 +561,46 @@ export default function SettingsPage() {
                       onChange={(e) => setSettings((s) => ({ ...s, notificationsEnabled: e.target.checked }))}
                     />
                   </label>
+                </div>
+              </div>
+
+              <div className="rounded-2xl border border-[#d9e2ef] bg-[#f8fafc] p-4">
+                <p className="mb-3 text-sm font-bold text-[#475569]">カレンダー表示</p>
+                <div className="grid gap-2 sm:grid-cols-2">
+                  {[
+                    {
+                      value: "monday",
+                      label: "月曜始まり",
+                      description: "勤務表や週単位の予定を見やすくします",
+                    },
+                    {
+                      value: "sunday",
+                      label: "日曜始まり",
+                      description: "一般的な月間カレンダーに近い並びです",
+                    },
+                  ].map((option) => (
+                    <button
+                      key={option.value}
+                      className={`rounded-2xl border p-4 text-left transition ${
+                        settings.calendarWeekStart === option.value
+                          ? "border-[#0f766e] bg-[#ecfdf5] shadow-sm"
+                          : "border-[#d9e2ef] bg-white hover:border-[#94a3b8]"
+                      }`}
+                      onClick={() =>
+                        setSettings((s) => ({
+                          ...s,
+                          calendarWeekStart: option.value,
+                        }))
+                      }
+                    >
+                      <span className="block text-sm font-black text-[#0f172a]">
+                        {option.label}
+                      </span>
+                      <span className="mt-1 block text-xs font-semibold text-[#64748b]">
+                        {option.description}
+                      </span>
+                    </button>
+                  ))}
                 </div>
               </div>
 

@@ -1,6 +1,16 @@
 import { NextResponse } from "next/server";
 import { createSupabaseAdmin } from "@/lib/supabaseAdmin";
 
+// Debug: Check if service role key is configured
+const DEBUG_ADMIN_CLIENT = createSupabaseAdmin();
+if (typeof window === "undefined") {
+  // Only log on server side
+  console.log("[STARTUP] Service role key configured:", !!DEBUG_ADMIN_CLIENT);
+  if (!DEBUG_ADMIN_CLIENT) {
+    console.error("[STARTUP] SUPABASE_SERVICE_ROLE_KEY is not set!");
+  }
+}
+
 const getAdminEmails = () =>
   (process.env.ADMIN_EMAILS ?? "")
     .split(",")
@@ -195,13 +205,18 @@ export async function POST(request: Request) {
 }
 
 export async function PATCH(request: Request) {
+  console.log("[PATCH] Request received");
+
   const auth = await requireAdmin(request);
   if ("error" in auth) {
+    console.log("[PATCH] Auth failed:", auth.error);
     return NextResponse.json(
       { error: auth.error, debug: auth.debug },
       { status: auth.status },
     );
   }
+
+  console.log("[PATCH] Auth successful, admin:", !!auth.admin);
 
   const body = (await request.json()) as {
     userId?: string;
@@ -247,23 +262,52 @@ export async function PATCH(request: Request) {
     return NextResponse.json({ ok: true });
   }
 
-  const { error } = await auth.admin
+  console.log("[admin/users] Attempting to update profile:", {
+    userId: body.userId,
+    action: body.action,
+    currentUserId: auth.userId,
+  });
+
+  // Update profile role with admin client (uses service role key which should bypass RLS)
+  const newRole = body.action === "make_admin" ? "admin" : "user";
+
+  console.log("[admin/users] About to call update with:", {
+    newRole,
+    targetId: body.userId,
+  });
+
+  const updateResult = await auth.admin
     .from("profiles")
-    .update({ role: body.action === "make_admin" ? "admin" : "user" })
+    .update({ role: newRole })
     .eq("id", body.userId);
 
+  const { error, data } = updateResult;
+
+  console.log("[admin/users] Update result:", {
+    hasError: !!error,
+    errorMessage: error?.message,
+    errorCode: error?.code,
+    data: data,
+  });
+
   if (error) {
-    console.error("[admin/users] profiles update error:", {
+    console.error("[admin/users] profiles update error details:", {
       userId: body.userId,
       action: body.action,
       error: error.message,
-      details: error,
+      errorCode: error.code,
+      fullError: JSON.stringify(error),
     });
     return NextResponse.json({
       error: `権限更新に失敗しました: ${error.message}`,
-      debug: { errorCode: error.code, errorDetails: error.message },
+      debug: {
+        errorCode: error.code,
+        errorMessage: error.message,
+      },
     }, { status: 500 });
   }
+
+  console.log("[admin/users] Update successful");
 
   return NextResponse.json({ ok: true });
 }

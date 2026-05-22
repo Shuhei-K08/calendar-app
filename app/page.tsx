@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Calendar, dateFnsLocalizer, Event, View } from "react-big-calendar";
 import { addMonths, addWeeks, addYears, format, getDay, parse, startOfWeek } from "date-fns";
@@ -10,13 +10,29 @@ import { supabase } from "@/lib/supabase";
 import { DesktopNavigation, MobileNavigation, ShareCalLogo } from "@/app/components/AppNavigation";
 
 const locales = { ja };
-const localizer = dateFnsLocalizer({
-  format,
-  parse,
-  startOfWeek: () => startOfWeek(new Date(), { weekStartsOn: 1 }),
-  getDay,
-  locales,
-});
+type CalendarWeekStart = "monday" | "sunday";
+
+const createCalendarLocalizer = (weekStartsOn: 0 | 1) =>
+  dateFnsLocalizer({
+    format,
+    parse,
+    startOfWeek: () => startOfWeek(new Date(), { weekStartsOn }),
+    getDay,
+    locales,
+  });
+
+const getSavedCalendarWeekStart = (): CalendarWeekStart => {
+  if (typeof window === "undefined") return "monday";
+  const savedSettings = window.localStorage.getItem("calendar_settings");
+  if (!savedSettings) return "monday";
+
+  try {
+    const settings = JSON.parse(savedSettings);
+    return settings.calendarWeekStart === "sunday" ? "sunday" : "monday";
+  } catch {
+    return "monday";
+  }
+};
 
 const formatDateTimeLocal = (date: Date) => {
   const offsetDate = new Date(date.getTime() - date.getTimezoneOffset() * 60000);
@@ -355,6 +371,9 @@ export default function Home() {
   const [categories, setCategories] = useState<ScheduleCategory[]>([]);
   const [calendarDate, setCalendarDate] = useState(new Date());
   const [calendarView, setCalendarView] = useState<View>("month");
+  const [calendarWeekStart] = useState<CalendarWeekStart>(() =>
+    getSavedCalendarWeekStart(),
+  );
   const [eventForm, setEventForm] = useState<EventForm>(() => createBlankForm());
   const [editForm, setEditForm] = useState<EventForm>(() => createBlankForm());
   const [isEventModalOpen, setIsEventModalOpen] = useState(false);
@@ -385,6 +404,10 @@ export default function Home() {
   const [calendarFilter, setCalendarFilter] = useState<CalendarFilter>("all");
   const [isFilterOpen, setIsFilterOpen] = useState(false);
   const { toasts, show } = useToast();
+  const calendarLocalizer = useMemo(
+    () => createCalendarLocalizer(calendarWeekStart === "sunday" ? 0 : 1),
+    [calendarWeekStart],
+  );
   const [confirmDeleteEvent, setConfirmDeleteEvent] = useState<CalendarEvent | null>(null);
 
   const fetchConnections = useCallback(async (userId: string) => {
@@ -1543,7 +1566,8 @@ export default function Home() {
         <section className="rounded-2xl border border-[#d9e2ef] bg-white p-2 shadow-sm sm:p-3">
           <div className="calendar-shell h-[calc(100vh-255px)] min-h-[430px] sm:h-[calc(100vh-205px)] sm:min-h-[560px]">
             <Calendar<CalendarEvent>
-              localizer={localizer}
+              key={calendarWeekStart}
+              localizer={calendarLocalizer}
               events={visibleEvents}
               startAccessor="start"
               endAccessor="end"
