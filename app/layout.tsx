@@ -44,8 +44,21 @@ const themeBootstrap = `
 (function () {
   try {
     var saved = localStorage.getItem('sharecal_theme');
-    var dark = saved === 'dark' || (saved === null && window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches);
-    if (dark) document.documentElement.setAttribute('data-theme', 'dark');
+    var settings = localStorage.getItem('calendar_settings');
+    var parsed = settings ? JSON.parse(settings) : null;
+    var mode = saved || (parsed && parsed.themeMode) || 'system';
+    var media = window.matchMedia ? window.matchMedia('(prefers-color-scheme: dark)') : null;
+    var apply = function () {
+      var dark = mode === 'dark' || (mode === 'system' && media && media.matches);
+      if (dark) document.documentElement.setAttribute('data-theme', 'dark');
+      else document.documentElement.removeAttribute('data-theme');
+      document.documentElement.style.colorScheme = dark ? 'dark' : 'light';
+    };
+    apply();
+    if (mode === 'system' && media) {
+      if (media.addEventListener) media.addEventListener('change', apply);
+      else if (media.addListener) media.addListener(apply);
+    }
   } catch (e) {}
 })();
 `;
