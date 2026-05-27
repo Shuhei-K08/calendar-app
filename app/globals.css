@@ -622,39 +622,8 @@ header h1, button, .top-nav-link, .mobile-nav-link, .sharecal-logo-text span { w
    ============================================================ */
 .calendar-shell .rbc-calendar { color: var(--fg); }
 
-.calendar-shell .rbc-toolbar {
-  align-items: center;
-  gap: 10px;
-  margin-bottom: 16px;
-}
-
-.calendar-shell .rbc-toolbar-label {
-  color: var(--fg-strong);
-  font-size: 18px;
-  font-weight: 800;
-  padding: 0;
-}
-
-.calendar-shell .rbc-btn-group { display: inline-flex; gap: 6px; }
-
-.calendar-shell .rbc-btn-group button {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  color: var(--fg-muted);
-  font-size: 13px;
-  font-weight: 700;
-  padding: 8px 12px;
-}
-
-.calendar-shell .rbc-btn-group button:hover,
-.calendar-shell .rbc-btn-group button:focus,
-.calendar-shell .rbc-btn-group button.rbc-active {
-  background: linear-gradient(135deg, var(--accent), var(--accent-strong));
-  border-color: transparent;
-  color: #fff;
-  box-shadow: 0 6px 16px color-mix(in srgb, var(--accent) 30%, transparent);
-}
+/* カスタムツールバーを使用しているため、デフォルトの .rbc-toolbar は非表示 */
+.calendar-shell .rbc-toolbar { display: none; }
 
 .calendar-shell .rbc-month-view,
 .calendar-shell .rbc-time-view,
@@ -935,34 +904,6 @@ select.field-input { padding-right: 36px; }
   .sharecal-logo-mark { height: 40px; width: 40px; }
   .sharecal-logo-text span { font-size: 20px; }
 
-  .calendar-shell .rbc-toolbar { display: contents; }
-
-  .calendar-shell .rbc-month-view,
-  .calendar-shell .rbc-time-view,
-  .calendar-shell .rbc-agenda-view {
-    flex: 1 1 auto;
-    min-height: 0;
-    order: 2;
-  }
-
-  .calendar-shell .rbc-toolbar-label {
-    margin-bottom: 8px;
-    order: 1;
-    font-size: 14px;
-    text-align: center;
-  }
-
-  .calendar-shell .rbc-btn-group {
-    display: grid;
-    gap: 6px;
-    grid-template-columns: repeat(auto-fit, minmax(58px, 1fr));
-    margin-top: 8px;
-    order: 3;
-    width: 100%;
-  }
-
-  .calendar-shell .rbc-btn-group:last-child { margin-top: 6px; order: 4; }
-  .calendar-shell .rbc-btn-group button { border-radius: 999px; font-size: 12px; min-width: 0; padding: 7px 4px; }
   .calendar-shell .rbc-header { padding: 8px 2px; }
   .calendar-shell .rbc-date-cell { padding-right: 3px; }
   .calendar-shell .rbc-event { font-size: 11px; padding: 2px 4px 2px 5px; }

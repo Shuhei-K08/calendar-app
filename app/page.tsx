@@ -102,6 +102,86 @@ function ToastStack({ toasts }: { toasts: ToastItem[] }) {
   );
 }
 
+// ── Custom Calendar Toolbar ────────────────────────────────────────────────
+function CalendarToolbar({
+  label,
+  view,
+  onNavigate,
+  onView,
+}: {
+  label: string;
+  date: Date;
+  view: import("react-big-calendar").View;
+  views: import("react-big-calendar").View[];
+  onNavigate: (action: "PREV" | "NEXT" | "TODAY" | "DATE") => void;
+  onView: (view: import("react-big-calendar").View) => void;
+}) {
+  const viewLabels: Record<string, string> = {
+    month: "月",
+    week: "週",
+    day: "日",
+    agenda: "一覧",
+  };
+
+  return (
+    <div className="mb-3 flex flex-col gap-2">
+      {/* ナビゲーション行 */}
+      <div className="flex items-center gap-2">
+        <button
+          className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-[#d9e2ef] bg-white text-[#475569] shadow-sm transition hover:border-[#0f766e] hover:bg-[#ecfdf5] hover:text-[#0f766e] active:scale-95"
+          onClick={() => onNavigate("PREV")}
+          aria-label="前へ"
+          type="button"
+        >
+          <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <polyline points="15 18 9 12 15 6" />
+          </svg>
+        </button>
+
+        <div className="flex flex-1 flex-col items-center gap-1">
+          <span className="text-base font-black text-[#0f172a] sm:text-lg">{label}</span>
+          <button
+            className="rounded-full border border-[#cbd5e1] bg-[#f8fafc] px-3 py-0.5 text-xs font-bold text-[#475569] transition hover:border-[#0f766e] hover:bg-[#ecfdf5] hover:text-[#0f766e] active:scale-95"
+            onClick={() => onNavigate("TODAY")}
+            type="button"
+          >
+            今日
+          </button>
+        </div>
+
+        <button
+          className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-[#d9e2ef] bg-white text-[#475569] shadow-sm transition hover:border-[#0f766e] hover:bg-[#ecfdf5] hover:text-[#0f766e] active:scale-95"
+          onClick={() => onNavigate("NEXT")}
+          aria-label="次へ"
+          type="button"
+        >
+          <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <polyline points="9 18 15 12 9 6" />
+          </svg>
+        </button>
+      </div>
+
+      {/* ビュー切替タブ */}
+      <div className="flex rounded-xl border border-[#d9e2ef] bg-[#f1f5f9] p-1 gap-1">
+        {(["month", "week", "day", "agenda"] as const).map((v) => (
+          <button
+            key={v}
+            type="button"
+            className={`flex-1 rounded-lg py-1.5 text-sm font-bold transition ${
+              view === v
+                ? "bg-[#0f766e] text-white shadow-sm"
+                : "text-[#64748b] hover:bg-white hover:text-[#0f172a]"
+            }`}
+            onClick={() => onView(v)}
+          >
+            {viewLabels[v]}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 const LoadingScreen = () => (
   <main className="loading-screen">
     <div className="loading-card" aria-live="polite">
@@ -1608,6 +1688,7 @@ export default function Home() {
               onView={(view) => setCalendarView(view)}
               longPressThreshold={350}
               components={{
+                toolbar: CalendarToolbar,
                 month: {
                   dateHeader: ({ date, label }) => (
                     <button

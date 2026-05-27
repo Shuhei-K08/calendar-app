@@ -55,6 +55,14 @@ declare module "react-big-calendar" {
       style?: React.CSSProperties;
     };
     components?: {
+      toolbar?: React.ComponentType<{
+        label: string;
+        date: Date;
+        view: View;
+        views: View[];
+        onNavigate: (action: "PREV" | "NEXT" | "TODAY" | "DATE", newDate?: Date) => void;
+        onView: (view: View) => void;
+      }>;
       month?: {
         dateHeader?: React.ComponentType<{
           date: Date;
