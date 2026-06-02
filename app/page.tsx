@@ -2027,8 +2027,8 @@ export default function Home() {
       )}
 
       {detailEvent && (
-        <div className="fixed inset-0 z-50 flex items-start overflow-hidden bg-[#0f172a]/40 p-3 pt-4 sm:items-center sm:justify-center">
-          <div className="max-h-[88vh] w-full max-w-full overflow-y-auto overflow-x-hidden rounded-2xl bg-white p-4 shadow-2xl sm:max-w-lg sm:p-6">
+        <div className="fixed inset-0 z-50 flex items-start overflow-hidden bg-[#0f172a]/40 p-3 pt-4 sm:items-center sm:justify-center" onClick={() => { setDetailEvent(null); setIsDetailEditing(false); }}>
+          <div className="max-h-[88vh] w-full max-w-full overflow-y-auto overflow-x-hidden rounded-2xl bg-white p-4 shadow-2xl sm:max-w-lg sm:p-6" onClick={(e) => e.stopPropagation()}>
             <div className="mb-4 border-b border-[#e2e8f0] bg-white pb-4">
               <div>
                 <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[#64748b]">
@@ -2354,8 +2354,8 @@ export default function Home() {
 
       {/* Delete confirmation modal */}
       {confirmDeleteEvent && (
-        <div className="confirm-overlay">
-          <div className="confirm-card">
+        <div className="confirm-overlay" onClick={() => setConfirmDeleteEvent(null)}>
+          <div className="confirm-card" onClick={(e) => e.stopPropagation()}>
             <p className="text-xs font-bold uppercase tracking-[0.14em] text-[#64748b]">確認</p>
             <p className="mt-2 text-base font-black text-[#0f172a]">
               「{confirmDeleteEvent.title}」を削除しますか？
