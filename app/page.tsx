@@ -999,6 +999,31 @@ export default function Home() {
     }));
   };
 
+  const applyPatternAndSave = async (pattern: SchedulePattern) => {
+    const baseDate = new Date(eventForm.start);
+    const startValue = buildDateTimeLocal(baseDate, pattern.start_time);
+    const endBase = new Date(baseDate);
+
+    if (pattern.next_day_end) {
+      endBase.setDate(endBase.getDate() + 1);
+    }
+
+    const patternForm: EventForm = {
+      ...eventForm,
+      title: pattern.title,
+      start: startValue,
+      end: buildDateTimeLocal(endBase, pattern.end_time),
+      categoryId: pattern.category_id ?? eventForm.categoryId,
+      selectedUserIds: pattern.share_user_ids ?? [],
+      shareType:
+        pattern.event_visibility && pattern.event_visibility !== "private"
+          ? (pattern.event_visibility as EventVisibility)
+          : eventForm.shareType,
+    };
+
+    await addEventWithForm(patternForm, true);
+  };
+
   const isEndOnNextDay = (form: EventForm) => {
     const start = new Date(form.start);
     const end = new Date(form.end || form.start);
@@ -1021,8 +1046,8 @@ export default function Home() {
     setEditForm((current) => ({ ...current, end: formatDateTimeLocal(nextEnd) }));
   };
 
-  const addEvent = async () => {
-    if (!eventForm.title.trim()) return;
+  const addEventWithForm = async (form: EventForm, keepOpen = false) => {
+    if (!form.title.trim()) return;
 
     const {
       data: { user },
@@ -1030,20 +1055,20 @@ export default function Home() {
 
     if (!user) return;
 
-    const { startAt, endAt } = normalizeEventTimes(eventForm);
+    const { startAt, endAt } = normalizeEventTimes(form);
     if (new Date(endAt).getTime() <= new Date(startAt).getTime()) {
       show("終了日時は開始日時より後にしてください", "error");
       return;
     }
     const eventPayload = {
-      title: eventForm.title.trim(),
+      title: form.title.trim(),
       start_at: startAt,
       end_at: endAt,
-      all_day: eventForm.allDay,
-      category_id: eventForm.categoryId || null,
-      note: eventForm.note.trim() || null,
+      all_day: form.allDay,
+      category_id: form.categoryId || null,
+      note: form.note.trim() || null,
       event_visibility:
-        eventForm.selectedUserIds.length > 0 ? eventForm.shareType : "private",
+        form.selectedUserIds.length > 0 ? form.shareType : "private",
       user_id: user.id,
     };
 
@@ -1075,8 +1100,8 @@ export default function Home() {
       return;
     }
 
-    if (eventForm.selectedUserIds.length > 0) {
-      const shareRows = eventForm.selectedUserIds.map((userId) => ({
+    if (form.selectedUserIds.length > 0) {
+      const shareRows = form.selectedUserIds.map((userId) => ({
         event_id: insertedEvent.id,
         shared_with: userId,
       }));
@@ -1099,9 +1124,18 @@ export default function Home() {
     }
 
     show("予定を追加しました", "success");
-    setIsEventModalOpen(false);
+    if (keepOpen) {
+      // パネルを開いたまま翌日へ移動
+      const nextDate = new Date(form.start);
+      nextDate.setDate(nextDate.getDate() + 1);
+      setEventForm(createBlankForm(nextDate));
+    } else {
+      setIsEventModalOpen(false);
+    }
     await fetchEvents();
   };
+
+  const addEvent = async () => addEventWithForm(eventForm, false);
 
   const updateEvent = async () => {
     if (!detailEvent?.id || !detailEvent.canDelete) return;
@@ -1734,15 +1768,33 @@ export default function Home() {
       </div>
 
       {isEventModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-start overflow-hidden bg-[#0f172a]/40 p-3 pt-4 sm:items-center sm:justify-center">
-          <div className="max-h-[88vh] w-full max-w-full overflow-y-auto overflow-x-hidden rounded-2xl bg-white p-4 shadow-2xl sm:max-w-2xl sm:p-6">
-            <div className="mb-4 border-b border-[#e2e8f0] bg-white pb-4">
+        <div
+          className="fixed inset-0 z-50 flex items-end sm:items-center sm:justify-center"
+          onClick={() => setIsEventModalOpen(false)}
+        >
+          <div
+            className="h-[55vh] w-full max-w-full overflow-y-auto overflow-x-hidden rounded-t-2xl bg-white p-4 shadow-2xl sm:h-auto sm:max-h-[88vh] sm:max-w-2xl sm:rounded-2xl sm:p-6"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="mb-4 flex items-center justify-between border-b border-[#e2e8f0] bg-white pb-4">
               <div>
                 <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[#64748b]">
                   New Schedule
                 </p>
-                <h2 className="text-xl font-bold text-[#0f172a]">予定を登録</h2>
+                <h2 className="text-xl font-bold text-[#0f172a]">
+                  {format(new Date(eventForm.start), "M/d(E)", { locale: ja })} のシフト入力
+                </h2>
               </div>
+              <button
+                className="rounded-full p-2 text-[#64748b] hover:bg-[#f1f5f9]"
+                onClick={() => setIsEventModalOpen(false)}
+                aria-label="閉じる"
+              >
+                <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+                  <line x1="18" y1="6" x2="6" y2="18" />
+                  <line x1="6" y1="6" x2="18" y2="18" />
+                </svg>
+              </button>
             </div>
 
             <div className="mb-4 rounded-2xl border border-[#d9e2ef] bg-[#f8fafc] p-3">
@@ -1753,8 +1805,8 @@ export default function Home() {
               {patterns.map((pattern) => (
                 <button
                   key={pattern.id}
-                  className="shrink-0 rounded-full border border-[#cbd5e1] bg-[#f8fafc] px-4 py-2 text-sm font-semibold text-[#334155] transition hover:border-[#0f766e] hover:bg-[#ecfdf5] hover:text-[#0f766e]"
-                  onClick={() => applyPattern(pattern)}
+                  className="shrink-0 rounded-full border border-[#cbd5e1] bg-[#f8fafc] px-4 py-2 text-sm font-semibold text-[#334155] transition hover:border-[#0f766e] hover:bg-[#ecfdf5] hover:text-[#0f766e] active:scale-95"
+                  onClick={() => applyPatternAndSave(pattern)}
                 >
                   {pattern.label}
                 </button>
@@ -1924,15 +1976,9 @@ export default function Home() {
               </div>
             </div>
 
-            <div className="mt-6 grid gap-2 sm:grid-cols-2">
+            <div className="mt-6">
               <button
-                className="h-11 rounded-lg border border-[#cbd5e1] px-5 text-sm font-semibold text-[#334155]"
-                onClick={() => setIsEventModalOpen(false)}
-              >
-                閉じる
-              </button>
-              <button
-                className="h-11 rounded-lg bg-[#0f766e] px-5 text-sm font-semibold text-white shadow-sm transition hover:bg-[#115e59] disabled:cursor-not-allowed disabled:opacity-50"
+                className="h-11 w-full rounded-lg bg-[#0f766e] px-5 text-sm font-semibold text-white shadow-sm transition hover:bg-[#115e59] disabled:cursor-not-allowed disabled:opacity-50"
                 disabled={!eventForm.title.trim()}
                 onClick={addEvent}
               >
@@ -2268,17 +2314,6 @@ export default function Home() {
           </div>
         </div>
       )}
-      {/* FAB — quick add event */}
-      <button
-        className="fab sm:hidden"
-        aria-label="予定を追加"
-        onClick={() => openEventModal()}
-      >
-        <svg viewBox="0 0 24 24" className="h-7 w-7" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-          <line x1="12" y1="5" x2="12" y2="19" />
-          <line x1="5" y1="12" x2="19" y2="12" />
-        </svg>
-      </button>
 
       {/* Delete confirmation modal */}
       {confirmDeleteEvent && (
