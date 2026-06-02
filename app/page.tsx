@@ -1768,13 +1768,12 @@ export default function Home() {
       </div>
 
       {isEventModalOpen && (
-        /* モバイル: fixed bottom シート / PC: inset-0 ダーク背景＋センタリング */
         <div
-          className="fixed inset-0 z-50 flex items-end sm:items-center sm:justify-center sm:bg-[#0f172a]/40"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-[#0f172a]/40 p-4"
           onClick={() => setIsEventModalOpen(false)}
         >
           <div
-            className="h-[50vh] w-full overflow-y-auto overflow-x-hidden rounded-t-2xl bg-white p-4 shadow-2xl sm:h-auto sm:max-h-[88vh] sm:max-w-2xl sm:rounded-2xl sm:p-6"
+            className="max-h-[88vh] w-full max-w-2xl overflow-y-auto overflow-x-hidden rounded-2xl bg-white p-4 shadow-2xl sm:p-6"
             onClick={(e) => e.stopPropagation()}
           >
             {/* ── ヘッダー ── */}
