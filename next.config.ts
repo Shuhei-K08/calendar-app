@@ -1,7 +1,7 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  /* config options here */
+  transpilePackages: ["@holiday-jp/holiday_jp"],
 };
 
 export default nextConfig;

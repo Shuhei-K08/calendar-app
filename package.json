@@ -9,6 +9,7 @@
     "lint": "eslint"
   },
   "dependencies": {
+    "@holiday-jp/holiday_jp": "^2.5.1",
     "@supabase/ssr": "^0.10.2",
     "@supabase/supabase-js": "^2.105.3",
     "date-fns": "^4.1.0",
