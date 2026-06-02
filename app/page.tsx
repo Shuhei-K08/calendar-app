@@ -1784,25 +1784,62 @@ export default function Home() {
             className="fixed bottom-0 left-0 right-0 z-50 h-[50vh] w-full overflow-y-auto overflow-x-hidden rounded-t-2xl bg-white p-4 shadow-2xl sm:relative sm:bottom-auto sm:left-auto sm:right-auto sm:z-50 sm:h-auto sm:max-h-[88vh] sm:max-w-2xl sm:rounded-2xl sm:p-6"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="mb-4 flex items-center justify-between border-b border-[#e2e8f0] bg-white pb-4">
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[#64748b]">
-                  New Schedule
-                </p>
-                <h2 className="text-xl font-bold text-[#0f172a]">
-                  {format(new Date(eventForm.start), "M/d(E)", { locale: ja })} のシフト入力
-                </h2>
+            {/* ── ヘッダー ── */}
+            <div className="mb-3 pb-3 border-b border-[#e2e8f0]">
+              <div className="flex items-center justify-between">
+                {/* 前日・日付・翌日ナビ */}
+                <div className="flex items-center gap-1">
+                  <button
+                    className="flex h-8 w-8 items-center justify-center rounded-full text-[#64748b] transition hover:bg-[#f1f5f9] active:scale-90"
+                    aria-label="前の日"
+                    onClick={() => {
+                      const d = new Date(eventForm.start);
+                      d.setDate(d.getDate() - 1);
+                      setEventForm(createBlankForm(d));
+                    }}
+                  >
+                    <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                      <polyline points="15 18 9 12 15 6" />
+                    </svg>
+                  </button>
+
+                  <div className="text-center px-1">
+                    <p className="text-[10px] font-semibold uppercase tracking-widest text-[#94a3b8]">Schedule</p>
+                    <p className="text-base font-black text-[#0f172a] leading-tight">
+                      {format(new Date(eventForm.start), "M月d日", { locale: ja })}
+                      <span className="ml-1.5 text-sm font-bold text-[#64748b]">
+                        ({format(new Date(eventForm.start), "E", { locale: ja })})
+                      </span>
+                    </p>
+                  </div>
+
+                  <button
+                    className="flex h-8 w-8 items-center justify-center rounded-full text-[#64748b] transition hover:bg-[#f1f5f9] active:scale-90"
+                    aria-label="次の日"
+                    onClick={() => {
+                      const d = new Date(eventForm.start);
+                      d.setDate(d.getDate() + 1);
+                      setEventForm(createBlankForm(d));
+                    }}
+                  >
+                    <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                      <polyline points="9 18 15 12 9 6" />
+                    </svg>
+                  </button>
+                </div>
+
+                {/* 閉じるボタン */}
+                <button
+                  className="flex h-8 w-8 items-center justify-center rounded-full text-[#94a3b8] transition hover:bg-[#f1f5f9] hover:text-[#64748b]"
+                  onClick={() => setIsEventModalOpen(false)}
+                  aria-label="閉じる"
+                >
+                  <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+                    <line x1="18" y1="6" x2="6" y2="18" />
+                    <line x1="6" y1="6" x2="18" y2="18" />
+                  </svg>
+                </button>
               </div>
-              <button
-                className="rounded-full p-2 text-[#64748b] hover:bg-[#f1f5f9]"
-                onClick={() => setIsEventModalOpen(false)}
-                aria-label="閉じる"
-              >
-                <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
-                  <line x1="18" y1="6" x2="6" y2="18" />
-                  <line x1="6" y1="6" x2="18" y2="18" />
-                </svg>
-              </button>
             </div>
 
             <div className="mb-4 rounded-2xl border border-[#d9e2ef] bg-[#f8fafc] p-3">
