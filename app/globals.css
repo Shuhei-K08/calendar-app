@@ -704,6 +704,11 @@ header h1, button, .top-nav-link, .mobile-nav-link, .sharecal-logo-text span { w
   color: #fff !important;
 }
 
+/* 今日セルの祝日名スパンは白に */
+.calendar-shell .rbc-now .calendar-date-button span {
+  color: #fff !important;
+}
+
 .calendar-shell .rbc-event {
   background: var(--own-event-bg);
   border: 0;

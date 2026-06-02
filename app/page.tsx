@@ -1734,18 +1734,17 @@ export default function Home() {
                 toolbar: CalendarToolbar,
                 month: {
                   dateHeader: ({ date, label }) => {
-                    const dow = date.getDay(); // 0=日, 6=土
+                    const dow = date.getDay();
                     const holidayName = isJapaneseHoliday(date);
                     const isHoliday = holidayName !== null;
-                    const colorClass =
-                      isHoliday || dow === 0
-                        ? "text-[#e11d48]"   // 日・祝: 赤
-                        : dow === 6
-                        ? "text-[#2563eb]"   // 土: 青
-                        : "text-[#0f172a]";  // 平日: デフォルト
+                    const color =
+                      isHoliday || dow === 0 ? "#e11d48"
+                      : dow === 6            ? "#2563eb"
+                      :                        undefined;
                     return (
                       <button
-                        className={`calendar-date-button ${colorClass}`}
+                        className="calendar-date-button"
+                        style={color ? { color } : undefined}
                         type="button"
                         title={holidayName ?? undefined}
                         onPointerUp={(event) => {
@@ -1761,7 +1760,7 @@ export default function Home() {
                       >
                         {label}
                         {isHoliday && (
-                          <span className="ml-0.5 hidden text-[9px] font-bold leading-none sm:inline">
+                          <span style={{ fontSize: "9px", fontWeight: 700, marginLeft: "2px", display: "none" }} className="sm:inline">
                             {holidayName}
                           </span>
                         )}
