@@ -8,6 +8,7 @@ import { ja } from "date-fns/locale/ja";
 import "react-big-calendar/lib/css/react-big-calendar.css";
 import { supabase } from "@/lib/supabase";
 import { DesktopNavigation, MobileNavigation, ShareCalLogo } from "@/app/components/AppNavigation";
+import * as HolidayJp from "@holiday-jp/holiday_jp";
 
 const locales = { ja };
 type CalendarWeekStart = "monday" | "sunday";
@@ -293,6 +294,14 @@ type RecurrenceRule = "none" | "weekly" | "monthly" | "yearly";
 type EventVisibility = "private" | "partner" | "together";
 type EventDisplayKind = "own" | "partner" | "incoming" | "together";
 type CalendarFilter = "all" | "own" | `person:${string}` | `together:${string}`;
+
+const isJapaneseHoliday = (date: Date): string | null => {
+  const holiday = HolidayJp.between(
+    new Date(date.getFullYear(), date.getMonth(), date.getDate()),
+    new Date(date.getFullYear(), date.getMonth(), date.getDate()),
+  )[0];
+  return holiday ? holiday.name : null;
+};
 
 const createBlankForm = (date = new Date()): EventForm => {
   const startDate = new Date(date);
@@ -1724,24 +1733,41 @@ export default function Home() {
               components={{
                 toolbar: CalendarToolbar,
                 month: {
-                  dateHeader: ({ date, label }) => (
-                    <button
-                      className="calendar-date-button"
-                      type="button"
-                      onPointerUp={(event) => {
-                        event.preventDefault();
-                        event.stopPropagation();
-                        openDateForRegistration(date);
-                      }}
-                      onClick={(event) => {
-                        event.preventDefault();
-                        event.stopPropagation();
-                        openDateForRegistration(date);
-                      }}
-                    >
-                      {label}
-                    </button>
-                  ),
+                  dateHeader: ({ date, label }) => {
+                    const dow = date.getDay(); // 0=日, 6=土
+                    const holidayName = isJapaneseHoliday(date);
+                    const isHoliday = holidayName !== null;
+                    const colorClass =
+                      isHoliday || dow === 0
+                        ? "text-[#e11d48]"   // 日・祝: 赤
+                        : dow === 6
+                        ? "text-[#2563eb]"   // 土: 青
+                        : "text-[#0f172a]";  // 平日: デフォルト
+                    return (
+                      <button
+                        className={`calendar-date-button ${colorClass}`}
+                        type="button"
+                        title={holidayName ?? undefined}
+                        onPointerUp={(event) => {
+                          event.preventDefault();
+                          event.stopPropagation();
+                          openDateForRegistration(date);
+                        }}
+                        onClick={(event) => {
+                          event.preventDefault();
+                          event.stopPropagation();
+                          openDateForRegistration(date);
+                        }}
+                      >
+                        {label}
+                        {isHoliday && (
+                          <span className="ml-0.5 hidden text-[9px] font-bold leading-none sm:inline">
+                            {holidayName}
+                          </span>
+                        )}
+                      </button>
+                    );
+                  },
                 },
               }}
               onDrillDown={(date) => {
