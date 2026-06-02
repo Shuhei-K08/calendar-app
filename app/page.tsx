@@ -1678,7 +1678,7 @@ export default function Home() {
         </section>
 
         <section className="rounded-2xl border border-[#d9e2ef] bg-white p-2 shadow-sm sm:p-3">
-          <div className={`calendar-shell min-h-[200px] transition-all sm:min-h-[560px] ${isEventModalOpen ? "h-[calc(50vh-80px)] sm:h-[calc(100vh-205px)]" : "h-[calc(100vh-255px)] sm:h-[calc(100vh-205px)]"}`}>
+          <div className="calendar-shell h-[calc(100vh-255px)] min-h-[430px] sm:h-[calc(100vh-205px)] sm:min-h-[560px]">
             <Calendar<CalendarEvent>
               key={calendarWeekStart}
               localizer={calendarLocalizer}
@@ -1768,20 +1768,13 @@ export default function Home() {
       </div>
 
       {isEventModalOpen && (
-        <>
-          {/* 上部タップで閉じる透明レイヤー（モバイルのみ）*/}
+        /* モバイル: fixed bottom シート / PC: inset-0 ダーク背景＋センタリング */
+        <div
+          className="fixed inset-0 z-50 flex items-end sm:items-center sm:justify-center sm:bg-[#0f172a]/40"
+          onClick={() => setIsEventModalOpen(false)}
+        >
           <div
-            className="fixed inset-0 z-40 sm:hidden"
-            style={{ bottom: "50vh" }}
-            onClick={() => setIsEventModalOpen(false)}
-          />
-          {/* PCはダーク背景オーバーレイ */}
-          <div
-            className="fixed inset-0 z-40 hidden bg-[#0f172a]/40 sm:flex sm:items-center sm:justify-center"
-            onClick={() => setIsEventModalOpen(false)}
-          />
-          <div
-            className="fixed bottom-0 left-0 right-0 z-50 h-[50vh] w-full overflow-y-auto overflow-x-hidden rounded-t-2xl bg-white p-4 shadow-2xl sm:relative sm:bottom-auto sm:left-auto sm:right-auto sm:z-50 sm:h-auto sm:max-h-[88vh] sm:max-w-2xl sm:rounded-2xl sm:p-6"
+            className="h-[50vh] w-full overflow-y-auto overflow-x-hidden rounded-t-2xl bg-white p-4 shadow-2xl sm:h-auto sm:max-h-[88vh] sm:max-w-2xl sm:rounded-2xl sm:p-6"
             onClick={(e) => e.stopPropagation()}
           >
             {/* ── ヘッダー ── */}
@@ -2031,7 +2024,7 @@ export default function Home() {
               </button>
             </div>
           </div>
-        </>
+        </div>
       )}
 
       {detailEvent && (
