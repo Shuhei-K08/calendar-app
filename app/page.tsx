@@ -325,10 +325,27 @@ const isJapaneseHoliday = (date: Date): string | null => {
 };
 
 const extractUrl = (text: string): string => {
-  // URLを含むテキストからURLだけ抽出（Googleマップ共有などの「名前\n URL」形式も対応）
   const match = text.match(/https?:\/\/\S+/);
-  if (match) return match[0].replace(/[.,)>\]]+$/, ""); // 末尾の句読点除去
+  if (match) return match[0].replace(/[.,)>\]]+$/, "");
   return text.trim();
+};
+
+const extractUrlFromClipboard = (clipboardData: DataTransfer): string => {
+  // 1. text/uri-list (最も直接的)
+  const uriList = clipboardData.getData("text/uri-list");
+  if (uriList) {
+    const uri = uriList.split("\n").find((line) => /^https?:\/\//i.test(line.trim()));
+    if (uri) return uri.trim();
+  }
+  // 2. text/html の href 属性
+  const html = clipboardData.getData("text/html");
+  if (html) {
+    const hrefMatch = html.match(/href=["']([^"']+)["']/i);
+    if (hrefMatch && /^https?:\/\//i.test(hrefMatch[1])) return hrefMatch[1];
+  }
+  // 3. プレーンテキストからURL抽出
+  const text = clipboardData.getData("text/plain") || clipboardData.getData("text");
+  return extractUrl(text);
 };
 
 const createBlankForm = (date = new Date()): EventForm => {
@@ -2133,12 +2150,9 @@ export default function Home() {
                     setEventForm((current) => ({ ...current, url: event.target.value }))
                   }
                   onPaste={(event) => {
-                    const pasted = event.clipboardData.getData("text");
-                    const extracted = extractUrl(pasted);
-                    if (extracted !== pasted.trim()) {
-                      event.preventDefault();
-                      setEventForm((current) => ({ ...current, url: extracted }));
-                    }
+                    event.preventDefault();
+                    const extracted = extractUrlFromClipboard(event.clipboardData);
+                    setEventForm((current) => ({ ...current, url: extracted }));
                   }}
                   placeholder="https://..."
                 />
@@ -2343,12 +2357,9 @@ export default function Home() {
                       setEditForm((current) => ({ ...current, url: event.target.value }))
                     }
                     onPaste={(event) => {
-                      const pasted = event.clipboardData.getData("text");
-                      const extracted = extractUrl(pasted);
-                      if (extracted !== pasted.trim()) {
-                        event.preventDefault();
-                        setEditForm((current) => ({ ...current, url: extracted }));
-                      }
+                      event.preventDefault();
+                      const extracted = extractUrlFromClipboard(event.clipboardData);
+                      setEditForm((current) => ({ ...current, url: extracted }));
                     }}
                     placeholder="https://..."
                   />
