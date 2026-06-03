@@ -77,9 +77,15 @@ const adminItem = {
   icon: <AdminIcon />,
 };
 
+const ADMIN_CACHE_KEY = "sharecal_is_admin";
+
 function useNavigationMeta() {
   const [pendingCount, setPendingCount] = useState(0);
-  const [isAdmin, setIsAdmin] = useState(false);
+  // ページ遷移で一瞬消えないよう localStorage からキャッシュを即読み
+  const [isAdmin, setIsAdmin] = useState<boolean>(() => {
+    if (typeof window === "undefined") return false;
+    return window.localStorage.getItem(ADMIN_CACHE_KEY) === "1";
+  });
 
   useEffect(() => {
     const fetchMeta = async () => {
@@ -100,7 +106,10 @@ function useNavigationMeta() {
 
       setPendingCount(count ?? 0);
       const role = (profile?.role ?? "").toString().trim().toLowerCase();
-      setIsAdmin(role === "admin" || role === "admine");
+      const admin = role === "admin" || role === "admine";
+      setIsAdmin(admin);
+      // 次回レンダリング用にキャッシュ保存
+      window.localStorage.setItem(ADMIN_CACHE_KEY, admin ? "1" : "0");
     };
 
     void fetchMeta();

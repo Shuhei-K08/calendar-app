@@ -185,18 +185,36 @@ function CalendarToolbar({
 
 const LoadingScreen = () => (
   <main className="loading-screen">
-    <div className="loading-card" aria-live="polite">
-      <div className="loading-orbit" aria-hidden="true">
-        <span />
+    <div className="flex flex-col items-center gap-6" aria-live="polite">
+      {/* カレンダーアイコン + リング */}
+      <div className="relative flex h-20 w-20 items-center justify-center">
+        <span className="loading-ring" aria-hidden="true" />
+        <svg viewBox="0 0 40 40" className="h-10 w-10 text-[#0f766e]" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <rect x="4" y="7" width="32" height="28" rx="4" />
+          <line x1="4" y1="15" x2="36" y2="15" />
+          <line x1="13" y1="4" x2="13" y2="11" />
+          <line x1="27" y1="4" x2="27" y2="11" />
+          <rect x="10" y="21" width="5" height="5" rx="1" fill="currentColor" stroke="none" />
+          <rect x="18" y="21" width="5" height="5" rx="1" fill="currentColor" stroke="none" opacity="0.4" />
+          <rect x="26" y="21" width="5" height="5" rx="1" fill="currentColor" stroke="none" opacity="0.2" />
+        </svg>
       </div>
-      <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#64748b]">
-        Preparing calendar
-      </p>
-      <p className="mt-2 text-lg font-black text-[#0f172a]">予定を読み込んでいます</p>
-      <div className="mt-5 grid gap-2">
-        <div className="loading-line w-44" />
-        <div className="loading-line w-56" />
-        <div className="loading-line w-36" />
+
+      {/* テキスト */}
+      <div className="text-center">
+        <p className="text-xl font-black tracking-tight text-[#0f172a]">ShareCal</p>
+        <p className="mt-1 text-sm font-semibold text-[#64748b]">予定を読み込んでいます</p>
+      </div>
+
+      {/* ドットインジケーター */}
+      <div className="flex gap-1.5">
+        {[0, 1, 2].map((i) => (
+          <span
+            key={i}
+            className="loading-dot"
+            style={{ animationDelay: `${i * 0.18}s` }}
+          />
+        ))}
       </div>
     </div>
   </main>

@@ -189,6 +189,9 @@ button:not(:disabled):active, a:active {
   position: sticky;
   top: 8px;
   z-index: 30;
+  background: var(--surface) !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
 }
 
 .stat-card {
@@ -321,7 +324,7 @@ button:not(:disabled):active, a:active {
 .loading-screen {
   align-items: center;
   background:
-    radial-gradient(800px 400px at 50% -10%, color-mix(in srgb, var(--accent) 22%, transparent), transparent 65%),
+    radial-gradient(600px 600px at 50% 30%, color-mix(in srgb, var(--accent) 12%, transparent), transparent 70%),
     var(--app-bg);
   display: flex;
   min-height: 100vh;
@@ -329,42 +332,29 @@ button:not(:disabled):active, a:active {
   padding: 24px;
 }
 
-.loading-card {
-  background: var(--surface-glass-strong);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-xl);
-  box-shadow: var(--shadow-lg);
-  padding: 28px;
-  width: min(100%, 360px);
-}
-
-.loading-orbit {
-  align-items: center;
-  background: var(--accent-soft);
-  border-radius: 999px;
-  display: flex;
-  height: 56px;
-  justify-content: center;
-  margin-bottom: 18px;
-  position: relative;
-  width: 56px;
-}
-
-.loading-orbit::before {
-  animation: spin 900ms linear infinite;
-  border: 3px solid color-mix(in srgb, var(--accent) 30%, transparent);
-  border-top-color: var(--accent);
-  border-radius: 999px;
-  content: "";
-  inset: -5px;
+/* リングアニメーション */
+.loading-ring {
   position: absolute;
+  inset: 0;
+  border-radius: 999px;
+  border: 2.5px solid color-mix(in srgb, var(--accent) 20%, transparent);
+  border-top-color: var(--accent);
+  animation: spin 1s linear infinite;
 }
 
-.loading-orbit span {
+/* ドットバウンス */
+.loading-dot {
+  display: block;
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
   background: var(--accent);
-  border-radius: 8px;
-  height: 24px;
-  width: 24px;
+  animation: dot-bounce 0.9s ease-in-out infinite;
+  opacity: 0.85;
+}
+@keyframes dot-bounce {
+  0%, 100% { transform: translateY(0); opacity: 0.4; }
+  50%       { transform: translateY(-6px); opacity: 1; }
 }
 
 @keyframes spin { to { transform: rotate(360deg); } }
