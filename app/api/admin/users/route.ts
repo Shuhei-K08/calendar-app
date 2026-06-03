@@ -130,11 +130,6 @@ export async function GET(request: Request) {
     console.error("[admin/users] Failed to fetch profiles:", profilesError);
   }
 
-  // デバッグ: profilesの内容をログ出力
-  console.log("[admin/users] profiles count:", profiles?.length ?? 0);
-  console.log("[admin/users] admin profiles:", profiles?.filter((p) => p.role === "admin").map((p) => ({ id: p.id, role: p.role })));
-  console.log("[admin/users] profilesError:", profilesError);
-
   return NextResponse.json({
     currentUserId: auth.userId,
     users: data.users.map((user) => {
@@ -281,10 +276,10 @@ export async function PATCH(request: Request) {
     targetId: body.userId,
   });
 
+  // profilesレコードが存在しない場合も考慮してUPSERT
   const updateResult = await auth.admin
     .from("profiles")
-    .update({ role: newRole })
-    .eq("id", body.userId);
+    .upsert({ id: body.userId, role: newRole }, { onConflict: "id" });
 
   const { error, data } = updateResult;
 
