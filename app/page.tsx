@@ -515,7 +515,7 @@ export default function Home() {
   const [isEventModalOpen, setIsEventModalOpen] = useState(false);
   const [detailEvent, setDetailEvent] = useState<CalendarEvent | null>(null);
   const [isDetailEditing, setIsDetailEditing] = useState(false);
-  type OgData = { title: string; description: string; siteName: string; image: string; genre: { label: string; emoji: string } | null };
+  type OgData = { title: string; description: string; siteName: string; image: string; genres: { label: string; emoji: string }[] };
   const [ogData, setOgData] = useState<OgData | null>(null);
   const [ogLoading, setOgLoading] = useState(false);
   const [shareDraftIds, setShareDraftIds] = useState<string[]>([]);
@@ -2426,10 +2426,14 @@ export default function Home() {
                     {!ogLoading && ogData?.title ? (
                       <div className="flex items-start justify-between gap-2">
                         <div className="min-w-0">
-                          {ogData.genre && (
-                            <span className="mb-1 inline-flex items-center gap-1 rounded-full bg-[#ecfdf5] px-2 py-0.5 text-[10px] font-bold text-[#0f766e]">
-                              {ogData.genre.emoji} {ogData.genre.label}
-                            </span>
+                          {ogData.genres.length > 0 && (
+                            <div className="mb-1 flex flex-wrap gap-1">
+                              {ogData.genres.map((g) => (
+                                <span key={g.label} className="inline-flex items-center gap-1 rounded-full bg-[#ecfdf5] px-2 py-0.5 text-[10px] font-bold text-[#0f766e]">
+                                  {g.emoji} {g.label}
+                                </span>
+                              ))}
+                            </div>
                           )}
                           <p className="truncate text-sm font-bold text-[#0f172a]">{ogData.title}</p>
                           {ogData.description && (
