@@ -138,17 +138,63 @@ export default function AdminPage() {
   };
 
   const [nowRef] = useState(() => Date.now());
+
+  // 相対時間表示
+  const relativeTime = (dateStr: string | null): string => {
+    if (!dateStr) return "未ログイン";
+    const diff = Date.now() - new Date(dateStr).getTime();
+    const min = Math.floor(diff / 60000);
+    const hour = Math.floor(diff / 3600000);
+    const day = Math.floor(diff / 86400000);
+    if (min < 1) return "たった今";
+    if (min < 60) return `${min}分前`;
+    if (hour < 24) return `${hour}時間前`;
+    if (day < 30) return `${day}日前`;
+    return new Date(dateStr).toLocaleDateString("ja-JP");
+  };
+
   const stats = useMemo(() => {
     const total = users.length;
     const admins = users.filter((u) => u.role === "admin").length;
     const banned = users.filter((u) => u.banned_until).length;
-    const dayMs = 1000 * 60 * 60 * 24;
+    const dayMs = 86400000;
     const recentLogin = users.filter((u) => {
       if (!u.last_sign_in_at) return false;
-      return nowRef - new Date(u.last_sign_in_at).getTime() < 7 * dayMs;
+      return Date.now() - new Date(u.last_sign_in_at).getTime() < 7 * dayMs;
     }).length;
     return { total, admins, banned, recentLogin };
-  }, [users, nowRef]);
+  }, [users]);
+
+  // 直近30日のユーザー登録グラフ用データ
+  const registrationChart = useMemo(() => {
+    const days = 30;
+    const now = new Date();
+    return Array.from({ length: days }, (_, i) => {
+      const d = new Date(now);
+      d.setDate(d.getDate() - (days - 1 - i));
+      const label = `${d.getMonth() + 1}/${d.getDate()}`;
+      const dateStr = d.toISOString().slice(0, 10);
+      const count = users.filter((u) => u.created_at.slice(0, 10) === dateStr).length;
+      return { label, count, dateStr };
+    });
+  }, [users]);
+
+  // ログイン状況分布
+  const loginDistribution = useMemo(() => {
+    const now = Date.now();
+    const today   = users.filter((u) => u.last_sign_in_at && now - new Date(u.last_sign_in_at).getTime() < 86400000).length;
+    const week    = users.filter((u) => u.last_sign_in_at && now - new Date(u.last_sign_in_at).getTime() < 7 * 86400000).length - today;
+    const month   = users.filter((u) => u.last_sign_in_at && now - new Date(u.last_sign_in_at).getTime() < 30 * 86400000).length - today - week;
+    const older   = users.filter((u) => u.last_sign_in_at && now - new Date(u.last_sign_in_at).getTime() >= 30 * 86400000).length;
+    const never   = users.filter((u) => !u.last_sign_in_at).length;
+    return [
+      { label: "今日", count: today, color: "#0f766e" },
+      { label: "今週", count: week,  color: "#38bdf8" },
+      { label: "今月", count: month, color: "#a78bfa" },
+      { label: "1ヶ月以上前", count: older, color: "#fb923c" },
+      { label: "未ログイン", count: never, color: "#94a3b8" },
+    ];
+  }, [users]);
 
   const visibleUsers = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -251,6 +297,7 @@ export default function AdminPage() {
         )}
 
         {!message && (
+          <>
           <section className="grid gap-3 sm:grid-cols-4">
             {[
               { label: "総ユーザー", value: stats.total, accent: "var(--accent)" },
@@ -258,18 +305,71 @@ export default function AdminPage() {
               { label: "停止中", value: stats.banned, accent: "var(--rose)" },
               { label: "7日以内にログイン", value: stats.recentLogin, accent: "var(--amber-500)" },
             ].map((stat) => (
-              <div
-                key={stat.label}
-                className="stat-card glass-card p-4"
-                style={{ borderTopColor: stat.accent }}
-              >
-                <p className="text-xs font-bold uppercase tracking-[0.12em] text-[var(--fg-muted)]">
-                  {stat.label}
-                </p>
+              <div key={stat.label} className="stat-card glass-card p-4" style={{ borderTopColor: stat.accent }}>
+                <p className="text-xs font-bold uppercase tracking-[0.12em] text-[var(--fg-muted)]">{stat.label}</p>
                 <p className="mt-1 text-3xl font-black text-[var(--fg-strong)]">{stat.value}</p>
               </div>
             ))}
           </section>
+
+          {/* ── グラフ ── */}
+          <div className="grid gap-4 sm:grid-cols-2">
+            {/* 直近30日 ユーザー登録推移 */}
+            <section className="glass-card p-4">
+              <p className="mb-3 text-xs font-bold uppercase tracking-[0.12em] text-[var(--fg-muted)]">直近30日 ユーザー登録推移</p>
+              {(() => {
+                const max = Math.max(...registrationChart.map((d) => d.count), 1);
+                return (
+                  <div className="flex h-32 items-end gap-px">
+                    {registrationChart.map((d) => (
+                      <div key={d.dateStr} className="group relative flex flex-1 flex-col items-center justify-end h-full">
+                        <div
+                          className="w-full rounded-t-sm bg-[var(--accent)] opacity-80 transition-all group-hover:opacity-100"
+                          style={{ height: `${(d.count / max) * 100}%`, minHeight: d.count > 0 ? "3px" : "0" }}
+                        />
+                        {d.count > 0 && (
+                          <span className="absolute -top-5 text-[9px] font-bold text-[var(--accent)]">{d.count}</span>
+                        )}
+                        <span className="absolute -bottom-4 text-[8px] text-[var(--fg-muted)] opacity-0 group-hover:opacity-100">
+                          {d.label}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                );
+              })()}
+              <div className="mt-5 flex justify-between text-[9px] text-[var(--fg-muted)]">
+                <span>{registrationChart[0]?.label}</span>
+                <span>{registrationChart[registrationChart.length - 1]?.label}</span>
+              </div>
+            </section>
+
+            {/* ログイン状況分布 */}
+            <section className="glass-card p-4">
+              <p className="mb-3 text-xs font-bold uppercase tracking-[0.12em] text-[var(--fg-muted)]">ログイン状況</p>
+              <div className="flex flex-col gap-2">
+                {loginDistribution.map((item) => (
+                  <div key={item.label} className="flex items-center gap-2">
+                    <span className="w-20 shrink-0 text-xs font-semibold text-[var(--fg-muted)]">{item.label}</span>
+                    <div className="relative flex-1 h-5 rounded-full bg-[var(--surface-alt)] overflow-hidden">
+                      <div
+                        className="h-full rounded-full transition-all"
+                        style={{
+                          width: stats.total > 0 ? `${(item.count / stats.total) * 100}%` : "0%",
+                          backgroundColor: item.color,
+                          opacity: 0.85,
+                        }}
+                      />
+                    </div>
+                    <span className="w-6 shrink-0 text-right text-xs font-black" style={{ color: item.color }}>
+                      {item.count}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </section>
+          </div>
+          </>
         )}
 
         {!message && (
@@ -365,9 +465,7 @@ export default function AdminPage() {
                               {user.email}
                             </p>
                             <p className="mt-1 text-xs font-semibold text-[var(--fg-muted)]">
-                              {user.last_sign_in_at
-                                ? `最終ログイン ${new Date(user.last_sign_in_at).toLocaleString("ja-JP")}`
-                                : "未ログイン"}
+                              最終ログイン: {relativeTime(user.last_sign_in_at)}
                             </p>
                           </div>
                         </div>
