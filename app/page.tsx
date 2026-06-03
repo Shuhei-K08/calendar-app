@@ -325,8 +325,10 @@ const isJapaneseHoliday = (date: Date): string | null => {
 };
 
 const extractUrl = (text: string): string => {
-  const match = text.match(/https?:\/\/[^\s　]+/);
-  return match ? match[0] : text.trim();
+  // URLを含むテキストからURLだけ抽出（Googleマップ共有などの「名前\n URL」形式も対応）
+  const match = text.match(/https?:\/\/\S+/);
+  if (match) return match[0].replace(/[.,)>\]]+$/, ""); // 末尾の句読点除去
+  return text.trim();
 };
 
 const createBlankForm = (date = new Date()): EventForm => {
@@ -2123,7 +2125,8 @@ export default function Home() {
               <label className="space-y-1 sm:col-span-2">
                 <span className="text-xs font-semibold text-[#64748b]">URL（お店・予約ページなど）</span>
                 <input
-                  type="url"
+                  type="text"
+                  inputMode="url"
                   className="w-full rounded-lg border border-[#cbd5e1] p-3 text-sm outline-none transition focus:border-[#0f766e] focus:ring-2 focus:ring-[#99f6e4]"
                   value={eventForm.url}
                   onChange={(event) =>
