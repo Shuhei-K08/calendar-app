@@ -316,6 +316,15 @@ type EventVisibility = "private" | "partner" | "together";
 type EventDisplayKind = "own" | "partner" | "incoming" | "together";
 type CalendarFilter = "all" | "own" | `person:${string}` | `together:${string}`;
 
+type OgData = {
+  title: string;
+  description: string;
+  siteName: string;
+  image: string;
+  main: { label: string; emoji: string } | null;
+  subs: { label: string; emoji: string }[];
+};
+
 const isJapaneseHoliday = (date: Date): string | null => {
   const holiday = HolidayJp.between(
     new Date(date.getFullYear(), date.getMonth(), date.getDate()),
@@ -515,7 +524,6 @@ export default function Home() {
   const [isEventModalOpen, setIsEventModalOpen] = useState(false);
   const [detailEvent, setDetailEvent] = useState<CalendarEvent | null>(null);
   const [isDetailEditing, setIsDetailEditing] = useState(false);
-  type OgData = { title: string; description: string; siteName: string; image: string; genres: { label: string; emoji: string }[] };
   const [ogData, setOgData] = useState<OgData | null>(null);
   const [ogLoading, setOgLoading] = useState(false);
   const [shareDraftIds, setShareDraftIds] = useState<string[]>([]);
@@ -934,20 +942,26 @@ export default function Home() {
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setOgData(null);
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setOgLoading(false);
     if (!detailEvent?.url) return;
-    setOgLoading(true);
     const normalizedForFetch = /^https?:\/\//i.test(detailEvent.url)
       ? detailEvent.url
       : `https://${detailEvent.url}`;
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setOgLoading(true);
     fetch(`/api/og?url=${encodeURIComponent(normalizedForFetch)}`)
-      .then((r) => r.json())
+      .then((r) => {
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        return r.json() as Promise<OgData>;
+      })
       .then((data) => {
         // eslint-disable-next-line react-hooks/set-state-in-effect
         setOgData(data);
       })
       .catch(() => {
         // eslint-disable-next-line react-hooks/set-state-in-effect
-        setOgData(null);
+        setOgData({ title: "", description: "", siteName: "", image: "", main: null, subs: [] });
       })
       .finally(() => {
         // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -2426,11 +2440,16 @@ export default function Home() {
                     {!ogLoading && ogData?.title ? (
                       <div className="flex items-start justify-between gap-2">
                         <div className="min-w-0">
-                          {ogData.genres.length > 0 && (
-                            <div className="mb-1 flex flex-wrap gap-1">
-                              {ogData.genres.map((g) => (
-                                <span key={g.label} className="inline-flex items-center gap-1 rounded-full bg-[#ecfdf5] px-2 py-0.5 text-[10px] font-bold text-[#0f766e]">
-                                  {g.emoji} {g.label}
+                          {(ogData.main || (ogData.subs?.length ?? 0) > 0) && (
+                            <div className="mb-1 flex flex-wrap items-center gap-1">
+                              {ogData.main && (
+                                <span className="inline-flex items-center gap-1 rounded-full bg-[#0f766e] px-2 py-0.5 text-[10px] font-bold text-white">
+                                  {ogData.main.emoji} {ogData.main.label}
+                                </span>
+                              )}
+                              {(ogData.subs ?? []).map((s) => (
+                                <span key={s.label} className="inline-flex items-center gap-1 rounded-full bg-[#ecfdf5] px-2 py-0.5 text-[10px] font-semibold text-[#0f766e]">
+                                  {s.emoji} {s.label}
                                 </span>
                               ))}
                             </div>
