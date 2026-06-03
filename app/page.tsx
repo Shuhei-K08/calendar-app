@@ -1394,7 +1394,8 @@ export default function Home() {
   const filterEvents = useCallback((items: CalendarEvent[]) => {
     if (calendarFilter === "all") return items;
     if (calendarFilter === "own") {
-      return items.filter((event) => event.displayKind === "own");
+      // "own" = 自分が作った予定（共有中＝partnerも含む）
+      return items.filter((event) => event.displayKind === "own" || event.displayKind === "partner");
     }
     if (calendarFilter.startsWith("person:")) {
       const personId = calendarFilter.replace("person:", "");
@@ -1566,22 +1567,14 @@ export default function Home() {
               dayLayoutAlgorithm="no-overlap"
               popup
               selectable="ignoreEvents"
-              eventPropGetter={(event) => {
-                const style = getDisplayStyle(event.displayKind);
-                return {
-                  className: `rbc-event-${event.displayKind}`,
-                  style: {
-                    backgroundColor: event.categoryColor ?? style.background,
-                    color: style.text,
-                    borderLeft: `3px solid ${event.categoryColor ?? style.border}`,
-                    border: "none",
-                    borderRadius: "6px",
-                    fontSize: "11px",
-                    fontWeight: "700",
-                    padding: "1px 4px",
-                  },
-                };
-              }}
+              eventPropGetter={(event) => ({
+                className: `${event.displayKind}-event`,
+                style: {
+                  backgroundColor: getDisplayStyle(event.displayKind).background,
+                  borderLeft: `4px solid ${event.categoryColor ?? getDisplayStyle(event.displayKind).border}`,
+                  color: getDisplayStyle(event.displayKind).text,
+                },
+              })}
               onNavigate={(date) => setCalendarDate(date)}
               onView={(view) => setCalendarView(view)}
               longPressThreshold={350}
