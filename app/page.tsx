@@ -912,7 +912,10 @@ export default function Home() {
     setOgData(null);
     if (!detailEvent?.url) return;
     setOgLoading(true);
-    fetch(`/api/og?url=${encodeURIComponent(detailEvent.url)}`)
+    const normalizedForFetch = /^https?:\/\//i.test(detailEvent.url)
+      ? detailEvent.url
+      : `https://${detailEvent.url}`;
+    fetch(`/api/og?url=${encodeURIComponent(normalizedForFetch)}`)
       .then((r) => r.json())
       .then((data) => {
         // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -2368,9 +2371,13 @@ export default function Home() {
                     {detailEvent.note || "メモはありません。"}
                   </p>
                 </div>
-                {detailEvent.url && (
+                {detailEvent.url && (() => {
+                  const normalizedUrl = /^https?:\/\//i.test(detailEvent.url)
+                    ? detailEvent.url
+                    : `https://${detailEvent.url}`;
+                  return (
                   <a
-                    href={detailEvent.url}
+                    href={normalizedUrl}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="block rounded-xl border border-[#e2e8f0] bg-[#f8fafc] p-3 transition hover:border-[#0f766e] hover:bg-[#ecfdf5]"
@@ -2408,7 +2415,8 @@ export default function Home() {
                       </div>
                     )}
                   </a>
-                )}
+                  );
+                })()}
                 {detailEvent.isShared ? (
                   <div className="rounded-xl bg-[#fffbeb] p-3 text-[#92400e]">
                     {detailEvent.ownerDeleted
