@@ -324,6 +324,11 @@ const isJapaneseHoliday = (date: Date): string | null => {
   return holiday ? holiday.name : null;
 };
 
+const extractUrl = (text: string): string => {
+  const match = text.match(/https?:\/\/[^\s　]+/);
+  return match ? match[0] : text.trim();
+};
+
 const createBlankForm = (date = new Date()): EventForm => {
   const startDate = new Date(date);
   startDate.setHours(9, 0, 0, 0);
@@ -2124,6 +2129,14 @@ export default function Home() {
                   onChange={(event) =>
                     setEventForm((current) => ({ ...current, url: event.target.value }))
                   }
+                  onPaste={(event) => {
+                    const pasted = event.clipboardData.getData("text");
+                    const extracted = extractUrl(pasted);
+                    if (extracted !== pasted.trim()) {
+                      event.preventDefault();
+                      setEventForm((current) => ({ ...current, url: extracted }));
+                    }
+                  }}
                   placeholder="https://..."
                 />
               </label>
@@ -2326,6 +2339,14 @@ export default function Home() {
                     onChange={(event) =>
                       setEditForm((current) => ({ ...current, url: event.target.value }))
                     }
+                    onPaste={(event) => {
+                      const pasted = event.clipboardData.getData("text");
+                      const extracted = extractUrl(pasted);
+                      if (extracted !== pasted.trim()) {
+                        event.preventDefault();
+                        setEditForm((current) => ({ ...current, url: extracted }));
+                      }
+                    }}
                     placeholder="https://..."
                   />
                 </label>
