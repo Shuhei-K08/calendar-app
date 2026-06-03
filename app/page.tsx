@@ -227,6 +227,7 @@ type CalendarEvent = Event & {
   end: Date;
   allDay: boolean;
   note: string;
+  url: string;
   canDelete: boolean;
   isShared: boolean;
   ownerId: string;
@@ -249,6 +250,7 @@ type DbEvent = {
   end_at: string;
   user_id: string;
   note: string | null;
+  url: string | null;
   all_day: boolean | null;
   category_id: string | null;
   event_visibility?: EventVisibility | null;
@@ -303,6 +305,7 @@ type EventForm = {
   end: string;
   allDay: boolean;
   note: string;
+  url: string;
   categoryId: string;
   selectedUserIds: string[];
   shareType: EventVisibility;
@@ -334,6 +337,7 @@ const createBlankForm = (date = new Date()): EventForm => {
     end: formatDateTimeLocal(endDate),
     allDay: false,
     note: "",
+    url: "",
     categoryId: "",
     selectedUserIds: [],
     shareType: "together",
@@ -434,6 +438,7 @@ const expandRecurringEvents = (
           end: occurrenceEnd,
           allDay: row.all_day ?? false,
           note: row.note ?? "",
+          url: row.url ?? "",
           canDelete: meta.canDelete,
           isShared: meta.isShared,
           ownerId: row.user_id,
@@ -620,7 +625,7 @@ export default function Home() {
 
     let { data: myEvents, error: myError } = await supabase
         .from("events")
-        .select("id, title, start_at, end_at, user_id, note, all_day, category_id, event_visibility")
+        .select("id, title, start_at, end_at, user_id, note, url, all_day, category_id, event_visibility")
         .eq("user_id", user.id);
 
     if (myError?.code === "42703") {
@@ -632,6 +637,7 @@ export default function Home() {
       myEvents = fallback.data?.map((event) => ({
         ...event,
         note: null,
+        url: null,
         all_day: false,
         category_id: null,
         event_visibility: "private",
@@ -700,7 +706,7 @@ export default function Home() {
     if (sharedEventIds.length > 0) {
       let { data, error } = await supabase
         .from("events")
-        .select("id, title, start_at, end_at, user_id, note, all_day, category_id, event_visibility")
+        .select("id, title, start_at, end_at, user_id, note, url, all_day, category_id, event_visibility")
         .in("id", sharedEventIds);
 
       if (error?.code === "42703") {
@@ -712,6 +718,7 @@ export default function Home() {
         data = fallback.data?.map((event) => ({
           ...event,
           note: null,
+          url: null,
           all_day: false,
           category_id: null,
           event_visibility: "together",
@@ -824,6 +831,7 @@ export default function Home() {
         end: new Date(event.end_at),
         allDay: event.all_day ?? false,
         note: event.note ?? "",
+        url: event.url ?? "",
         canDelete: event.canDelete,
         isShared: event.isShared,
         ownerId: event.ownerId,
@@ -888,6 +896,7 @@ export default function Home() {
         end: formatDateTimeLocal(detailEvent.end),
         allDay: detailEvent.allDay,
         note: detailEvent.note,
+        url: detailEvent.url,
         categoryId: detailEvent.categoryId ?? "",
         selectedUserIds: detailEvent.sharedWith.map((user) => user.id),
         shareType: detailEvent.visibility === "private" ? "together" : detailEvent.visibility,
@@ -1094,6 +1103,7 @@ export default function Home() {
       all_day: form.allDay,
       category_id: form.categoryId || null,
       note: form.note.trim() || null,
+      url: form.url.trim() || null,
       event_visibility:
         form.selectedUserIds.length > 0 ? form.shareType : "private",
       user_id: user.id,
@@ -1180,6 +1190,7 @@ export default function Home() {
       all_day: editForm.allDay,
       category_id: editForm.categoryId || null,
       note: editForm.note.trim() || null,
+      url: editForm.url.trim() || null,
       event_visibility: shareDraftIds.length > 0 ? editForm.shareType : "private",
     };
 
@@ -2069,6 +2080,18 @@ export default function Home() {
                   placeholder="申し送り、持ち物、集合場所など"
                 />
               </label>
+              <label className="space-y-1 sm:col-span-2">
+                <span className="text-xs font-semibold text-[#64748b]">URL（お店・予約ページなど）</span>
+                <input
+                  type="url"
+                  className="w-full rounded-lg border border-[#cbd5e1] p-3 text-sm outline-none transition focus:border-[#0f766e] focus:ring-2 focus:ring-[#99f6e4]"
+                  value={eventForm.url}
+                  onChange={(event) =>
+                    setEventForm((current) => ({ ...current, url: event.target.value }))
+                  }
+                  placeholder="https://..."
+                />
+              </label>
             </div>
 
             <div className="mt-5 space-y-2">
@@ -2251,6 +2274,18 @@ export default function Home() {
                     }
                   />
                 </label>
+                <label className="space-y-1 sm:col-span-2">
+                  <span className="text-xs font-semibold text-[#64748b]">URL（お店・予約ページなど）</span>
+                  <input
+                    type="url"
+                    className="w-full rounded-lg border border-[#cbd5e1] p-3 text-sm outline-none transition focus:border-[#0f766e] focus:ring-2 focus:ring-[#99f6e4]"
+                    value={editForm.url}
+                    onChange={(event) =>
+                      setEditForm((current) => ({ ...current, url: event.target.value }))
+                    }
+                    placeholder="https://..."
+                  />
+                </label>
                 <button
                   className="h-11 rounded-lg bg-[#0f766e] px-5 text-sm font-semibold text-white shadow-sm transition hover:bg-[#115e59] sm:col-span-2"
                   onClick={updateEvent}
@@ -2293,6 +2328,22 @@ export default function Home() {
                     {detailEvent.note || "メモはありません。"}
                   </p>
                 </div>
+                {detailEvent.url && (
+                  <div className="rounded-xl bg-[#f8fafc] p-3">
+                    <p className="text-xs font-semibold text-[#64748b]">URL</p>
+                    <a
+                      href={detailEvent.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="mt-1 flex items-center gap-1.5 break-all text-sm font-semibold text-[#0f766e] underline underline-offset-2"
+                    >
+                      <svg viewBox="0 0 24 24" className="h-4 w-4 shrink-0" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M15 3h6v6M10 14 21 3M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>
+                      </svg>
+                      {detailEvent.url}
+                    </a>
+                  </div>
+                )}
                 {detailEvent.isShared ? (
                   <div className="rounded-xl bg-[#fffbeb] p-3 text-[#92400e]">
                     {detailEvent.ownerDeleted
