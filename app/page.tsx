@@ -491,6 +491,9 @@ export default function Home() {
   const [isEventModalOpen, setIsEventModalOpen] = useState(false);
   const [detailEvent, setDetailEvent] = useState<CalendarEvent | null>(null);
   const [isDetailEditing, setIsDetailEditing] = useState(false);
+  type OgData = { title: string; description: string; siteName: string; image: string; genre: { label: string; emoji: string } | null };
+  const [ogData, setOgData] = useState<OgData | null>(null);
+  const [ogLoading, setOgLoading] = useState(false);
   const [shareDraftIds, setShareDraftIds] = useState<string[]>([]);
   const [dayDetail, setDayDetail] = useState<{
     date: Date;
@@ -902,6 +905,27 @@ export default function Home() {
         shareType: detailEvent.visibility === "private" ? "together" : detailEvent.visibility,
       });
     }
+  }, [detailEvent]);
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setOgData(null);
+    if (!detailEvent?.url) return;
+    setOgLoading(true);
+    fetch(`/api/og?url=${encodeURIComponent(detailEvent.url)}`)
+      .then((r) => r.json())
+      .then((data) => {
+        // eslint-disable-next-line react-hooks/set-state-in-effect
+        setOgData(data);
+      })
+      .catch(() => {
+        // eslint-disable-next-line react-hooks/set-state-in-effect
+        setOgData(null);
+      })
+      .finally(() => {
+        // eslint-disable-next-line react-hooks/set-state-in-effect
+        setOgLoading(false);
+      });
   }, [detailEvent]);
 
   useEffect(() => {
@@ -2046,9 +2070,17 @@ export default function Home() {
                   className="h-11 w-full rounded-lg border border-[#cbd5e1] px-3 text-sm outline-none transition focus:border-[#0f766e] focus:ring-2 focus:ring-[#99f6e4]"
                   type="datetime-local"
                   value={eventForm.start}
-                  onChange={(event) =>
-                    setEventForm((current) => ({ ...current, start: event.target.value }))
-                  }
+                  onChange={(event) => {
+                    const newStart = event.target.value;
+                    setEventForm((current) => {
+                      const startMs = new Date(newStart).getTime();
+                      const endMs = new Date(current.end).getTime();
+                      const newEnd = endMs <= startMs
+                        ? formatDateTimeLocal(new Date(startMs + 3600000))
+                        : current.end;
+                      return { ...current, start: newStart, end: newEnd };
+                    });
+                  }}
                 />
               </label>
               <label className="space-y-1">
@@ -2241,9 +2273,17 @@ export default function Home() {
                     className="h-11 w-full rounded-lg border border-[#cbd5e1] px-3 outline-none transition focus:border-[#0f766e] focus:ring-2 focus:ring-[#99f6e4]"
                     type="datetime-local"
                     value={editForm.start}
-                    onChange={(event) =>
-                      setEditForm((current) => ({ ...current, start: event.target.value }))
-                    }
+                    onChange={(event) => {
+                      const newStart = event.target.value;
+                      setEditForm((current) => {
+                        const startMs = new Date(newStart).getTime();
+                        const endMs = new Date(current.end).getTime();
+                        const newEnd = endMs <= startMs
+                          ? formatDateTimeLocal(new Date(startMs + 3600000))
+                          : current.end;
+                        return { ...current, start: newStart, end: newEnd };
+                      });
+                    }}
                   />
                 </label>
                 <label className="space-y-1">
@@ -2329,20 +2369,45 @@ export default function Home() {
                   </p>
                 </div>
                 {detailEvent.url && (
-                  <div className="rounded-xl bg-[#f8fafc] p-3">
-                    <p className="text-xs font-semibold text-[#64748b]">URL</p>
-                    <a
-                      href={detailEvent.url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="mt-1 flex items-center gap-1.5 break-all text-sm font-semibold text-[#0f766e] underline underline-offset-2"
-                    >
-                      <svg viewBox="0 0 24 24" className="h-4 w-4 shrink-0" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        <path d="M15 3h6v6M10 14 21 3M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>
-                      </svg>
-                      {detailEvent.url}
-                    </a>
-                  </div>
+                  <a
+                    href={detailEvent.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="block rounded-xl border border-[#e2e8f0] bg-[#f8fafc] p-3 transition hover:border-[#0f766e] hover:bg-[#ecfdf5]"
+                  >
+                    {ogLoading && (
+                      <div className="flex items-center gap-2 text-xs text-[#94a3b8]">
+                        <svg className="h-3.5 w-3.5 animate-spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10" strokeOpacity="0.3"/><path d="M12 2a10 10 0 0 1 10 10"/></svg>
+                        読み込み中…
+                      </div>
+                    )}
+                    {!ogLoading && ogData?.title ? (
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0">
+                          {ogData.genre && (
+                            <span className="mb-1 inline-flex items-center gap-1 rounded-full bg-[#ecfdf5] px-2 py-0.5 text-[10px] font-bold text-[#0f766e]">
+                              {ogData.genre.emoji} {ogData.genre.label}
+                            </span>
+                          )}
+                          <p className="truncate text-sm font-bold text-[#0f172a]">{ogData.title}</p>
+                          {ogData.description && (
+                            <p className="mt-0.5 line-clamp-2 text-xs text-[#64748b]">{ogData.description}</p>
+                          )}
+                          <p className="mt-1 truncate text-[10px] text-[#94a3b8]">{detailEvent.url}</p>
+                        </div>
+                        <svg viewBox="0 0 24 24" className="h-4 w-4 shrink-0 text-[#0f766e]" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M15 3h6v6M10 14 21 3M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>
+                        </svg>
+                      </div>
+                    ) : !ogLoading && (
+                      <div className="flex items-center justify-between gap-2">
+                        <p className="truncate text-sm font-semibold text-[#0f766e]">{detailEvent.url}</p>
+                        <svg viewBox="0 0 24 24" className="h-4 w-4 shrink-0 text-[#0f766e]" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M15 3h6v6M10 14 21 3M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>
+                        </svg>
+                      </div>
+                    )}
+                  </a>
                 )}
                 {detailEvent.isShared ? (
                   <div className="rounded-xl bg-[#fffbeb] p-3 text-[#92400e]">
