@@ -1,5 +1,23 @@
 import { NextResponse } from "next/server";
 
+// ドメインベースの確定ジャンル（OGP取得前に適用）
+const DOMAIN_GENRES: { pattern: RegExp; genres: { label: string; emoji: string }[] }[] = [
+  { pattern: /tabelog\.com/i, genres: [{ label: "グルメ", emoji: "🍽️" }] },
+  { pattern: /gurunavi\.com/i, genres: [{ label: "グルメ", emoji: "🍽️" }] },
+  { pattern: /hotpepper\.jp/i, genres: [{ label: "グルメ", emoji: "🍽️" }] },
+  { pattern: /jalan\.net/i, genres: [{ label: "旅行・観光", emoji: "✈️" }] },
+  { pattern: /rurubu\.com/i, genres: [{ label: "旅行・観光", emoji: "✈️" }] },
+  { pattern: /rakuten-travel\.com|travel\.rakuten/i, genres: [{ label: "旅行・観光", emoji: "✈️" }, { label: "ホテル・旅館", emoji: "🏨" }] },
+  { pattern: /booking\.com/i, genres: [{ label: "ホテル・旅館", emoji: "🏨" }] },
+  { pattern: /airbnb\./i, genres: [{ label: "ホテル・旅館", emoji: "🏨" }] },
+  { pattern: /amazon\.(co\.jp|com)/i, genres: [{ label: "ECショップ", emoji: "🛒" }] },
+  { pattern: /rakuten\.co\.jp/i, genres: [{ label: "ECショップ", emoji: "🛒" }] },
+  { pattern: /mercari\.com/i, genres: [{ label: "ECショップ", emoji: "🛒" }] },
+  { pattern: /maps\.google\.|share\.google/i, genres: [{ label: "地図・スポット", emoji: "📍" }] },
+  { pattern: /youtube\.com|youtu\.be/i, genres: [{ label: "動画", emoji: "▶️" }] },
+  { pattern: /suumo\.jp/i, genres: [{ label: "不動産", emoji: "🏠" }] },
+];
+
 const GENRE_RULES: { label: string; emoji: string; patterns: RegExp[] }[] = [
   // 飲食
   { label: "寿司・海鮮", emoji: "🍣", patterns: [/寿司|鮨|sushi|海鮮料理|刺身|seafood/i] },
@@ -57,6 +75,14 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "url is required" }, { status: 400 });
   }
 
+  // ドメインで確定できるジャンルを先に取得
+  const domainGenres: { label: string; emoji: string }[] = [];
+  for (const rule of DOMAIN_GENRES) {
+    if (rule.pattern.test(url)) {
+      domainGenres.push(...rule.genres);
+    }
+  }
+
   try {
     const res = await fetch(url, {
       headers: { "User-Agent": "Mozilla/5.0 (compatible; ShareCal/1.0)" },
@@ -81,8 +107,33 @@ export async function GET(request: Request) {
     const siteName = getMeta("site_name");
     const image = getMeta("image");
 
-    const combinedText = `${title} ${description} ${siteName}`;
-    const genres = classifyGenres(combinedText);
+    // keywords メタタグ（副ジャンルが入ることが多い）
+    const keywords =
+      html.match(/<meta[^>]+name=["']keywords["'][^>]+content=["']([^"']+)["']/i)?.[1] ??
+      html.match(/<meta[^>]+content=["']([^"']+)["'][^>]+name=["']keywords["']/i)?.[1] ??
+      "";
+
+    // JSON-LD からジャンル・カテゴリを抽出
+    let jsonLdText = "";
+    const jsonLdMatches = html.matchAll(/<script[^>]+type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi);
+    for (const m of jsonLdMatches) {
+      try {
+        const obj = JSON.parse(m[1]);
+        const str = JSON.stringify(obj);
+        jsonLdText += " " + str;
+      } catch { /* ignore */ }
+    }
+
+    const combinedText = `${title} ${description} ${siteName} ${keywords} ${jsonLdText}`;
+    const textGenres = classifyGenres(combinedText);
+
+    // ドメイン確定ジャンル + テキスト解析ジャンルを合成（重複除去）
+    const seen = new Set<string>();
+    const genres = [...domainGenres, ...textGenres].filter(({ label }) => {
+      if (seen.has(label)) return false;
+      seen.add(label);
+      return true;
+    });
 
     return NextResponse.json({
       title: title.trim(),
@@ -92,6 +143,7 @@ export async function GET(request: Request) {
       genres,
     });
   } catch {
-    return NextResponse.json({ title: "", description: "", siteName: "", image: "", genre: null });
+    // フェッチ失敗時もドメインジャンルだけ返す
+    return NextResponse.json({ title: "", description: "", siteName: "", image: "", genres: domainGenres });
   }
 }
