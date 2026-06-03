@@ -1520,7 +1520,7 @@ export default function Home() {
   }
 
   return (
-    <main className="page-shell min-h-screen px-4 pb-28 pt-4 text-[var(--fg)] sm:px-6 sm:pb-4 lg:px-8">
+    <main className="page-shell page-shell-home min-h-screen px-4 pb-28 pt-4 text-[var(--fg)] sm:px-6 sm:pb-4 lg:px-8">
 
       {/* ========== モバイル専用レイアウト ========== */}
       <div className="page-shell-mobile-inner sm:hidden">

@@ -144,9 +144,9 @@ button:not(:disabled):active, a:active {
   background: var(--app-bg);
 }
 
-/* モバイル: 固定高さ flex レイアウト（overflow は page-shell に閉じ込めず inner で管理） */
+/* モバイル: ホーム画面のみ固定高さ flex レイアウト */
 @media (max-width: 639px) {
-  .page-shell {
+  .page-shell-home {
     padding: 0 !important;
   }
   .page-shell-mobile-inner {
@@ -155,14 +155,13 @@ button:not(:disabled):active, a:active {
     height: 100dvh;
     padding: 8px 12px 68px;
     gap: 6px;
-    overflow: hidden; /* inner だけ hidden にしてページ自体はそのまま */
+    overflow: hidden;
   }
   .calendar-section-mobile {
     flex: 1 1 0%;
     min-height: 0;
     overflow: hidden;
   }
-  /* カレンダー内部のスクロールは許可 */
   .calendar-section-mobile .rbc-time-content,
   .calendar-section-mobile .rbc-agenda-view {
     overflow-y: auto;
