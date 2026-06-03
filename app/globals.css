@@ -144,6 +144,32 @@ button:not(:disabled):active, a:active {
   background: var(--app-bg);
 }
 
+/* モバイル: スクロールなしで全要素が収まる固定レイアウト */
+@media (max-width: 639px) {
+  .page-shell {
+    display: flex;
+    flex-direction: column;
+    height: 100dvh;
+    overflow: hidden;
+    padding: 0 !important;
+  }
+  .page-shell-mobile-inner {
+    display: flex;
+    flex-direction: column;
+    flex: 1 1 0%;
+    min-height: 0;
+    padding: 0 12px;
+    gap: 6px;
+    /* 下はボトムナビ分だけ確保 */
+    padding-bottom: 68px;
+    padding-top: 8px;
+  }
+  .calendar-section-mobile {
+    flex: 1 1 0%;
+    min-height: 0;
+  }
+}
+
 .eyebrow {
   color: var(--fg-muted);
   font-size: 11px;

@@ -1520,10 +1520,160 @@ export default function Home() {
 
   return (
     <main className="page-shell min-h-screen px-4 pb-28 pt-4 text-[var(--fg)] sm:px-6 sm:pb-4 lg:px-8">
-      <div className="mx-auto flex max-w-7xl flex-col gap-5">
+
+      {/* ========== モバイル専用レイアウト ========== */}
+      <div className="page-shell-mobile-inner sm:hidden">
+
+        {/* 通知プロンプト（モバイル） */}
+        {notificationsEnabled && showNotificationPrompt && notificationPermission === "default" && (
+          <div className="relative flex items-center gap-2 rounded-xl border border-[#bae6fd] bg-[#f0f9ff] px-3 py-2">
+            <p className="flex-1 text-xs font-bold text-[#075985]">共有通知を受け取りますか？</p>
+            <button className="rounded-lg bg-[#0f766e] px-3 py-1 text-xs font-bold text-white" onClick={requestNotificationPermission}>許可</button>
+            <button className="text-[#94a3b8]" onClick={() => { window.localStorage.setItem("sharecal_notification_prompt_dismissed", "true"); setShowNotificationPrompt(false); }}>✕</button>
+          </div>
+        )}
+
+        {/* 絞り込みバー（モバイル） */}
+        <div className="flex items-center gap-2 overflow-x-auto py-0.5">
+          {filterOptions.map((option) => (
+            <button
+              key={option.value}
+              className={`shrink-0 rounded-full border px-3 py-1 text-xs font-bold transition ${
+                calendarFilter === option.value
+                  ? "border-[#0f766e] bg-[#0f766e] text-white"
+                  : "border-[#d9e2ef] bg-white text-[#475569]"
+              }`}
+              onClick={() => setCalendarFilter(option.value)}
+            >
+              {option.label}
+            </button>
+          ))}
+        </div>
+
+        {/* カレンダー（モバイル） */}
+        <div className="calendar-section-mobile rounded-xl border border-[#d9e2ef] bg-white shadow-sm overflow-hidden">
+          <div className="calendar-shell h-full">
+            <Calendar<CalendarEvent>
+              key={calendarWeekStart + "-mobile"}
+              localizer={calendarLocalizer}
+              events={visibleEvents}
+              startAccessor="start"
+              endAccessor="end"
+              allDayAccessor="allDay"
+              culture="ja"
+              date={calendarDate}
+              view={calendarView}
+              dayLayoutAlgorithm="no-overlap"
+              popup
+              selectable="ignoreEvents"
+              eventPropGetter={(event) => {
+                const style = getDisplayStyle(event.displayKind);
+                return {
+                  className: `rbc-event-${event.displayKind}`,
+                  style: {
+                    backgroundColor: event.categoryColor ?? style.background,
+                    color: style.text,
+                    borderLeft: `3px solid ${event.categoryColor ?? style.border}`,
+                    border: "none",
+                    borderRadius: "6px",
+                    fontSize: "11px",
+                    fontWeight: "700",
+                    padding: "1px 4px",
+                  },
+                };
+              }}
+              onNavigate={(date) => setCalendarDate(date)}
+              onView={(view) => setCalendarView(view)}
+              longPressThreshold={350}
+              components={{
+                toolbar: CalendarToolbar,
+                month: {
+                  dateHeader: ({ date, label }) => {
+                    const dow = date.getDay();
+                    const holidayName = isJapaneseHoliday(date);
+                    const isHoliday = holidayName !== null;
+                    const color =
+                      isHoliday || dow === 0 ? "#e11d48"
+                      : dow === 6            ? "#2563eb"
+                      :                        undefined;
+                    return (
+                      <button
+                        className="calendar-date-button"
+                        style={color ? { color } : undefined}
+                        type="button"
+                        title={holidayName ?? undefined}
+                        onPointerUp={(event) => { event.preventDefault(); event.stopPropagation(); openDateForRegistration(date); }}
+                        onClick={(event) => { event.preventDefault(); event.stopPropagation(); openDateForRegistration(date); }}
+                      >
+                        {label}
+                      </button>
+                    );
+                  },
+                },
+              }}
+              onDrillDown={(date) => { openDateForRegistration(date); }}
+              onShowMore={(shownEvents, date) => { setDayDetail({ date, events: shownEvents as CalendarEvent[] }); }}
+              onSelectSlot={(slotInfo) => {
+                if (slotInfo.action === "select") return;
+                const date = Array.isArray(slotInfo.slots) ? slotInfo.slots[0] : slotInfo.start;
+                openDateForRegistration(date as Date);
+              }}
+              onSelectEvent={(event) => openDetailEvent(event)}
+            />
+          </div>
+        </div>
+
+        {/* 本日の予定バー（モバイル） */}
+        <div className="shrink-0 rounded-xl border border-[#d9e2ef] bg-white shadow-sm">
+          <button
+            className="flex w-full items-center justify-between px-3 py-2"
+            onClick={() => setIsDayEventsOpen((v) => !v)}
+          >
+            <span className="flex items-center gap-2">
+              <span className="text-sm font-bold text-[#0f172a]">
+                {format(selectedDayDate, "M/d(E)", { locale: ja })} の予定
+              </span>
+              {selectedDayEvents.length > 0 && (
+                <span className="rounded-full bg-[#0f766e] px-2 py-0.5 text-xs font-bold text-white">
+                  {selectedDayEvents.length}
+                </span>
+              )}
+            </span>
+            <span className="text-[#94a3b8]">{isDayEventsOpen ? "▲" : "▼"}</span>
+          </button>
+          {isDayEventsOpen && (
+            <div className="max-h-40 overflow-y-auto border-t border-[#f1f5f9] px-3 pb-2">
+              {selectedDayEvents.length === 0 ? (
+                <p className="py-2 text-xs text-[#94a3b8]">この日の予定はありません</p>
+              ) : (
+                <div className="flex flex-col gap-1 pt-2">
+                  {selectedDayEvents.map((event) => (
+                    <button
+                      key={`${event.id}-${event.start.toISOString()}`}
+                      className="flex items-center gap-2 rounded-lg px-2 py-1.5 text-left hover:bg-[#f8fafc]"
+                      onClick={() => openDetailEvent(event)}
+                    >
+                      <span
+                        className="h-2 w-2 shrink-0 rounded-full"
+                        style={{ backgroundColor: event.categoryColor ?? getDisplayStyle(event.displayKind).border }}
+                      />
+                      <span className="flex-1 truncate text-sm font-semibold text-[#0f172a]">{event.title}</span>
+                      <span className="shrink-0 text-xs text-[#94a3b8]">
+                        {event.allDay ? "終日" : format(event.start, "HH:mm")}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* ========== PC レイアウト（sm以上） ========== */}
+      <div className="mx-auto hidden max-w-7xl flex-col gap-5 sm:flex">
         <header className="page-header glass-card flex flex-col gap-3 p-3 sm:flex-row sm:items-center sm:justify-between">
           <ShareCalLogo />
-
           <div className="hidden sm:flex sm:flex-wrap sm:items-center sm:gap-2">
             <DesktopNavigation />
           </div>
@@ -1534,155 +1684,95 @@ export default function Home() {
             <button
               className="absolute right-3 top-3 flex h-8 w-8 items-center justify-center rounded-full border border-[#bae6fd] bg-white text-lg leading-none text-[#075985]"
               aria-label="通知案内を閉じる"
-              onClick={() => {
-                window.localStorage.setItem("sharecal_notification_prompt_dismissed", "true");
-                setShowNotificationPrompt(false);
-              }}
-            >
-              ×
-            </button>
+              onClick={() => { window.localStorage.setItem("sharecal_notification_prompt_dismissed", "true"); setShowNotificationPrompt(false); }}
+            >×</button>
             <div>
               <p className="text-sm font-bold text-[#075985]">共有通知を受け取る</p>
-              <p className="mt-1 text-sm text-[#475569]">
-                新しく予定が共有された時に、画面上とブラウザ通知で知らせます。
-              </p>
+              <p className="mt-1 text-sm text-[#475569]">新しく予定が共有された時に、画面上とブラウザ通知で知らせます。</p>
             </div>
-            <button
-              className="h-10 rounded-lg bg-[#0f766e] px-4 text-sm font-bold text-white"
-              onClick={requestNotificationPermission}
-            >
-              通知を許可
-            </button>
+            <button className="h-10 rounded-lg bg-[#0f766e] px-4 text-sm font-bold text-white" onClick={requestNotificationPermission}>通知を許可</button>
           </section>
         )}
 
         <section className="rounded-2xl border border-[#d9e2ef] bg-white p-3 shadow-sm">
           <div className="flex items-center justify-between gap-3">
             <div>
-              <p className="text-xs font-black uppercase tracking-[0.14em] text-[#64748b]">
-                View
-              </p>
+              <p className="text-xs font-black uppercase tracking-[0.14em] text-[#64748b]">View</p>
               <h2 className="text-base font-black text-[#0f172a]">
-                {filterOptions.find((option) => option.value === calendarFilter)?.label ?? "表示をしぼる"}
+                {filterOptions.find((o) => o.value === calendarFilter)?.label ?? "表示をしぼる"}
               </h2>
               <p className="mt-0.5 text-xs font-bold text-[#64748b]">
-                {filterOptions.find((option) => option.value === calendarFilter)?.description}
+                {filterOptions.find((o) => o.value === calendarFilter)?.description}
               </p>
             </div>
             <div className="flex shrink-0 gap-2">
-            {calendarFilter !== "all" && (
-              <button
-                className="shrink-0 rounded-full border border-[#cbd5e1] bg-[#f8fafc] px-3 py-2 text-xs font-bold text-[#475569]"
-                onClick={() => setCalendarFilter("all")}
-              >
-                解除
+              {calendarFilter !== "all" && (
+                <button className="shrink-0 rounded-full border border-[#cbd5e1] bg-[#f8fafc] px-3 py-2 text-xs font-bold text-[#475569]" onClick={() => setCalendarFilter("all")}>解除</button>
+              )}
+              <button className="shrink-0 rounded-full bg-[#0f766e] px-4 py-2 text-xs font-black text-white shadow-sm" onClick={() => setIsFilterOpen((v) => !v)}>
+                {isFilterOpen ? "閉じる" : "絞り込み"}
               </button>
-            )}
-            <button
-              className="shrink-0 rounded-full bg-[#0f766e] px-4 py-2 text-xs font-black text-white shadow-sm"
-              onClick={() => setIsFilterOpen((current) => !current)}
-            >
-              {isFilterOpen ? "閉じる" : "絞り込み"}
-            </button>
             </div>
           </div>
           {isFilterOpen && (
-          <div className="grid grid-flow-col auto-cols-[minmax(138px,1fr)] gap-2 overflow-x-auto pb-1 sm:auto-cols-fr sm:grid-flow-row sm:grid-cols-2 lg:grid-cols-4">
-            {filterOptions.map((option) => (
-              <button
-                key={option.value}
-                className={`group flex min-h-[68px] items-center gap-3 rounded-2xl border p-3 text-left transition ${
-                  calendarFilter === option.value
-                    ? "border-[#0f766e] bg-[#ecfdf5] shadow-sm"
-                    : "border-[#d9e2ef] bg-[#f8fafc] hover:border-[#99f6e4] hover:bg-white"
-                }`}
-                onClick={() => setCalendarFilter(option.value)}
-              >
-                <span
-                  className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl text-sm font-black text-white shadow-sm"
-                  style={{ backgroundColor: option.color }}
+            <div className="grid grid-flow-col auto-cols-[minmax(138px,1fr)] gap-2 overflow-x-auto pb-1 sm:auto-cols-fr sm:grid-flow-row sm:grid-cols-2 lg:grid-cols-4">
+              {filterOptions.map((option) => (
+                <button
+                  key={option.value}
+                  className={`group flex min-h-[68px] items-center gap-3 rounded-2xl border p-3 text-left transition ${
+                    calendarFilter === option.value ? "border-[#0f766e] bg-[#ecfdf5] shadow-sm" : "border-[#d9e2ef] bg-[#f8fafc] hover:border-[#99f6e4] hover:bg-white"
+                  }`}
+                  onClick={() => setCalendarFilter(option.value)}
                 >
-                  {option.value === "all" ? "All" : option.label.slice(0, 1)}
-                </span>
-                <span className="min-w-0">
-                  <span className="block truncate text-sm font-black text-[#0f172a]">
-                    {option.label}
+                  <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl text-sm font-black text-white shadow-sm" style={{ backgroundColor: option.color }}>
+                    {option.value === "all" ? "All" : option.label.slice(0, 1)}
                   </span>
-                  <span className="mt-0.5 block truncate text-xs font-bold text-[#64748b]">
-                    {option.description}
+                  <span className="min-w-0">
+                    <span className="block truncate text-sm font-black text-[#0f172a]">{option.label}</span>
+                    <span className="mt-0.5 block truncate text-xs font-bold text-[#64748b]">{option.description}</span>
                   </span>
-                </span>
-              </button>
-            ))}
-          </div>
+                </button>
+              ))}
+            </div>
           )}
         </section>
 
         <section className="rounded-2xl border border-[#d9e2ef] bg-white p-3 shadow-sm">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[#64748b]">
-                Day Events
-              </p>
-              <h2 className="text-lg font-bold text-[#0f172a]">
-                {format(selectedDayDate, "M月d日", { locale: ja })} の予定
-              </h2>
-              <p className="mt-1 text-sm text-[#64748b]">
-                {selectedDayEvents.length}件
-              </p>
+              <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[#64748b]">Day Events</p>
+              <h2 className="text-lg font-bold text-[#0f172a]">{format(selectedDayDate, "M月d日", { locale: ja })} の予定</h2>
+              <p className="mt-1 text-sm text-[#64748b]">{selectedDayEvents.length}件</p>
             </div>
             <div className="flex gap-2">
-              <button
-                className="h-10 rounded-lg border border-[#cbd5e1] px-3 text-sm font-semibold text-[#334155]"
-                onClick={() => setIsDayEventsOpen((current) => !current)}
-              >
+              <button className="h-10 rounded-lg border border-[#cbd5e1] px-3 text-sm font-semibold text-[#334155]" onClick={() => setIsDayEventsOpen((v) => !v)}>
                 {isDayEventsOpen ? "閉じる" : "表示"}
               </button>
-              <button
-                className="h-10 rounded-lg bg-[#0f766e] px-3 text-sm font-semibold text-white"
-                onClick={() => openEventModal(selectedDayDate)}
-              >
-                追加
-              </button>
+              <button className="h-10 rounded-lg bg-[#0f766e] px-3 text-sm font-semibold text-white" onClick={() => openEventModal(selectedDayDate)}>追加</button>
             </div>
           </div>
-
           {isDayEventsOpen && (
-          <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-            {selectedDayEvents.map((event) => (
-              <button
-                key={`${event.id}-${event.start.toISOString()}`}
-                className={`rounded-xl border p-3 text-left transition hover:border-[#0f766e] ${
-                  event.displayKind === "together"
-                    ? "border-[#fde68a] text-[#92400e]"
-                    : "border-[#bfdbfe] text-[#075985]"
-                }`}
-                style={{
-                  backgroundColor: getDisplayStyle(event.displayKind).background,
-                  borderLeft: `8px solid ${event.categoryColor ?? getDisplayStyle(event.displayKind).border}`,
-                  color: getDisplayStyle(event.displayKind).text,
-                }}
-                onClick={() => openDetailEvent(event)}
-              >
-                <p className="font-semibold text-[#0f172a]">{event.title}</p>
-                <p className="mt-1 text-sm text-[#64748b]">
-                  {event.allDay ? "終日" : `${format(event.start, "HH:mm")} - ${format(event.end, "HH:mm")}`}
-                  {` / ${getDisplayLabel(event.displayKind)}`}
-                  {event.recurringRule && event.recurringRule !== "none" && " / 繰り返し"}
-                </p>
-                <p className="mt-1 text-xs font-semibold text-[#64748b]">
-                  {event.isShared
-                    ? `${event.ownerName}さんから共有`
-                    : event.sharedWith.length > 0
-                      ? `${event.sharedWith.map((user) => user.username).join("、")}に共有中`
-                      : "未共有"}
-                </p>
-              </button>
-            ))}
-            {selectedDayEvents.length === 0 && (
-              <p className="text-sm text-[#64748b]">この日の予定はありません。</p>
-            )}
-          </div>
+            <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+              {selectedDayEvents.map((event) => (
+                <button
+                  key={`${event.id}-${event.start.toISOString()}`}
+                  className="rounded-xl border p-3 text-left transition hover:border-[#0f766e]"
+                  style={{ backgroundColor: getDisplayStyle(event.displayKind).background, borderLeft: `8px solid ${event.categoryColor ?? getDisplayStyle(event.displayKind).border}`, color: getDisplayStyle(event.displayKind).text }}
+                  onClick={() => openDetailEvent(event)}
+                >
+                  <p className="font-semibold text-[#0f172a]">{event.title}</p>
+                  <p className="mt-1 text-sm text-[#64748b]">
+                    {event.allDay ? "終日" : `${format(event.start, "HH:mm")} - ${format(event.end, "HH:mm")}`}
+                    {` / ${getDisplayLabel(event.displayKind)}`}
+                    {event.recurringRule && event.recurringRule !== "none" && " / 繰り返し"}
+                  </p>
+                  <p className="mt-1 text-xs font-semibold text-[#64748b]">
+                    {event.isShared ? `${event.ownerName}さんから共有` : event.sharedWith.length > 0 ? `${event.sharedWith.map((u) => u.username).join("、")}に共有中` : "未共有"}
+                  </p>
+                </button>
+              ))}
+              {selectedDayEvents.length === 0 && <p className="text-sm text-[#64748b]">この日の予定はありません。</p>}
+            </div>
           )}
         </section>
 
@@ -1790,7 +1880,8 @@ export default function Home() {
             />
           </div>
         </section>
-      </div>
+      </div>{/* /.mx-auto PC */}
+
 
       {isEventModalOpen && (
         <div
