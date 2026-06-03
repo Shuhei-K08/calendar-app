@@ -1429,7 +1429,7 @@ export default function Home() {
     const monthlyEvents = events.filter(isInSelectedMonth);
     if (value === "all") return monthlyEvents.length;
     if (value === "own") {
-      return monthlyEvents.filter((event) => event.displayKind === "own").length;
+      return monthlyEvents.filter((event) => event.displayKind === "own" || event.displayKind === "partner").length;
     }
     if (value.startsWith("person:")) {
       const personId = value.replace("person:", "");
