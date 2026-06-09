@@ -698,15 +698,6 @@ export default function SettingsPage() {
                     onChange={(e) => setRecurringForm((f) => ({ ...f, title: e.target.value }))}
                   />
                 </label>
-                <div className="sm:col-span-2">
-                  <button
-                    type="button"
-                    className={`h-9 rounded-lg border px-4 text-sm font-bold transition ${recurringForm.allDay ? "border-[#0f766e] bg-[#ecfdf5] text-[#0f766e]" : "border-[#cbd5e1] bg-white text-[#334155]"}`}
-                    onClick={() => setRecurringForm((f) => ({ ...f, allDay: !f.allDay }))}
-                  >
-                    {recurringForm.allDay ? "✓ 終日" : "終日"}
-                  </button>
-                </div>
                 <label className="space-y-1">
                   <span className="text-xs font-bold text-[#64748b]">開始時刻</span>
                   <input className="h-11 w-full rounded-xl border border-[#cbd5e1] bg-white px-3 text-sm" type={recurringForm.allDay ? "date" : "datetime-local"} value={recurringForm.allDay ? recurringForm.start.slice(0, 10) : recurringForm.start} onChange={(e) => setRecurringForm((f) => ({ ...f, start: recurringForm.allDay ? `${e.target.value}T00:00` : e.target.value }))} />
@@ -714,6 +705,15 @@ export default function SettingsPage() {
                 <label className="space-y-1">
                   <span className="text-xs font-bold text-[#64748b]">終了時刻</span>
                   <input className="h-11 w-full rounded-xl border border-[#cbd5e1] bg-white px-3 text-sm" type={recurringForm.allDay ? "date" : "datetime-local"} value={recurringForm.allDay ? recurringForm.end.slice(0, 10) : recurringForm.end} onChange={(e) => setRecurringForm((f) => ({ ...f, end: recurringForm.allDay ? `${e.target.value}T23:59` : e.target.value }))} />
+                </label>
+                <label className="flex items-center gap-2 rounded-lg border border-[#cbd5e1] bg-white px-3 py-3 text-sm text-[#334155] sm:col-span-2">
+                  <input
+                    className="h-4 w-4 accent-[#0f766e]"
+                    type="checkbox"
+                    checked={recurringForm.allDay}
+                    onChange={(e) => setRecurringForm((f) => ({ ...f, allDay: e.target.checked }))}
+                  />
+                  終日の予定にする
                 </label>
                 <label className="space-y-1">
                   <span className="text-xs font-bold text-[#64748b]">繰り返し</span>
@@ -724,7 +724,7 @@ export default function SettingsPage() {
                   </select>
                 </label>
                 <label className="space-y-1">
-                  <span className="text-xs font-bold text-[#64748b]">終了日（任意）</span>
+                  <span className="text-xs font-bold text-[#64748b]">繰り返し終了日（任意）</span>
                   <input className="h-11 w-full rounded-xl border border-[#cbd5e1] bg-white px-3 text-sm" type="date" value={recurringForm.recurrenceUntil} onChange={(e) => setRecurringForm((f) => ({ ...f, recurrenceUntil: e.target.value }))} />
                 </label>
                 <label className="space-y-1 sm:col-span-2">
