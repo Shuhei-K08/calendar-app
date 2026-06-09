@@ -2392,12 +2392,6 @@ export default function Home() {
                     placeholder="https://..."
                   />
                 </label>
-                <button
-                  className="h-11 rounded-lg bg-[#0f766e] px-5 text-sm font-semibold text-white shadow-sm transition hover:bg-[#115e59] sm:col-span-2"
-                  onClick={updateEvent}
-                >
-                  予定を保存
-                </button>
               </div>
             ) : (
               <div className="space-y-4 text-sm">
@@ -2600,6 +2594,12 @@ export default function Home() {
                   </div>
                 </div>
 
+                <button
+                  className="h-11 w-full rounded-lg bg-[#0f766e] px-5 text-sm font-semibold text-white shadow-sm transition hover:bg-[#115e59]"
+                  onClick={updateEvent}
+                >
+                  予定を保存
+                </button>
                 <button
                   className="h-11 w-full rounded-lg border border-[#fecdd3] px-5 text-sm font-semibold text-[#be123c] transition hover:bg-[#fff1f2]"
                   onClick={() => deleteEvent(detailEvent)}

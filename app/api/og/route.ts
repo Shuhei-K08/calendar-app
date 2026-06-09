@@ -261,7 +261,26 @@ export async function GET(request: Request) {
       signal: AbortSignal.timeout(6000),
     });
 
-    const html = await res.text();
+    const buffer = await res.arrayBuffer();
+
+    // Detect charset from Content-Type header
+    const contentType = res.headers.get("content-type") ?? "";
+    const headerCharset = contentType.match(/charset=([^\s;]+)/i)?.[1];
+
+    // Tentatively decode as UTF-8 to read HTML meta charset
+    const tentative = new TextDecoder("utf-8").decode(buffer);
+    const metaCharset =
+      tentative.match(/<meta[^>]+charset=["']?([^"';\s>]+)/i)?.[1] ??
+      tentative.match(/<meta[^>]+http-equiv=["']Content-Type["'][^>]+content=["'][^"']*charset=([^"'\s;]+)/i)?.[1];
+
+    const charset = headerCharset ?? metaCharset ?? "utf-8";
+
+    let html: string;
+    try {
+      html = new TextDecoder(charset).decode(buffer);
+    } catch {
+      html = tentative;
+    }
 
     const getMeta = (property: string): string => {
       const match =
