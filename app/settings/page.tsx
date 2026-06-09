@@ -54,13 +54,13 @@ type Category = { id: string; name: string; color: string };
 type RecurrenceRule = "weekly" | "monthly" | "yearly";
 type EventVisibility = "private" | "partner" | "together";
 type RecurringEvent = {
-  id: string; title: string; start_at: string; end_at: string;
+  id: string; title: string; start_at: string; end_at: string; all_day: boolean | null;
   recurrence_rule: RecurrenceRule; recurrence_until: string | null;
   category_id: string | null; event_visibility: EventVisibility | null;
   sharedWith: { id: string; username: string }[];
 };
 type RecurringForm = {
-  id?: string; title: string; start: string; end: string;
+  id?: string; title: string; start: string; end: string; allDay: boolean;
   recurrenceRule: RecurrenceRule; recurrenceUntil: string;
   categoryId: string; selectedUserIds: string[]; shareType: EventVisibility;
 };
@@ -75,7 +75,7 @@ const formatDateTimeLocal = (date: Date) => {
 const createBlankRecurring = (): RecurringForm => {
   const s = new Date(); s.setHours(9, 0, 0, 0);
   const e = new Date(); e.setHours(10, 0, 0, 0);
-  return { title: "", start: formatDateTimeLocal(s), end: formatDateTimeLocal(e), recurrenceRule: "weekly", recurrenceUntil: "", categoryId: "", selectedUserIds: [], shareType: "together" };
+  return { title: "", start: formatDateTimeLocal(s), end: formatDateTimeLocal(e), allDay: false, recurrenceRule: "weekly", recurrenceUntil: "", categoryId: "", selectedUserIds: [], shareType: "together" };
 };
 
 /* ── Confirm modal ── */
@@ -151,7 +151,7 @@ export default function SettingsPage() {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
     const { data, error } = await supabase.from("recurring_events")
-      .select("id, title, start_at, end_at, recurrence_rule, recurrence_until, category_id, event_visibility")
+      .select("id, title, start_at, end_at, all_day, recurrence_rule, recurrence_until, category_id, event_visibility")
       .eq("user_id", user.id).order("created_at", { ascending: false });
     if (error) return;
     const rows = (data ?? []) as Omit<RecurringEvent, "sharedWith">[];
@@ -281,7 +281,7 @@ export default function SettingsPage() {
     if (new Date(endAt) <= new Date(startAt)) { show("終了は開始より後にしてください", "error"); return; }
     const payload = {
       user_id: user.id, title: recurringForm.title.trim(), start_at: startAt, end_at: endAt,
-      note: null, all_day: false, category_id: recurringForm.categoryId || null,
+      note: null, all_day: recurringForm.allDay, category_id: recurringForm.categoryId || null,
       event_visibility: recurringForm.selectedUserIds.length > 0 ? recurringForm.shareType : "private",
       recurrence_rule: recurringForm.recurrenceRule,
       recurrence_until: recurringForm.recurrenceUntil ? new Date(`${recurringForm.recurrenceUntil}T23:59:59`).toISOString() : null,
@@ -309,6 +309,7 @@ export default function SettingsPage() {
       id: ev.id, title: ev.title,
       start: formatDateTimeLocal(new Date(ev.start_at)),
       end: formatDateTimeLocal(new Date(ev.end_at)),
+      allDay: ev.all_day ?? false,
       recurrenceRule: ev.recurrence_rule,
       recurrenceUntil: ev.recurrence_until ? ev.recurrence_until.slice(0, 10) : "",
       categoryId: ev.category_id ?? "",
@@ -697,13 +698,22 @@ export default function SettingsPage() {
                     onChange={(e) => setRecurringForm((f) => ({ ...f, title: e.target.value }))}
                   />
                 </label>
+                <div className="sm:col-span-2">
+                  <button
+                    type="button"
+                    className={`h-9 rounded-lg border px-4 text-sm font-bold transition ${recurringForm.allDay ? "border-[#0f766e] bg-[#ecfdf5] text-[#0f766e]" : "border-[#cbd5e1] bg-white text-[#334155]"}`}
+                    onClick={() => setRecurringForm((f) => ({ ...f, allDay: !f.allDay }))}
+                  >
+                    {recurringForm.allDay ? "✓ 終日" : "終日"}
+                  </button>
+                </div>
                 <label className="space-y-1">
-                  <span className="text-xs font-bold text-[#64748b]">開始</span>
-                  <input className="h-11 w-full rounded-xl border border-[#cbd5e1] bg-white px-3 text-sm" type="datetime-local" value={recurringForm.start} onChange={(e) => setRecurringForm((f) => ({ ...f, start: e.target.value }))} />
+                  <span className="text-xs font-bold text-[#64748b]">開始時刻</span>
+                  <input className="h-11 w-full rounded-xl border border-[#cbd5e1] bg-white px-3 text-sm" type={recurringForm.allDay ? "date" : "datetime-local"} value={recurringForm.allDay ? recurringForm.start.slice(0, 10) : recurringForm.start} onChange={(e) => setRecurringForm((f) => ({ ...f, start: recurringForm.allDay ? `${e.target.value}T00:00` : e.target.value }))} />
                 </label>
                 <label className="space-y-1">
-                  <span className="text-xs font-bold text-[#64748b]">終了</span>
-                  <input className="h-11 w-full rounded-xl border border-[#cbd5e1] bg-white px-3 text-sm" type="datetime-local" value={recurringForm.end} onChange={(e) => setRecurringForm((f) => ({ ...f, end: e.target.value }))} />
+                  <span className="text-xs font-bold text-[#64748b]">終了時刻</span>
+                  <input className="h-11 w-full rounded-xl border border-[#cbd5e1] bg-white px-3 text-sm" type={recurringForm.allDay ? "date" : "datetime-local"} value={recurringForm.allDay ? recurringForm.end.slice(0, 10) : recurringForm.end} onChange={(e) => setRecurringForm((f) => ({ ...f, end: recurringForm.allDay ? `${e.target.value}T23:59` : e.target.value }))} />
                 </label>
                 <label className="space-y-1">
                   <span className="text-xs font-bold text-[#64748b]">繰り返し</span>
@@ -740,6 +750,25 @@ export default function SettingsPage() {
                     ))}
                     {connections.length === 0 && <p className="text-sm text-[#64748b]">共有できる相手はいません。</p>}
                   </div>
+                  {recurringForm.selectedUserIds.length > 0 && (
+                    <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                      {[
+                        { value: "partner", title: "自分の予定を相手に共有", desc: "自分の予定として持ったまま共有" },
+                        { value: "together", title: "私たちの予定", desc: "共通の予定として表示" },
+                      ].map((option) => (
+                        <label
+                          key={option.value}
+                          className={`cursor-pointer rounded-2xl border p-3 transition ${recurringForm.shareType === option.value ? "border-[#0f766e] bg-[#ecfdf5]" : "border-[#d9e2ef] bg-white"}`}
+                        >
+                          <input className="sr-only" type="radio" name="recurring-share-type" value={option.value} checked={recurringForm.shareType === option.value}
+                            onChange={(e) => setRecurringForm((f) => ({ ...f, shareType: e.target.value as EventVisibility }))}
+                          />
+                          <span className="block text-sm font-black text-[#0f172a]">{option.title}</span>
+                          <span className="mt-0.5 block text-xs font-semibold text-[#64748b]">{option.desc}</span>
+                        </label>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </div>
               <div className={`mt-4 grid gap-2 ${recurringForm.id ? "sm:grid-cols-2" : ""}`}>
