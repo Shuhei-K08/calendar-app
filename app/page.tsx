@@ -1321,6 +1321,19 @@ export default function Home() {
       return;
     }
 
+    // Sync event_shares for regular (non-recurring) events
+    await supabase.from("event_shares").delete().eq("event_id", detailEvent.id);
+    if (shareDraftIds.length > 0) {
+      const { error: shareError } = await supabase.from("event_shares").insert(
+        shareDraftIds.map((userId) => ({ event_id: detailEvent.id, shared_with: userId })),
+      );
+      if (shareError) {
+        console.error(shareError);
+        show(shareError.message, "error");
+        return;
+      }
+    }
+
     show("予定を更新しました", "success");
     await fetchEvents();
     setDetailEvent(null);
@@ -2364,7 +2377,8 @@ export default function Home() {
                 <label className="space-y-1 sm:col-span-2">
                   <span className="text-xs font-semibold text-[#64748b]">URL（お店・予約ページなど）</span>
                   <input
-                    type="url"
+                    type="text"
+                    inputMode="url"
                     className="w-full rounded-lg border border-[#cbd5e1] p-3 text-sm outline-none transition focus:border-[#0f766e] focus:ring-2 focus:ring-[#99f6e4]"
                     value={editForm.url}
                     onChange={(event) =>
@@ -2586,20 +2600,12 @@ export default function Home() {
                   </div>
                 </div>
 
-                <div className="grid gap-2 sm:grid-cols-2">
-                  <button
-                    className="h-11 rounded-lg bg-[#0f766e] px-5 text-sm font-semibold text-white shadow-sm transition hover:bg-[#115e59]"
-                    onClick={updateEventShares}
-                  >
-                    共有を保存
-                  </button>
-                  <button
-                    className="h-11 rounded-lg bg-[#be123c] px-5 text-sm font-semibold text-white shadow-sm transition hover:bg-[#9f1239]"
-                    onClick={() => deleteEvent(detailEvent)}
-                  >
-                    削除する
-                  </button>
-                </div>
+                <button
+                  className="h-11 w-full rounded-lg border border-[#fecdd3] px-5 text-sm font-semibold text-[#be123c] transition hover:bg-[#fff1f2]"
+                  onClick={() => deleteEvent(detailEvent)}
+                >
+                  削除する
+                </button>
               </div>
             )}
             <button
