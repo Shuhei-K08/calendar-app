@@ -53,16 +53,6 @@ const BASE_COLS = "id, title, start_at, url, note, category_id, user_id, event_v
 
 const UNCATEGORIZED = "未設定";
 
-// 市区町村プルダウンの候補（東京23区＋政令指定都市など。これ以外は自由入力も可）
-const CITY_SUGGESTIONS = [
-  "千代田区", "中央区", "港区", "新宿区", "文京区", "台東区", "墨田区", "江東区",
-  "品川区", "目黒区", "大田区", "世田谷区", "渋谷区", "中野区", "杉並区", "豊島区",
-  "北区", "荒川区", "板橋区", "練馬区", "足立区", "葛飾区", "江戸川区",
-  "札幌市", "仙台市", "さいたま市", "千葉市", "横浜市", "川崎市", "相模原市",
-  "新潟市", "静岡市", "浜松市", "名古屋市", "京都市", "大阪市", "堺市", "神戸市",
-  "岡山市", "広島市", "北九州市", "福岡市", "熊本市",
-];
-
 // 47都道府県
 const PREFECTURES = [
   "北海道", "青森県", "岩手県", "宮城県", "秋田県", "山形県", "福島県",
@@ -183,6 +173,9 @@ export default function LinksPage() {
   const [editPref, setEditPref] = useState("");
   const [editCity, setEditCity] = useState("");
   const [savingLoc, setSavingLoc] = useState(false);
+  // 都道府県ごとの市区町村一覧キャッシュ
+  const [cityListByPref, setCityListByPref] = useState<Record<string, string[]>>({});
+  const [cityLoading, setCityLoading] = useState(false);
 
   const show = useCallback((msg: string, type: ToastItem["type"] = "info") => {
     const id = Date.now() + Math.random();
@@ -491,12 +484,34 @@ export default function LinksPage() {
     [enriched, detailId],
   );
 
+  const loadCities = useCallback(async (pref: string) => {
+    if (!pref) return;
+    let needFetch = false;
+    setCityListByPref((prev) => {
+      if (prev[pref]) return prev;
+      needFetch = true;
+      return prev;
+    });
+    if (!needFetch) return;
+    setCityLoading(true);
+    try {
+      const r = await fetch(`/api/cities?prefecture=${encodeURIComponent(pref)}`);
+      const d = await r.json();
+      setCityListByPref((prev) => ({ ...prev, [pref]: (d.cities ?? []) as string[] }));
+    } catch {
+      setCityListByPref((prev) => ({ ...prev, [pref]: [] }));
+    } finally {
+      setCityLoading(false);
+    }
+  }, []);
+
   const openDetail = (it: EnrichedItem) => {
     setDetailId(it.id);
     // 編集欄は「保存済み or 自動取得」の値で初期化（違っていれば直して保存）
     setEditName(it.storeName);
     setEditPref(it.prefecture);
     setEditCity(it.city);
+    if (it.prefecture) void loadCities(it.prefecture);
   };
 
   const closeDetail = () => {
@@ -561,14 +576,6 @@ export default function LinksPage() {
     return Array.from(set);
   }, [enriched]);
 
-  // 市区町村プルダウンの候補（既に使った市区町村＋定番候補）
-  const cityOptions = useMemo(() => {
-    const set = new Set<string>(CITY_SUGGESTIONS);
-    enriched.forEach((it) => {
-      if (it.city) set.add(it.city);
-    });
-    return Array.from(set);
-  }, [enriched]);
 
   const visible = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -841,25 +848,39 @@ export default function LinksPage() {
                     <select
                       className="field-input"
                       value={editPref}
-                      onChange={(e) => setEditPref(e.target.value)}
+                      onChange={(e) => {
+                        const p = e.target.value;
+                        setEditPref(p);
+                        setEditCity(""); // 都道府県を変えたら市区町村はリセット
+                        if (p) void loadCities(p);
+                      }}
                     >
                       <option value="">都道府県</option>
                       {PREFECTURES.map((p) => (
                         <option key={p} value={p}>{p}</option>
                       ))}
                     </select>
-                    <input
+                    <select
                       className="field-input"
-                      list="city-suggestions"
-                      placeholder="市区町村を選択／入力"
                       value={editCity}
+                      disabled={!editPref || cityLoading}
                       onChange={(e) => setEditCity(e.target.value)}
-                    />
-                    <datalist id="city-suggestions">
-                      {cityOptions.map((c) => (
-                        <option key={c} value={c} />
+                    >
+                      <option value="">
+                        {!editPref
+                          ? "先に都道府県を選択"
+                          : cityLoading
+                          ? "読み込み中…"
+                          : "市区町村を選択"}
+                      </option>
+                      {/* 保存済みの値が一覧に無い場合も選択肢として残す */}
+                      {editCity && !(cityListByPref[editPref] ?? []).includes(editCity) && (
+                        <option value={editCity}>{editCity}</option>
+                      )}
+                      {(cityListByPref[editPref] ?? []).map((c) => (
+                        <option key={c} value={c}>{c}</option>
                       ))}
-                    </datalist>
+                    </select>
                   </div>
                   <button
                     type="button"
