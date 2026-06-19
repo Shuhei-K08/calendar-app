@@ -212,6 +212,52 @@ const DOMAIN_OVERRIDES: { pattern: RegExp; mainLabel: string }[] = [
   { pattern: /suumo\.jp/i, mainLabel: "不動産" },
 ];
 
+// 47都道府県
+const PREFECTURES = [
+  "北海道", "青森県", "岩手県", "宮城県", "秋田県", "山形県", "福島県",
+  "茨城県", "栃木県", "群馬県", "埼玉県", "千葉県", "東京都", "神奈川県",
+  "新潟県", "富山県", "石川県", "福井県", "山梨県", "長野県", "岐阜県",
+  "静岡県", "愛知県", "三重県", "滋賀県", "京都府", "大阪府", "兵庫県",
+  "奈良県", "和歌山県", "鳥取県", "島根県", "岡山県", "広島県", "山口県",
+  "徳島県", "香川県", "愛媛県", "高知県", "福岡県", "佐賀県", "長崎県",
+  "熊本県", "大分県", "宮崎県", "鹿児島県", "沖縄県",
+];
+
+// ページのテキストから都道府県・市区町村を推定する
+function extractLocation(text: string): { prefecture: string; city: string } {
+  let prefecture = "";
+  let city = "";
+
+  // 1) 都道府県を検出（最初に出てきたもの）
+  let prefIndex = -1;
+  for (const pref of PREFECTURES) {
+    const idx = text.indexOf(pref);
+    if (idx !== -1 && (prefIndex === -1 || idx < prefIndex)) {
+      prefIndex = idx;
+      prefecture = pref;
+    }
+  }
+
+  // 2) 都道府県の直後から市区町村を検出
+  if (prefecture && prefIndex !== -1) {
+    const after = text.slice(prefIndex + prefecture.length, prefIndex + prefecture.length + 30);
+    // 「○○郡○○町」「○○市○○区」「○○市」「○○区」「○○町」「○○村」を拾う
+    const m =
+      after.match(/^([一-龥ヶ々ぁ-んァ-ヴー]{1,8}?郡[一-龥ヶ々ぁ-んァ-ヴー]{1,8}?[町村])/) ??
+      after.match(/^([一-龥ヶ々ぁ-んァ-ヴー]{1,8}?市[一-龥ヶ々ぁ-んァ-ヴー]{1,6}?区)/) ??
+      after.match(/^([一-龥ヶ々ぁ-んァ-ヴー]{1,10}?[市区町村])/);
+    if (m) city = m[1];
+  }
+
+  // 3) 都道府県が無くても市区町村だけは拾えると便利（例: 渋谷区, 横浜市）
+  if (!city) {
+    const m = text.match(/([一-龥ヶ々ぁ-んァ-ヴー]{2,8}?市[一-龥ヶ々ぁ-んァ-ヴー]{1,6}?区|[一-龥ヶ々ぁ-んァ-ヴー]{2,8}?[市区])/);
+    if (m) city = m[1];
+  }
+
+  return { prefecture, city };
+}
+
 function classify(text: string, url: string): { main: Genre; subs: Genre[] } | null {
   // ドメイン強制でメインカテゴリを決定
   let forcedMain: MainCategory | undefined;
@@ -310,6 +356,7 @@ export async function GET(request: Request) {
 
     const combinedText = `${title} ${description} ${siteName} ${keywords} ${jsonLdText}`;
     const result = classify(combinedText, url);
+    const location = extractLocation(combinedText);
 
     return NextResponse.json({
       title: title.trim(),
@@ -318,10 +365,12 @@ export async function GET(request: Request) {
       image: image.trim(),
       main: result?.main ?? null,
       subs: result?.subs ?? [],
+      prefecture: location.prefecture,
+      city: location.city,
     });
   } catch {
     // フェッチ失敗時もドメイン判定だけ返す
     const result = classify("", url);
-    return NextResponse.json({ title: "", description: "", siteName: "", image: "", main: result?.main ?? null, subs: result?.subs ?? [] });
+    return NextResponse.json({ title: "", description: "", siteName: "", image: "", main: result?.main ?? null, subs: result?.subs ?? [], prefecture: "", city: "" });
   }
 }

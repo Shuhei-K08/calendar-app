@@ -228,6 +228,8 @@ type CalendarEvent = Event & {
   allDay: boolean;
   note: string;
   url: string;
+  prefecture: string;
+  city: string;
   canDelete: boolean;
   isShared: boolean;
   ownerId: string;
@@ -251,6 +253,8 @@ type DbEvent = {
   user_id: string;
   note: string | null;
   url: string | null;
+  prefecture?: string | null;
+  city?: string | null;
   all_day: boolean | null;
   category_id: string | null;
   event_visibility?: EventVisibility | null;
@@ -306,6 +310,8 @@ type EventForm = {
   allDay: boolean;
   note: string;
   url: string;
+  prefecture: string;
+  city: string;
   categoryId: string;
   selectedUserIds: string[];
   shareType: EventVisibility;
@@ -323,7 +329,20 @@ type OgData = {
   image: string;
   main: { label: string; emoji: string } | null;
   subs: { label: string; emoji: string }[];
+  prefecture?: string;
+  city?: string;
 };
+
+// 47都道府県（場所の選択フォールバック用）
+const PREFECTURES = [
+  "北海道", "青森県", "岩手県", "宮城県", "秋田県", "山形県", "福島県",
+  "茨城県", "栃木県", "群馬県", "埼玉県", "千葉県", "東京都", "神奈川県",
+  "新潟県", "富山県", "石川県", "福井県", "山梨県", "長野県", "岐阜県",
+  "静岡県", "愛知県", "三重県", "滋賀県", "京都府", "大阪府", "兵庫県",
+  "奈良県", "和歌山県", "鳥取県", "島根県", "岡山県", "広島県", "山口県",
+  "徳島県", "香川県", "愛媛県", "高知県", "福岡県", "佐賀県", "長崎県",
+  "熊本県", "大分県", "宮崎県", "鹿児島県", "沖縄県",
+];
 
 const isJapaneseHoliday = (date: Date): string | null => {
   const holiday = HolidayJp.between(
@@ -371,6 +390,8 @@ const createBlankForm = (date = new Date()): EventForm => {
     allDay: false,
     note: "",
     url: "",
+    prefecture: "",
+    city: "",
     categoryId: "",
     selectedUserIds: [],
     shareType: "together",
@@ -472,6 +493,8 @@ const expandRecurringEvents = (
           allDay: row.all_day ?? false,
           note: row.note ?? "",
           url: row.url ?? "",
+          prefecture: row.prefecture ?? "",
+          city: row.city ?? "",
           canDelete: meta.canDelete,
           isShared: meta.isShared,
           ownerId: row.user_id,
@@ -660,7 +683,7 @@ export default function Home() {
 
     let { data: myEvents, error: myError } = await supabase
         .from("events")
-        .select("id, title, start_at, end_at, user_id, note, url, all_day, category_id, event_visibility")
+        .select("id, title, start_at, end_at, user_id, note, url, prefecture, city, all_day, category_id, event_visibility")
         .eq("user_id", user.id);
 
     if (myError?.code === "42703") {
@@ -673,6 +696,8 @@ export default function Home() {
         ...event,
         note: null,
         url: null,
+        prefecture: null,
+        city: null,
         all_day: false,
         category_id: null,
         event_visibility: "private",
@@ -741,7 +766,7 @@ export default function Home() {
     if (sharedEventIds.length > 0) {
       let { data, error } = await supabase
         .from("events")
-        .select("id, title, start_at, end_at, user_id, note, url, all_day, category_id, event_visibility")
+        .select("id, title, start_at, end_at, user_id, note, url, prefecture, city, all_day, category_id, event_visibility")
         .in("id", sharedEventIds);
 
       if (error?.code === "42703") {
@@ -754,6 +779,8 @@ export default function Home() {
           ...event,
           note: null,
           url: null,
+          prefecture: null,
+          city: null,
           all_day: false,
           category_id: null,
           event_visibility: "together",
@@ -867,6 +894,8 @@ export default function Home() {
         allDay: event.all_day ?? false,
         note: event.note ?? "",
         url: event.url ?? "",
+        prefecture: event.prefecture ?? "",
+        city: event.city ?? "",
         canDelete: event.canDelete,
         isShared: event.isShared,
         ownerId: event.ownerId,
@@ -932,6 +961,8 @@ export default function Home() {
         allDay: detailEvent.allDay,
         note: detailEvent.note,
         url: detailEvent.url,
+        prefecture: detailEvent.prefecture,
+        city: detailEvent.city,
         categoryId: detailEvent.categoryId ?? "",
         selectedUserIds: detailEvent.sharedWith.map((user) => user.id),
         shareType: detailEvent.visibility === "private" ? "together" : detailEvent.visibility,
@@ -958,6 +989,15 @@ export default function Home() {
       .then((data) => {
         // eslint-disable-next-line react-hooks/set-state-in-effect
         setOgData(data);
+        // OGから場所を取得できたら、未入力の場合だけ自動補完
+        if (data.prefecture || data.city) {
+          // eslint-disable-next-line react-hooks/set-state-in-effect
+          setEditForm((current) => ({
+            ...current,
+            prefecture: current.prefecture || data.prefecture || "",
+            city: current.city || data.city || "",
+          }));
+        }
       })
       .catch(() => {
         // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -968,6 +1008,28 @@ export default function Home() {
         setOgLoading(false);
       });
   }, [detailEvent]);
+
+  // 新規作成フォーム: URLを入力したら場所(県・市)を自動取得して未入力欄を補完
+  useEffect(() => {
+    const url = eventForm.url.trim();
+    if (!url) return;
+    const normalized = /^https?:\/\//i.test(url) ? url : `https://${url}`;
+    const timer = window.setTimeout(() => {
+      fetch(`/api/og?url=${encodeURIComponent(normalized)}`)
+        .then((r) => (r.ok ? (r.json() as Promise<OgData>) : null))
+        .then((data) => {
+          if (!data || (!data.prefecture && !data.city)) return;
+          // eslint-disable-next-line react-hooks/set-state-in-effect
+          setEventForm((current) => ({
+            ...current,
+            prefecture: current.prefecture || data.prefecture || "",
+            city: current.city || data.city || "",
+          }));
+        })
+        .catch(() => {});
+    }, 800);
+    return () => window.clearTimeout(timer);
+  }, [eventForm.url]);
 
   useEffect(() => {
     if (typeof window === "undefined" || !("Notification" in window)) return;
@@ -1169,6 +1231,8 @@ export default function Home() {
       category_id: form.categoryId || null,
       note: form.note.trim() || null,
       url: form.url.trim() || null,
+      prefecture: form.prefecture.trim() || null,
+      city: form.city.trim() || null,
       event_visibility:
         form.selectedUserIds.length > 0 ? form.shareType : "private",
       user_id: user.id,
@@ -1181,7 +1245,7 @@ export default function Home() {
       .single();
 
     if (error?.code === "PGRST204" || error?.code === "42703") {
-      const { note, all_day, category_id, event_visibility, ...payloadWithoutNote } = eventPayload;
+      const { note, prefecture, city, all_day, category_id, event_visibility, ...payloadWithoutNote } = eventPayload;
       const fallback = await supabase
         .from("events")
         .insert(payloadWithoutNote)
@@ -1191,8 +1255,8 @@ export default function Home() {
       insertedEvent = fallback.data;
       error = fallback.error;
 
-      if (!fallback.error && (note || all_day || category_id || event_visibility !== "private")) {
-        show("DB列がまだ不足しています。SQL実行後はメモ・終日・分類も保存されます。", "error");
+      if (!fallback.error && (note || prefecture || city || all_day || category_id || event_visibility !== "private")) {
+        show("DB列がまだ不足しています。SQL実行後はメモ・場所・終日・分類も保存されます。", "error");
       }
     }
 
@@ -1256,6 +1320,8 @@ export default function Home() {
       category_id: editForm.categoryId || null,
       note: editForm.note.trim() || null,
       url: editForm.url.trim() || null,
+      prefecture: editForm.prefecture.trim() || null,
+      city: editForm.city.trim() || null,
       event_visibility: shareDraftIds.length > 0 ? editForm.shareType : "private",
     };
 
@@ -1302,7 +1368,7 @@ export default function Home() {
       .eq("id", detailEvent.id);
 
     if (error?.code === "PGRST204" || error?.code === "42703") {
-      const { note, all_day, category_id, event_visibility, ...fallbackPayload } = payload;
+      const { note, prefecture, city, all_day, category_id, event_visibility, ...fallbackPayload } = payload;
       const fallback = await supabase
         .from("events")
         .update(fallbackPayload)
@@ -1310,8 +1376,8 @@ export default function Home() {
 
       error = fallback.error;
 
-      if (!fallback.error && (note || all_day || category_id || event_visibility !== "private")) {
-        show("DB列がまだ不足しています。SQL実行後はメモ・終日・分類も保存されます。", "error");
+      if (!fallback.error && (note || prefecture || city || all_day || category_id || event_visibility !== "private")) {
+        show("DB列がまだ不足しています。SQL実行後はメモ・場所・終日・分類も保存されます。", "error");
       }
     }
 
@@ -2184,6 +2250,33 @@ export default function Home() {
                   placeholder="https://..."
                 />
               </label>
+              <label className="space-y-1">
+                <span className="text-xs font-semibold text-[#64748b]">都道府県（URLから自動取得・編集可）</span>
+                <select
+                  className="w-full rounded-lg border border-[#cbd5e1] bg-white p-3 text-sm outline-none transition focus:border-[#0f766e] focus:ring-2 focus:ring-[#99f6e4]"
+                  value={eventForm.prefecture}
+                  onChange={(event) =>
+                    setEventForm((current) => ({ ...current, prefecture: event.target.value }))
+                  }
+                >
+                  <option value="">選択しない</option>
+                  {PREFECTURES.map((pref) => (
+                    <option key={pref} value={pref}>{pref}</option>
+                  ))}
+                </select>
+              </label>
+              <label className="space-y-1">
+                <span className="text-xs font-semibold text-[#64748b]">市区町村</span>
+                <input
+                  type="text"
+                  className="w-full rounded-lg border border-[#cbd5e1] p-3 text-sm outline-none transition focus:border-[#0f766e] focus:ring-2 focus:ring-[#99f6e4]"
+                  value={eventForm.city}
+                  onChange={(event) =>
+                    setEventForm((current) => ({ ...current, city: event.target.value }))
+                  }
+                  placeholder="例: 渋谷区"
+                />
+              </label>
             </div>
 
             <div className="mt-5 space-y-2">
@@ -2392,6 +2485,33 @@ export default function Home() {
                     placeholder="https://..."
                   />
                 </label>
+                <label className="space-y-1">
+                  <span className="text-xs font-semibold text-[#64748b]">都道府県（URLから自動取得・編集可）</span>
+                  <select
+                    className="w-full rounded-lg border border-[#cbd5e1] bg-white p-3 text-sm outline-none transition focus:border-[#0f766e] focus:ring-2 focus:ring-[#99f6e4]"
+                    value={editForm.prefecture}
+                    onChange={(event) =>
+                      setEditForm((current) => ({ ...current, prefecture: event.target.value }))
+                    }
+                  >
+                    <option value="">選択しない</option>
+                    {PREFECTURES.map((pref) => (
+                      <option key={pref} value={pref}>{pref}</option>
+                    ))}
+                  </select>
+                </label>
+                <label className="space-y-1">
+                  <span className="text-xs font-semibold text-[#64748b]">市区町村</span>
+                  <input
+                    type="text"
+                    className="w-full rounded-lg border border-[#cbd5e1] p-3 text-sm outline-none transition focus:border-[#0f766e] focus:ring-2 focus:ring-[#99f6e4]"
+                    value={editForm.city}
+                    onChange={(event) =>
+                      setEditForm((current) => ({ ...current, city: event.target.value }))
+                    }
+                    placeholder="例: 渋谷区"
+                  />
+                </label>
               </div>
             ) : (
               <div className="space-y-4 text-sm">
@@ -2422,6 +2542,14 @@ export default function Home() {
                   <p className="text-xs font-semibold text-[#64748b]">分類</p>
                   <p className="mt-1 font-semibold text-[#0f172a]">{detailEvent.categoryName}</p>
                 </div>
+                {(detailEvent.prefecture || detailEvent.city) && (
+                  <div className="rounded-xl bg-[#f8fafc] p-3">
+                    <p className="text-xs font-semibold text-[#64748b]">場所</p>
+                    <p className="mt-1 font-semibold text-[#0f172a]">
+                      {[detailEvent.prefecture, detailEvent.city].filter(Boolean).join(" ")}
+                    </p>
+                  </div>
+                )}
                 <div className="rounded-xl bg-[#f8fafc] p-3">
                   <p className="text-xs font-semibold text-[#64748b]">メモ</p>
                   <p className="mt-1 whitespace-pre-wrap text-[#334155]">

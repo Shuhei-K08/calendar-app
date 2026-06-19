@@ -36,9 +36,9 @@ const PatternIcon = () => (
   </svg>
 );
 
-const TodoIcon = () => (
+const LinksIcon = () => (
   <svg className="nav-svg" viewBox="0 0 24 24" aria-hidden="true">
-    <path d="m5 12 3 3 5-6M5 6h14M14 12h5M14 18h5" />
+    <path d="M10 13a5 5 0 0 0 7 0l3-3a5 5 0 0 0-7-7l-1.5 1.5M14 11a5 5 0 0 0-7 0l-3 3a5 5 0 0 0 7 7l1.5-1.5" />
   </svg>
 );
 
@@ -65,7 +65,7 @@ const AdminIcon = () => (
 const items = [
   { href: "/", label: "予定", desktopLabel: "カレンダー", icon: <CalendarIcon /> },
   { href: "/patterns", label: "よく使う", desktopLabel: "よく使う予定", icon: <PatternIcon /> },
-  { href: "/todos", label: "TODO", desktopLabel: "TODO", icon: <TodoIcon /> },
+  { href: "/links", label: "リンク", desktopLabel: "リンク集", icon: <LinksIcon /> },
   { href: "/connect", label: "共有", desktopLabel: "つながる", icon: <ConnectIcon /> },
   { href: "/settings", label: "設定", desktopLabel: "設定", icon: <SettingsIcon /> },
 ];

@@ -489,7 +489,7 @@ export default function SettingsPage() {
               <div className="rounded-2xl border border-[#fecdd3] p-4">
                 <p className="text-sm font-bold text-[#be123c]">アカウント削除</p>
                 <p className="mt-1 text-xs leading-5 text-[#94a3b8]">
-                  予定・TODO・分類・共有情報が削除され、元に戻せません。
+                  予定・分類・共有情報が削除され、元に戻せません。
                 </p>
                 <button
                   className="mt-3 h-10 rounded-xl border border-[#fecdd3] px-4 text-sm font-semibold text-[#be123c] transition hover:bg-[#fff1f2]"
@@ -555,7 +555,7 @@ export default function SettingsPage() {
                   <label className="flex items-center justify-between gap-4 rounded-xl bg-white px-4 py-3">
                     <span>
                       <span className="block text-sm font-semibold text-[#334155]">ブラウザ通知</span>
-                      <span className="text-xs text-[#64748b]">共有予定・TODOのブラウザ通知</span>
+                      <span className="text-xs text-[#64748b]">共有予定のブラウザ通知</span>
                     </span>
                     <input className="h-5 w-5 accent-[#0f766e]" type="checkbox"
                       checked={settings.notificationsEnabled}
@@ -819,7 +819,8 @@ export default function SettingsPage() {
                 { emoji: "⚡", title: "よく使う予定", desc: "登録しておくと予定追加画面でワンタップ入力できます。" },
                 { emoji: "🔗", title: "予定を共有", desc: "「つながる」で接続後、予定ごとに共有する相手を選べます。" },
                 { emoji: "🎨", title: "色で見分ける", desc: "分類を作ると予定の左端に色が付き、種類をひと目で確認できます。" },
-                { emoji: "🔔", title: "通知", desc: "共有予定・TODOリマインダーをブラウザ通知で受け取れます。" },
+                { emoji: "🔗", title: "リンク集", desc: "予定に登録したURLをカテゴリー別に一覧でき、行ったお店を後から探せます。" },
+                { emoji: "🔔", title: "通知", desc: "共有予定をブラウザ通知で受け取れます。" },
                 { emoji: "🔄", title: "繰り返し予定", desc: "誕生日・週次予定はここで登録するとカレンダーに自動表示されます。" },
                 { emoji: "📱", title: "フィルター", desc: "カレンダー上部のフィルターで自分・相手・みんなの予定に絞れます。" },
               ].map(({ emoji, title, desc }) => (
@@ -867,7 +868,7 @@ export default function SettingsPage() {
             </div>
             <div className="mt-4 rounded-2xl border border-[#fecdd3] bg-[#fff1f2] p-4 text-sm leading-6 text-[#9f1239]">
               <p className="font-black">この操作は元に戻せません。</p>
-              <p className="mt-1">予定・TODO・分類・共有情報・プロフィールが削除されます。本人確認のため現在のパスワードを入力してください。</p>
+              <p className="mt-1">予定・分類・共有情報・プロフィールが削除されます。本人確認のため現在のパスワードを入力してください。</p>
             </div>
             <div className="mt-4 space-y-4">
               <label className="block space-y-2">

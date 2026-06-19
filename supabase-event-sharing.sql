@@ -24,6 +24,13 @@ create table if not exists public.schedule_categories (
 alter table public.events
   add column if not exists category_id uuid references public.schedule_categories(id) on delete set null;
 
+-- URL一覧（行った場所）用: 都道府県・市区町村
+alter table public.events
+  add column if not exists prefecture text;
+
+alter table public.events
+  add column if not exists city text;
+
 create table if not exists public.event_shares (
   id uuid primary key default gen_random_uuid(),
   event_id uuid not null references public.events(id) on delete cascade,
@@ -85,17 +92,6 @@ create table if not exists public.recurring_event_shares (
   unique (recurring_event_id, shared_with)
 );
 
-create table if not exists public.todos (
-  id uuid primary key default gen_random_uuid(),
-  user_id uuid not null references auth.users(id) on delete cascade,
-  title text not null,
-  memo text,
-  due_at timestamptz,
-  reminder_at timestamptz,
-  completed boolean not null default false,
-  created_at timestamptz not null default now()
-);
-
 create index if not exists event_shares_event_id_idx
   on public.event_shares(event_id);
 
@@ -108,8 +104,9 @@ create index if not exists schedule_patterns_user_id_idx
 create index if not exists schedule_categories_user_id_idx
   on public.schedule_categories(user_id);
 
-create index if not exists todos_user_id_idx
-  on public.todos(user_id);
+create index if not exists events_url_idx
+  on public.events(user_id)
+  where url is not null;
 
 create index if not exists recurring_events_user_id_idx
   on public.recurring_events(user_id);
@@ -234,7 +231,6 @@ alter table public.events enable row level security;
 alter table public.event_shares enable row level security;
 alter table public.schedule_patterns enable row level security;
 alter table public.schedule_categories enable row level security;
-alter table public.todos enable row level security;
 alter table public.recurring_events enable row level security;
 alter table public.recurring_event_shares enable row level security;
 alter table public.profiles enable row level security;
@@ -244,7 +240,6 @@ grant select, insert, update, delete on public.events to authenticated;
 grant select, insert, update, delete on public.event_shares to authenticated;
 grant select, insert, update, delete on public.schedule_patterns to authenticated;
 grant select, insert, update, delete on public.schedule_categories to authenticated;
-grant select, insert, update, delete on public.todos to authenticated;
 grant select, insert, update, delete on public.recurring_events to authenticated;
 grant select, insert, update, delete on public.recurring_event_shares to authenticated;
 grant select, insert, update, delete on public.connections to authenticated;
@@ -371,32 +366,6 @@ with check (user_id = auth.uid());
 
 create policy "users can delete own categories"
 on public.schedule_categories
-for delete
-using (user_id = auth.uid());
-
-drop policy if exists "users can view own todos" on public.todos;
-drop policy if exists "users can insert own todos" on public.todos;
-drop policy if exists "users can update own todos" on public.todos;
-drop policy if exists "users can delete own todos" on public.todos;
-
-create policy "users can view own todos"
-on public.todos
-for select
-using (user_id = auth.uid());
-
-create policy "users can insert own todos"
-on public.todos
-for insert
-with check (user_id = auth.uid());
-
-create policy "users can update own todos"
-on public.todos
-for update
-using (user_id = auth.uid())
-with check (user_id = auth.uid());
-
-create policy "users can delete own todos"
-on public.todos
 for delete
 using (user_id = auth.uid());
 
