@@ -24,12 +24,15 @@ create table if not exists public.schedule_categories (
 alter table public.events
   add column if not exists category_id uuid references public.schedule_categories(id) on delete set null;
 
--- URL一覧（行った場所）用: 都道府県・市区町村
+-- URL一覧（行った場所）用: 都道府県・市区町村・場所名
 alter table public.events
   add column if not exists prefecture text;
 
 alter table public.events
   add column if not exists city text;
+
+alter table public.events
+  add column if not exists place_name text;
 
 create table if not exists public.event_shares (
   id uuid primary key default gen_random_uuid(),

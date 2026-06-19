@@ -14,6 +14,7 @@ type DbLinkEvent = {
   note: string | null;
   prefecture?: string | null;
   city?: string | null;
+  place_name?: string | null;
   category_id: string | null;
   user_id: string;
   event_visibility?: string | null;
@@ -26,6 +27,7 @@ type LinkItem = {
   note: string | null;
   prefecture: string;
   city: string;
+  placeName: string;
   date: Date;
   ownerName: string | null; // null = 自分の予定
 };
@@ -41,10 +43,20 @@ type OgInfo = {
 type ToastItem = { id: number; msg: string; type: "success" | "error" | "info" };
 
 const FULL_COLS =
-  "id, title, start_at, url, note, prefecture, city, category_id, user_id, event_visibility";
+  "id, title, start_at, url, note, prefecture, city, place_name, category_id, user_id, event_visibility";
 const BASE_COLS = "id, title, start_at, url, note, category_id, user_id, event_visibility";
 
 const UNCATEGORIZED = "未設定";
+
+// 市区町村プルダウンの候補（東京23区＋政令指定都市など。これ以外は自由入力も可）
+const CITY_SUGGESTIONS = [
+  "千代田区", "中央区", "港区", "新宿区", "文京区", "台東区", "墨田区", "江東区",
+  "品川区", "目黒区", "大田区", "世田谷区", "渋谷区", "中野区", "杉並区", "豊島区",
+  "北区", "荒川区", "板橋区", "練馬区", "足立区", "葛飾区", "江戸川区",
+  "札幌市", "仙台市", "さいたま市", "千葉市", "横浜市", "川崎市", "相模原市",
+  "新潟市", "静岡市", "浜松市", "名古屋市", "京都市", "大阪市", "堺市", "神戸市",
+  "岡山市", "広島市", "北九州市", "福岡市", "熊本市",
+];
 
 // 47都道府県
 const PREFECTURES = [
@@ -75,6 +87,14 @@ const faviconOf = (url: string) => {
     : "";
 };
 
+// Googleマップ検索URL（店名＋県＋市で検索）
+const mapUrlOf = (parts: (string | undefined)[]) => {
+  const q = parts.filter(Boolean).join(" ").trim();
+  return q
+    ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(q)}`
+    : "";
+};
+
 // サイト名区切りや末尾の括弧情報を落として店名らしく整える
 const cleanStoreName = (raw: string) => {
   if (!raw) return "";
@@ -97,6 +117,7 @@ export default function LinksPage() {
 
   // 詳細パネル
   const [detailId, setDetailId] = useState<string | null>(null);
+  const [editName, setEditName] = useState("");
   const [editPref, setEditPref] = useState("");
   const [editCity, setEditCity] = useState("");
   const [savingLoc, setSavingLoc] = useState(false);
@@ -199,6 +220,7 @@ export default function LinksPage() {
         note: e.note,
         prefecture: e.prefecture ?? "",
         city: e.city ?? "",
+        placeName: e.place_name ?? "",
         date: new Date(e.start_at),
         ownerName: e.user_id === user.id ? null : ownerMap.get(e.user_id) ?? "共有相手",
       }))
@@ -318,7 +340,8 @@ export default function LinksPage() {
       const og = ogMap[normalizeUrl(it.url)];
       return {
         ...it,
-        storeName: (og?.storeName || it.eventTitle).trim(),
+        // 手入力した店名を最優先、無ければOG店名、最後に予定名
+        storeName: (it.placeName || og?.storeName || it.eventTitle).trim(),
         genre: og?.genre ?? UNCATEGORIZED,
         emoji: og?.emoji ?? "📌",
         // 保存済みの県市を優先、無ければOG推定を表示用に使う
@@ -338,6 +361,7 @@ export default function LinksPage() {
   const openDetail = (it: EnrichedItem) => {
     setDetailId(it.id);
     // 編集欄は「保存済み or 自動取得」の値で初期化（違っていれば直して保存）
+    setEditName(it.storeName);
     setEditPref(it.prefecture);
     setEditCity(it.city);
   };
@@ -352,15 +376,19 @@ export default function LinksPage() {
     setSavingLoc(true);
     const { error } = await supabase
       .from("events")
-      .update({ prefecture: editPref || null, city: editCity || null })
+      .update({
+        place_name: editName.trim() || null,
+        prefecture: editPref || null,
+        city: editCity.trim() || null,
+      })
       .eq("id", detail.id);
     setSavingLoc(false);
 
     if (error) {
       if (error.code === "42703" || error.code === "PGRST204") {
-        show("場所の保存にはSQL（prefecture/city列の追加）の実行が必要です。", "error");
+        show("保存にはSQL（place_name/prefecture/city列の追加）の実行が必要です。", "error");
       } else {
-        show("場所の保存に失敗しました", "error");
+        show("保存に失敗しました", "error");
       }
       return;
     }
@@ -368,10 +396,12 @@ export default function LinksPage() {
     // ローカル状態を更新
     setItems((prev) =>
       prev.map((x) =>
-        x.id === detail.id ? { ...x, prefecture: editPref, city: editCity } : x,
+        x.id === detail.id
+          ? { ...x, placeName: editName.trim(), prefecture: editPref, city: editCity.trim() }
+          : x,
       ),
     );
-    show("場所を保存しました", "success");
+    show("保存しました", "success");
   };
 
   const genres = useMemo(() => {
@@ -394,6 +424,15 @@ export default function LinksPage() {
     const set = new Set<string>();
     enriched.forEach((it) => {
       if (it.prefecture) set.add(it.prefecture);
+    });
+    return Array.from(set);
+  }, [enriched]);
+
+  // 市区町村プルダウンの候補（既に使った市区町村＋定番候補）
+  const cityOptions = useMemo(() => {
+    const set = new Set<string>(CITY_SUGGESTIONS);
+    enriched.forEach((it) => {
+      if (it.city) set.add(it.city);
     });
     return Array.from(set);
   }, [enriched]);
@@ -624,18 +663,22 @@ export default function LinksPage() {
               <p className="mt-2 whitespace-pre-wrap text-sm text-[var(--fg-muted)]">{detail.note}</p>
             )}
 
-            {/* 場所の追加・編集 */}
+            {/* 店名・場所の追加・編集 */}
             <div className="mt-4 rounded-xl border border-[var(--border)] bg-[var(--surface-alt)] p-3">
-              <p className="text-xs font-bold text-[var(--fg-muted)]">場所（URLから自動取得・違っていれば修正できます）</p>
+              <p className="text-xs font-bold text-[var(--fg-muted)]">店名・場所（URLから自動取得・違っていれば修正できます）</p>
               {detail.ownerName ? (
                 <p className="mt-2 text-sm text-[var(--fg)]">
-                  {detail.prefecture || detail.city
-                    ? [detail.prefecture, detail.city].filter(Boolean).join(" ")
-                    : "未登録"}
+                  {[detail.prefecture, detail.city].filter(Boolean).join(" ") || "場所未登録"}
                   <span className="ml-1 text-xs text-[var(--fg-muted)]">（共有相手の予定のため編集不可）</span>
                 </p>
               ) : (
                 <>
+                  <input
+                    className="field-input mt-2 w-full"
+                    placeholder="店名・場所の名前"
+                    value={editName}
+                    onChange={(e) => setEditName(e.target.value)}
+                  />
                   <div className="mt-2 grid grid-cols-2 gap-2">
                     <select
                       className="field-input"
@@ -649,10 +692,16 @@ export default function LinksPage() {
                     </select>
                     <input
                       className="field-input"
-                      placeholder="市区町村（例: 渋谷区）"
+                      list="city-suggestions"
+                      placeholder="市区町村を選択／入力"
                       value={editCity}
                       onChange={(e) => setEditCity(e.target.value)}
                     />
+                    <datalist id="city-suggestions">
+                      {cityOptions.map((c) => (
+                        <option key={c} value={c} />
+                      ))}
+                    </datalist>
                   </div>
                   <button
                     type="button"
@@ -660,22 +709,34 @@ export default function LinksPage() {
                     disabled={savingLoc}
                     onClick={saveLocation}
                   >
-                    {savingLoc ? "保存中…" : "場所を保存"}
+                    {savingLoc ? "保存中…" : "保存"}
                   </button>
                 </>
               )}
             </div>
 
-            <div className="mt-5 flex justify-between gap-2">
+            <div className="mt-5 flex flex-wrap justify-between gap-2">
               <button className="btn btn-soft" onClick={closeDetail}>閉じる</button>
-              <a
-                className="btn btn-primary"
-                href={normalizeUrl(detail.url)}
-                target="_blank"
-                rel="noopener noreferrer"
-              >
-                URLを開く ↗
-              </a>
+              <div className="flex gap-2">
+                {mapUrlOf([detail.storeName, detail.prefecture, detail.city]) && (
+                  <a
+                    className="btn btn-soft"
+                    href={mapUrlOf([detail.storeName, detail.prefecture, detail.city])}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    🗺️ 地図
+                  </a>
+                )}
+                <a
+                  className="btn btn-primary"
+                  href={normalizeUrl(detail.url)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  URLを開く ↗
+                </a>
+              </div>
             </div>
           </div>
         </div>

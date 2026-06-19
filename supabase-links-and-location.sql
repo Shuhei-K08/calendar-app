@@ -8,11 +8,15 @@ drop table if exists public.todos cascade;
 
 -- 2) 予定に「場所」情報を追加 -------------------------------------------
 -- prefecture: 都道府県（例: 東京都）, city: 市区町村（例: 渋谷区）
+-- place_name: お店・場所の名前（リンク集で編集可能。未設定ならURLから自動取得した店名を表示）
 alter table public.events
   add column if not exists prefecture text;
 
 alter table public.events
   add column if not exists city text;
+
+alter table public.events
+  add column if not exists place_name text;
 
 -- URL一覧の検索・絞り込みを速くするための索引
 create index if not exists events_url_idx
