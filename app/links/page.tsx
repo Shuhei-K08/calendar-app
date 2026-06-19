@@ -93,6 +93,7 @@ export default function LinksPage() {
   const [activePrefecture, setActivePrefecture] = useState<string>("all");
   const [toasts, setToasts] = useState<ToastItem[]>([]);
   const ogCache = useRef<Record<string, OgInfo>>({});
+  const autoSaveTried = useRef<Set<string>>(new Set());
 
   // 詳細パネル
   const [detailId, setDetailId] = useState<string | null>(null);
@@ -264,6 +265,53 @@ export default function LinksPage() {
     };
   }, [items]);
 
+  // 自分の予定で場所が未登録のものは、OGから取得できた県・市を自動保存
+  useEffect(() => {
+    const targets = items
+      .filter(
+        (it) =>
+          it.ownerName === null &&
+          !it.prefecture &&
+          !it.city &&
+          !autoSaveTried.current.has(it.id),
+      )
+      .map((it) => ({ it, og: ogMap[normalizeUrl(it.url)] }))
+      .filter(({ og }) => og && (og.prefecture || og.city));
+
+    if (targets.length === 0) return;
+    // 一度試したものは再試行しない（列が無い等の無限ループ防止）
+    targets.forEach(({ it }) => autoSaveTried.current.add(it.id));
+
+    let cancelled = false;
+    void (async () => {
+      const saved: { id: string; prefecture: string; city: string }[] = [];
+      for (const { it, og } of targets) {
+        const { error } = await supabase
+          .from("events")
+          .update({ prefecture: og.prefecture || null, city: og.city || null })
+          .eq("id", it.id);
+        if (error) {
+          // prefecture/city列が無い環境では以降の保存も無駄なので中断
+          if (error.code === "42703" || error.code === "PGRST204") break;
+          continue;
+        }
+        saved.push({ id: it.id, prefecture: og.prefecture, city: og.city });
+      }
+      if (cancelled || saved.length === 0) return;
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setItems((prev) =>
+        prev.map((x) => {
+          const s = saved.find((ss) => ss.id === x.id);
+          return s ? { ...x, prefecture: s.prefecture, city: s.city } : x;
+        }),
+      );
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [ogMap, items]);
+
   // 表示用に店名・ジャンル・場所を合成
   const enriched = useMemo(() => {
     return items.map((it) => {
@@ -289,10 +337,9 @@ export default function LinksPage() {
 
   const openDetail = (it: EnrichedItem) => {
     setDetailId(it.id);
-    // 編集欄は保存済みの値（OG推定ではなく実データ）で初期化
-    const raw = items.find((x) => x.id === it.id);
-    setEditPref(raw?.prefecture ?? "");
-    setEditCity(raw?.city ?? "");
+    // 編集欄は「保存済み or 自動取得」の値で初期化（違っていれば直して保存）
+    setEditPref(it.prefecture);
+    setEditCity(it.city);
   };
 
   const closeDetail = () => {
@@ -579,7 +626,7 @@ export default function LinksPage() {
 
             {/* 場所の追加・編集 */}
             <div className="mt-4 rounded-xl border border-[var(--border)] bg-[var(--surface-alt)] p-3">
-              <p className="text-xs font-bold text-[var(--fg-muted)]">場所（あとから登録できます）</p>
+              <p className="text-xs font-bold text-[var(--fg-muted)]">場所（URLから自動取得・違っていれば修正できます）</p>
               {detail.ownerName ? (
                 <p className="mt-2 text-sm text-[var(--fg)]">
                   {detail.prefecture || detail.city
