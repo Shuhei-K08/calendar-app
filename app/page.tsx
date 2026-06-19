@@ -1245,19 +1245,23 @@ export default function Home() {
       .single();
 
     if (error?.code === "PGRST204" || error?.code === "42703") {
-      const { note, prefecture, city, all_day, category_id, event_visibility, ...payloadWithoutNote } = eventPayload;
-      const fallback = await supabase
-        .from("events")
-        .insert(payloadWithoutNote)
-        .select()
-        .single();
+      // まず新しい列(prefecture/city)だけ外して再試行（分類・メモ等は維持）
+      const { prefecture, city, ...withoutLocation } = eventPayload;
+      let retry = await supabase.from("events").insert(withoutLocation).select().single();
 
-      insertedEvent = fallback.data;
-      error = fallback.error;
-
-      if (!fallback.error && (note || prefecture || city || all_day || category_id || event_visibility !== "private")) {
-        show("DB列がまだ不足しています。SQL実行後はメモ・場所・終日・分類も保存されます。", "error");
+      if (retry.error?.code === "PGRST204" || retry.error?.code === "42703") {
+        // さらに古いDB向け: メモ・終日・分類等も外す
+        const { note, all_day, category_id, event_visibility, ...minimal } = withoutLocation;
+        retry = await supabase.from("events").insert(minimal).select().single();
+        if (!retry.error && (note || all_day || category_id || event_visibility !== "private")) {
+          show("DB列がまだ不足しています。SQL実行後はメモ・終日・分類も保存されます。", "error");
+        }
+      } else if (!retry.error && (prefecture || city)) {
+        show("場所を保存するにはSQL（prefecture/city列の追加）を実行してください。", "error");
       }
+
+      insertedEvent = retry.data;
+      error = retry.error;
     }
 
     if (error || !insertedEvent) {
@@ -1368,17 +1372,22 @@ export default function Home() {
       .eq("id", detailEvent.id);
 
     if (error?.code === "PGRST204" || error?.code === "42703") {
-      const { note, prefecture, city, all_day, category_id, event_visibility, ...fallbackPayload } = payload;
-      const fallback = await supabase
-        .from("events")
-        .update(fallbackPayload)
-        .eq("id", detailEvent.id);
+      // まず新しい列(prefecture/city)だけ外して再試行（分類・メモ等は維持）
+      const { prefecture, city, ...withoutLocation } = payload;
+      let retry = await supabase.from("events").update(withoutLocation).eq("id", detailEvent.id);
 
-      error = fallback.error;
-
-      if (!fallback.error && (note || prefecture || city || all_day || category_id || event_visibility !== "private")) {
-        show("DB列がまだ不足しています。SQL実行後はメモ・場所・終日・分類も保存されます。", "error");
+      if (retry.error?.code === "PGRST204" || retry.error?.code === "42703") {
+        // さらに古いDB向け: メモ・終日・分類等も外す
+        const { note, all_day, category_id, event_visibility, ...minimal } = withoutLocation;
+        retry = await supabase.from("events").update(minimal).eq("id", detailEvent.id);
+        if (!retry.error && (note || all_day || category_id || event_visibility !== "private")) {
+          show("DB列がまだ不足しています。SQL実行後はメモ・終日・分類も保存されます。", "error");
+        }
+      } else if (!retry.error && (prefecture || city)) {
+        show("場所を保存するにはSQL（prefecture/city列の追加）を実行してください。", "error");
       }
+
+      error = retry.error;
     }
 
     if (error) {

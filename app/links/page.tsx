@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { format } from "date-fns";
 import { ja } from "date-fns/locale/ja";
 import { supabase } from "@/lib/supabase";
@@ -21,16 +21,21 @@ type DbLinkEvent = {
 
 type LinkItem = {
   id: string;
-  title: string;
+  eventTitle: string;
   url: string;
   note: string | null;
   prefecture: string;
   city: string;
   date: Date;
-  categoryId: string | null;
-  categoryName: string;
-  categoryColor: string | null;
   ownerName: string | null; // null = 自分の予定
+};
+
+type OgInfo = {
+  storeName: string;
+  genre: string;
+  emoji: string;
+  prefecture: string;
+  city: string;
 };
 
 type ToastItem = { id: number; msg: string; type: "success" | "error" | "info" };
@@ -38,6 +43,8 @@ type ToastItem = { id: number; msg: string; type: "success" | "error" | "info" }
 const FULL_COLS =
   "id, title, start_at, url, note, prefecture, city, category_id, user_id, event_visibility";
 const BASE_COLS = "id, title, start_at, url, note, category_id, user_id, event_visibility";
+
+const UNCATEGORIZED = "未設定";
 
 const normalizeUrl = (url: string) =>
   /^https?:\/\//i.test(url) ? url : `https://${url}`;
@@ -57,13 +64,26 @@ const faviconOf = (url: string) => {
     : "";
 };
 
+// 食べログ等のタイトルから余計なサイト名・キャッチを落として店名らしく整える
+const cleanStoreName = (raw: string) => {
+  if (!raw) return "";
+  // 「店名 | 食べログ」「店名 - ぐるなび」などサイト名区切りで分割（スペース付き記号のみ）
+  let s = raw.split(/\s*[|｜]\s*|\s+[-–—:：/]\s+/)[0].trim();
+  // 「（渋谷/カフェ）」のような末尾の括弧情報を除去
+  s = s.replace(/[（(【\[][^（()）【】\[\]]*[）)】\]]\s*$/g, "").trim();
+  return s || raw.trim();
+};
+
 export default function LinksPage() {
   const [items, setItems] = useState<LinkItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [ogMap, setOgMap] = useState<Record<string, OgInfo>>({});
+  const [ogLoading, setOgLoading] = useState(false);
   const [query, setQuery] = useState("");
-  const [activeCategory, setActiveCategory] = useState<string>("all");
+  const [activeGenre, setActiveGenre] = useState<string>("all");
   const [activePrefecture, setActivePrefecture] = useState<string>("all");
   const [toasts, setToasts] = useState<ToastItem[]>([]);
+  const ogCache = useRef<Record<string, OgInfo>>({});
 
   const show = useCallback((msg: string, type: ToastItem["type"] = "info") => {
     const id = Date.now() + Math.random();
@@ -141,19 +161,6 @@ export default function LinksPage() {
     const seen = new Set(ownEvents.map((e) => e.id));
     const merged = [...ownEvents, ...sharedEvents.filter((e) => !seen.has(e.id))];
 
-    // カテゴリー名・色を解決
-    const categoryIds = Array.from(
-      new Set(merged.map((e) => e.category_id).filter(Boolean)),
-    ) as string[];
-    const categoryMap = new Map<string, { name: string; color: string }>();
-    if (categoryIds.length > 0) {
-      const { data: cats } = await supabase
-        .from("schedule_categories")
-        .select("id, name, color")
-        .in("id", categoryIds);
-      (cats ?? []).forEach((c) => categoryMap.set(c.id, { name: c.name, color: c.color }));
-    }
-
     // 共有者(オーナー)名を解決
     const ownerIds = Array.from(
       new Set(merged.filter((e) => e.user_id !== user.id).map((e) => e.user_id)),
@@ -171,17 +178,12 @@ export default function LinksPage() {
       .filter((e) => e.url && e.url.trim())
       .map((e) => ({
         id: e.id,
-        title: e.title,
+        eventTitle: e.title,
         url: e.url as string,
         note: e.note,
         prefecture: e.prefecture ?? "",
         city: e.city ?? "",
         date: new Date(e.start_at),
-        categoryId: e.category_id,
-        categoryName: e.category_id
-          ? categoryMap.get(e.category_id)?.name ?? "分類"
-          : "未分類",
-        categoryColor: e.category_id ? categoryMap.get(e.category_id)?.color ?? null : null,
         ownerName: e.user_id === user.id ? null : ownerMap.get(e.user_id) ?? "共有相手",
       }))
       .sort((a, b) => b.date.getTime() - a.date.getTime());
@@ -197,51 +199,130 @@ export default function LinksPage() {
     void fetchLinks();
   }, [fetchLinks]);
 
-  const categories = useMemo(() => {
-    const map = new Map<string, { name: string; color: string | null; count: number }>();
-    items.forEach((it) => {
-      const key = it.categoryName;
-      const cur = map.get(key);
-      if (cur) cur.count += 1;
-      else map.set(key, { name: it.categoryName, color: it.categoryColor, count: 1 });
-    });
-    return Array.from(map.values()).sort((a, b) => b.count - a.count);
+  // 各URLの店名・ジャンルをOGから取得
+  useEffect(() => {
+    if (items.length === 0) return;
+    const urls = Array.from(new Set(items.map((it) => normalizeUrl(it.url))));
+    const todo = urls.filter((u) => !ogCache.current[u]);
+    if (todo.length === 0) return;
+
+    let cancelled = false;
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setOgLoading(true);
+
+    void (async () => {
+      await Promise.all(
+        todo.map(async (u) => {
+          try {
+            const r = await fetch(`/api/og?url=${encodeURIComponent(u)}`);
+            if (!r.ok) throw new Error();
+            const d = await r.json();
+            const sub = (d.subs ?? [])[0];
+            const main = d.main;
+            ogCache.current[u] = {
+              storeName: cleanStoreName(d.title || d.siteName || ""),
+              genre: sub?.label ?? main?.label ?? UNCATEGORIZED,
+              emoji: sub?.emoji ?? main?.emoji ?? "📌",
+              prefecture: d.prefecture ?? "",
+              city: d.city ?? "",
+            };
+          } catch {
+            ogCache.current[u] = {
+              storeName: "",
+              genre: UNCATEGORIZED,
+              emoji: "📌",
+              prefecture: "",
+              city: "",
+            };
+          }
+        }),
+      );
+      if (cancelled) return;
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setOgMap({ ...ogCache.current });
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setOgLoading(false);
+    })();
+
+    return () => {
+      cancelled = true;
+    };
   }, [items]);
+
+  // 表示用に店名・ジャンル・場所を合成
+  const enriched = useMemo(() => {
+    return items.map((it) => {
+      const og = ogMap[normalizeUrl(it.url)];
+      return {
+        ...it,
+        storeName: (og?.storeName || it.eventTitle).trim(),
+        genre: og?.genre ?? UNCATEGORIZED,
+        emoji: og?.emoji ?? "📌",
+        prefecture: it.prefecture || og?.prefecture || "",
+        city: it.city || og?.city || "",
+      };
+    });
+  }, [items, ogMap]);
+
+  type EnrichedItem = (typeof enriched)[number];
+
+  const genres = useMemo(() => {
+    const map = new Map<string, { emoji: string; count: number }>();
+    enriched.forEach((it) => {
+      const cur = map.get(it.genre);
+      if (cur) cur.count += 1;
+      else map.set(it.genre, { emoji: it.emoji, count: 1 });
+    });
+    // 件数順、ただし「未設定」は最後
+    return Array.from(map.entries())
+      .map(([genre, v]) => ({ genre, ...v }))
+      .sort((a, b) => {
+        if (a.genre === UNCATEGORIZED) return 1;
+        if (b.genre === UNCATEGORIZED) return -1;
+        return b.count - a.count;
+      });
+  }, [enriched]);
 
   const prefectures = useMemo(() => {
     const set = new Set<string>();
-    items.forEach((it) => {
+    enriched.forEach((it) => {
       if (it.prefecture) set.add(it.prefecture);
     });
     return Array.from(set);
-  }, [items]);
+  }, [enriched]);
 
   const visible = useMemo(() => {
     const q = query.trim().toLowerCase();
-    return items.filter((it) => {
-      if (activeCategory !== "all" && it.categoryName !== activeCategory) return false;
+    return enriched.filter((it) => {
+      if (activeGenre !== "all" && it.genre !== activeGenre) return false;
       if (activePrefecture !== "all" && it.prefecture !== activePrefecture) return false;
       if (!q) return true;
       return (
-        it.title.toLowerCase().includes(q) ||
+        it.storeName.toLowerCase().includes(q) ||
+        it.eventTitle.toLowerCase().includes(q) ||
         it.url.toLowerCase().includes(q) ||
         (it.note ?? "").toLowerCase().includes(q) ||
         it.prefecture.toLowerCase().includes(q) ||
         it.city.toLowerCase().includes(q) ||
+        it.genre.toLowerCase().includes(q) ||
         hostOf(it.url).toLowerCase().includes(q)
       );
     });
-  }, [items, query, activeCategory, activePrefecture]);
+  }, [enriched, query, activeGenre, activePrefecture]);
 
-  // カテゴリーごとにグループ化
+  // ジャンルごとにグループ化
   const grouped = useMemo(() => {
-    const map = new Map<string, { color: string | null; items: LinkItem[] }>();
+    const map = new Map<string, { emoji: string; items: EnrichedItem[] }>();
     visible.forEach((it) => {
-      const g = map.get(it.categoryName);
+      const g = map.get(it.genre);
       if (g) g.items.push(it);
-      else map.set(it.categoryName, { color: it.categoryColor, items: [it] });
+      else map.set(it.genre, { emoji: it.emoji, items: [it] });
     });
-    return Array.from(map.entries()).sort((a, b) => b[1].items.length - a[1].items.length);
+    return Array.from(map.entries()).sort((a, b) => {
+      if (a[0] === UNCATEGORIZED) return 1;
+      if (b[0] === UNCATEGORIZED) return -1;
+      return b[1].items.length - a[1].items.length;
+    });
   }, [visible]);
 
   return (
@@ -265,7 +346,7 @@ export default function LinksPage() {
         </header>
 
         <p className="text-sm text-[var(--fg-muted)]">
-          予定に登録したURLを、カテゴリー別にまとめています。「前に行ったカフェどこだっけ？」をここで探せます。
+          予定に登録したURLを、お店のジャンル別にまとめています。「前に行ったカフェどこだっけ？」をここで探せます。
         </p>
 
         {/* 検索 */}
@@ -277,7 +358,7 @@ export default function LinksPage() {
             </svg>
             <input
               className="h-full flex-1 bg-transparent text-sm outline-none placeholder:text-[var(--fg-muted)]"
-              placeholder="店名・URL・地名・メモで検索（例: カフェ）"
+              placeholder="店名・ジャンル・地名・URLで検索（例: カフェ）"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
             />
@@ -288,28 +369,22 @@ export default function LinksPage() {
             )}
           </div>
 
-          {/* カテゴリー絞り込み */}
-          {categories.length > 0 && (
+          {/* ジャンル絞り込み */}
+          {genres.length > 0 && (
             <div className="mt-3 flex flex-wrap gap-2">
               <button
-                className={`chip ${activeCategory === "all" ? "chip-active" : ""}`}
-                onClick={() => setActiveCategory("all")}
+                className={`chip ${activeGenre === "all" ? "chip-active" : ""}`}
+                onClick={() => setActiveGenre("all")}
               >
-                すべて（{items.length}）
+                すべて（{enriched.length}）
               </button>
-              {categories.map((c) => (
+              {genres.map((g) => (
                 <button
-                  key={c.name}
-                  className={`chip ${activeCategory === c.name ? "chip-active" : ""}`}
-                  onClick={() => setActiveCategory(c.name)}
+                  key={g.genre}
+                  className={`chip ${activeGenre === g.genre ? "chip-active" : ""}`}
+                  onClick={() => setActiveGenre(g.genre)}
                 >
-                  {c.color && (
-                    <span
-                      className="mr-1 inline-block h-2 w-2 rounded-full align-middle"
-                      style={{ backgroundColor: c.color }}
-                    />
-                  )}
-                  {c.name}（{c.count}）
+                  {g.emoji} {g.genre}（{g.count}）
                 </button>
               ))}
             </div>
@@ -335,6 +410,9 @@ export default function LinksPage() {
               ))}
             </div>
           )}
+          {ogLoading && (
+            <p className="mt-2 text-xs text-[var(--fg-muted)]">店名・ジャンルを取得中…</p>
+          )}
         </section>
 
         {/* 一覧 */}
@@ -351,14 +429,11 @@ export default function LinksPage() {
             </p>
           </div>
         ) : (
-          grouped.map(([categoryName, group]) => (
-            <section key={categoryName} className="glass-card p-4">
+          grouped.map(([genre, group]) => (
+            <section key={genre} className="glass-card p-4">
               <div className="mb-3 flex items-center gap-2">
-                <span
-                  className="inline-block h-3 w-3 rounded-full"
-                  style={{ backgroundColor: group.color ?? "var(--border-strong)" }}
-                />
-                <h2 className="text-base font-black text-[var(--fg-strong)]">{categoryName}</h2>
+                <span className="text-lg">{group.emoji}</span>
+                <h2 className="text-base font-black text-[var(--fg-strong)]">{genre}</h2>
                 <span className="badge badge-slate">{group.items.length}</span>
               </div>
               <div className="grid gap-3 sm:grid-cols-2">
@@ -379,7 +454,7 @@ export default function LinksPage() {
                       )}
                     </div>
                     <div className="min-w-0 flex-1">
-                      <p className="truncate font-bold text-[var(--fg-strong)]">{it.title}</p>
+                      <p className="truncate font-bold text-[var(--fg-strong)]">{it.storeName}</p>
                       <p className="truncate text-xs text-[var(--fg-muted)]">{hostOf(it.url)}</p>
                       <div className="mt-2 flex flex-wrap items-center gap-1.5">
                         <span className="badge badge-slate">
