@@ -18,6 +18,13 @@ alter table public.events
 alter table public.events
   add column if not exists place_name text;
 
+-- 地図表示用の緯度・経度（ジオコーディング結果のキャッシュ）
+alter table public.events
+  add column if not exists lat double precision;
+
+alter table public.events
+  add column if not exists lng double precision;
+
 -- URL一覧の検索・絞り込みを速くするための索引
 create index if not exists events_url_idx
   on public.events(user_id)

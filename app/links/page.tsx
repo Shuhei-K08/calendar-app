@@ -5,6 +5,7 @@ import { format } from "date-fns";
 import { ja } from "date-fns/locale/ja";
 import { supabase } from "@/lib/supabase";
 import { DesktopNavigation, MobileNavigation, ShareCalLogo } from "@/app/components/AppNavigation";
+import LinksMap, { type MapPoint } from "./LinksMap";
 
 type DbLinkEvent = {
   id: string;
@@ -15,6 +16,8 @@ type DbLinkEvent = {
   prefecture?: string | null;
   city?: string | null;
   place_name?: string | null;
+  lat?: number | null;
+  lng?: number | null;
   category_id: string | null;
   user_id: string;
   event_visibility?: string | null;
@@ -28,6 +31,8 @@ type LinkItem = {
   prefecture: string;
   city: string;
   placeName: string;
+  lat: number | null;
+  lng: number | null;
   date: Date;
   ownerName: string | null; // null = 自分の予定
 };
@@ -43,7 +48,7 @@ type OgInfo = {
 type ToastItem = { id: number; msg: string; type: "success" | "error" | "info" };
 
 const FULL_COLS =
-  "id, title, start_at, url, note, prefecture, city, place_name, category_id, user_id, event_visibility";
+  "id, title, start_at, url, note, prefecture, city, place_name, lat, lng, category_id, user_id, event_visibility";
 const BASE_COLS = "id, title, start_at, url, note, category_id, user_id, event_visibility";
 
 const UNCATEGORIZED = "未設定";
@@ -95,6 +100,56 @@ const mapUrlOf = (parts: (string | undefined)[]) => {
     : "";
 };
 
+// GoogleマップなどのURLに含まれる座標を抽出（あれば即座にピン化できる）
+const parseLatLngFromUrl = (url: string): { lat: number; lng: number } | null => {
+  const patterns = [
+    /@(-?\d+\.\d+),(-?\d+\.\d+)/, // /@35.65,139.70
+    /!3d(-?\d+\.\d+)!4d(-?\d+\.\d+)/, // !3d35.65!4d139.70
+    /[?&](?:q|ll|center|destination)=(-?\d+\.\d+),(-?\d+\.\d+)/, // q=35.65,139.70
+  ];
+  for (const re of patterns) {
+    const m = url.match(re);
+    if (m) {
+      const lat = parseFloat(m[1]);
+      const lng = parseFloat(m[2]);
+      if (Number.isFinite(lat) && Number.isFinite(lng)) return { lat, lng };
+    }
+  }
+  return null;
+};
+
+// ジャンルごとのピン色（固定パレットからハッシュで割り当て）
+const PIN_COLORS = [
+  "#ef4444", "#f97316", "#f59e0b", "#10b981", "#06b6d4",
+  "#3b82f6", "#8b5cf6", "#ec4899", "#14b8a6", "#84cc16",
+];
+const genreColor = (genre: string) => {
+  let h = 0;
+  for (let i = 0; i < genre.length; i++) h = (h * 31 + genre.charCodeAt(i)) >>> 0;
+  return PIN_COLORS[h % PIN_COLORS.length];
+};
+
+// Nominatim(OpenStreetMap)でジオコーディング。利用ポリシーに配慮し1件ずつ呼ぶ。
+const geocode = async (query: string): Promise<{ lat: number; lng: number } | null> => {
+  try {
+    const r = await fetch(
+      `https://nominatim.openstreetmap.org/search?format=json&limit=1&accept-language=ja&countrycodes=jp&q=${encodeURIComponent(query)}`,
+    );
+    if (!r.ok) return null;
+    const data = await r.json();
+    if (Array.isArray(data) && data[0]) {
+      const lat = parseFloat(data[0].lat);
+      const lng = parseFloat(data[0].lon);
+      if (Number.isFinite(lat) && Number.isFinite(lng)) return { lat, lng };
+    }
+  } catch {
+    /* ignore */
+  }
+  return null;
+};
+
+const sleep = (ms: number) => new Promise((res) => setTimeout(res, ms));
+
 // サイト名区切りや末尾の括弧情報を落として店名らしく整える
 const cleanStoreName = (raw: string) => {
   if (!raw) return "";
@@ -114,6 +169,13 @@ export default function LinksPage() {
   const [toasts, setToasts] = useState<ToastItem[]>([]);
   const ogCache = useRef<Record<string, OgInfo>>({});
   const autoSaveTried = useRef<Set<string>>(new Set());
+
+  // 地図
+  const [showMap, setShowMap] = useState(false);
+  const [coords, setCoords] = useState<Record<string, { lat: number; lng: number }>>({});
+  const [geocoding, setGeocoding] = useState(false);
+  const [geocodeProgress, setGeocodeProgress] = useState({ done: 0, total: 0 });
+  const geocodeTried = useRef<Set<string>>(new Set());
 
   // 詳細パネル
   const [detailId, setDetailId] = useState<string | null>(null);
@@ -221,6 +283,8 @@ export default function LinksPage() {
         prefecture: e.prefecture ?? "",
         city: e.city ?? "",
         placeName: e.place_name ?? "",
+        lat: typeof e.lat === "number" ? e.lat : null,
+        lng: typeof e.lng === "number" ? e.lng : null,
         date: new Date(e.start_at),
         ownerName: e.user_id === user.id ? null : ownerMap.get(e.user_id) ?? "共有相手",
       }))
@@ -333,6 +397,75 @@ export default function LinksPage() {
       cancelled = true;
     };
   }, [ogMap, items]);
+
+  // 保存済み座標・URL内座標を coords に取り込む
+  useEffect(() => {
+    if (items.length === 0) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setCoords((prev) => {
+      const next = { ...prev };
+      let changed = false;
+      items.forEach((it) => {
+        if (next[it.id]) return;
+        if (typeof it.lat === "number" && typeof it.lng === "number") {
+          next[it.id] = { lat: it.lat, lng: it.lng };
+          changed = true;
+        } else {
+          const fromUrl = parseLatLngFromUrl(normalizeUrl(it.url));
+          if (fromUrl) {
+            next[it.id] = fromUrl;
+            changed = true;
+          }
+        }
+      });
+      return changed ? next : prev;
+    });
+  }, [items]);
+
+  // 未取得の店をジオコーディング（地図を開いたときに実行）
+  const geocodeMissing = useCallback(async () => {
+    const targets = items.filter(
+      (it) => !coords[it.id] && !geocodeTried.current.has(it.id),
+    );
+    if (targets.length === 0) return;
+    targets.forEach((it) => geocodeTried.current.add(it.id));
+
+    setGeocoding(true);
+    setGeocodeProgress({ done: 0, total: targets.length });
+
+    for (let i = 0; i < targets.length; i++) {
+      const it = targets[i];
+      const og = ogMap[normalizeUrl(it.url)];
+      const name = (it.placeName || og?.storeName || it.eventTitle).trim();
+      const area = [it.prefecture || og?.prefecture, it.city || og?.city]
+        .filter(Boolean)
+        .join(" ");
+      const query = [name, area].filter(Boolean).join(" ").trim();
+      if (query) {
+        const result = await geocode(query);
+        if (result) {
+          setCoords((prev) => ({ ...prev, [it.id]: result }));
+          // 自分の予定なら座標をDBへキャッシュ
+          if (it.ownerName === null) {
+            await supabase
+              .from("events")
+              .update({ lat: result.lat, lng: result.lng })
+              .eq("id", it.id);
+          }
+        }
+      }
+      setGeocodeProgress({ done: i + 1, total: targets.length });
+      // Nominatim利用ポリシー: 1秒に1リクエストまで
+      if (i < targets.length - 1) await sleep(1100);
+    }
+
+    setGeocoding(false);
+  }, [items, coords, ogMap]);
+
+  const openMap = () => {
+    setShowMap(true);
+    void geocodeMissing();
+  };
 
   // 表示用に店名・ジャンル・場所を合成
   const enriched = useMemo(() => {
@@ -456,6 +589,26 @@ export default function LinksPage() {
     });
   }, [enriched, query, activeGenre, activePrefecture]);
 
+  // 地図のピン（絞り込み後 かつ 座標があるものだけ）
+  const mapPoints: MapPoint[] = useMemo(() => {
+    return visible
+      .filter((it) => coords[it.id])
+      .map((it) => {
+        const c = coords[it.id];
+        return {
+          id: it.id,
+          lat: c.lat,
+          lng: c.lng,
+          storeName: it.storeName,
+          genre: it.genre,
+          area: [it.prefecture, it.city].filter(Boolean).join(" "),
+          color: genreColor(it.genre),
+          url: normalizeUrl(it.url),
+          mapUrl: mapUrlOf([it.storeName, it.prefecture, it.city]),
+        };
+      });
+  }, [visible, coords]);
+
   const grouped = useMemo(() => {
     const map = new Map<string, { emoji: string; items: EnrichedItem[] }>();
     visible.forEach((it) => {
@@ -490,9 +643,14 @@ export default function LinksPage() {
           <DesktopNavigation />
         </header>
 
-        <p className="text-sm text-[var(--fg-muted)]">
-          予定に登録したURLを、お店のジャンル別にまとめています。カードを押すと詳細が開き、そこから場所の追加やリンクを開けます。
-        </p>
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <p className="text-sm text-[var(--fg-muted)]">
+            予定に登録したURLを、お店のジャンル別にまとめています。カードを押すと詳細が開き、場所の追加やリンクを開けます。
+          </p>
+          <button className="btn btn-primary shrink-0" onClick={openMap}>
+            🗺️ 地図で見る
+          </button>
+        </div>
 
         {/* 検索 */}
         <section className="glass-card p-3">
@@ -738,6 +896,81 @@ export default function LinksPage() {
                 </a>
               </div>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* 地図オーバーレイ */}
+      {showMap && (
+        <div className="fixed inset-0 z-50 flex flex-col bg-[var(--surface)]">
+          <div className="flex items-center justify-between gap-2 border-b border-[var(--border)] px-4 py-3">
+            <h2 className="text-lg font-black text-[var(--fg-strong)]">🗺️ 地図で見る</h2>
+            <div className="flex items-center gap-2">
+              {geocoding && (
+                <span className="text-xs text-[var(--fg-muted)]">
+                  座標取得中… {geocodeProgress.done}/{geocodeProgress.total}
+                </span>
+              )}
+              <button className="btn btn-soft" onClick={() => setShowMap(false)}>
+                閉じる
+              </button>
+            </div>
+          </div>
+
+          {/* 検索・ジャンル絞り込み */}
+          <div className="border-b border-[var(--border)] px-4 py-2">
+            <div className="search-input flex h-10 items-center gap-2 rounded-xl border border-[var(--border)] bg-[var(--surface-alt)] px-3">
+              <svg viewBox="0 0 24 24" className="h-4 w-4 text-[var(--fg-muted)]" stroke="currentColor" fill="none" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="11" cy="11" r="7" />
+                <path d="m21 21-4.3-4.3" />
+              </svg>
+              <input
+                className="h-full flex-1 bg-transparent text-sm outline-none placeholder:text-[var(--fg-muted)]"
+                placeholder="店名・ジャンル・地名で検索"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+              />
+              {query && (
+                <button className="text-xs text-[var(--fg-muted)]" onClick={() => setQuery("")}>
+                  クリア
+                </button>
+              )}
+            </div>
+            {genres.length > 0 && (
+              <div className="mt-2 flex gap-2 overflow-x-auto pb-1">
+                <button
+                  className={`chip shrink-0 ${activeGenre === "all" ? "chip-active" : ""}`}
+                  onClick={() => setActiveGenre("all")}
+                >
+                  すべて
+                </button>
+                {genres.map((g) => (
+                  <button
+                    key={g.genre}
+                    className={`chip shrink-0 ${activeGenre === g.genre ? "chip-active" : ""}`}
+                    onClick={() => setActiveGenre(g.genre)}
+                  >
+                    {g.emoji} {g.genre}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* 地図本体 */}
+          <div className="relative flex-1">
+            <LinksMap points={mapPoints} />
+            {mapPoints.length === 0 && !geocoding && (
+              <div className="pointer-events-none absolute inset-x-0 top-3 flex justify-center">
+                <span className="rounded-full bg-[var(--surface-glass-strong)] px-4 py-2 text-xs text-[var(--fg-muted)] shadow">
+                  表示できる場所がありません（座標を取得できた店だけ表示されます）
+                </span>
+              </div>
+            )}
+          </div>
+
+          <div className="border-t border-[var(--border)] px-4 py-2 text-center text-xs text-[var(--fg-muted)]">
+            {mapPoints.length} 件を表示中 ・ 地図データ © OpenStreetMap contributors
           </div>
         </div>
       )}

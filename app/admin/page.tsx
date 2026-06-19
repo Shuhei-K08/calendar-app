@@ -137,6 +137,7 @@ export default function AdminPage() {
     await fetchUsers();
   };
 
+  const [nowRef] = useState(() => Date.now());
   const stats = useMemo(() => {
     const total = users.length;
     const admins = users.filter((u) => u.role === "admin").length;
@@ -144,10 +145,10 @@ export default function AdminPage() {
     const dayMs = 86400000;
     const recentLogin = users.filter((u) => {
       if (!u.last_sign_in_at) return false;
-      return Date.now() - new Date(u.last_sign_in_at).getTime() < 7 * dayMs;
+      return nowRef - new Date(u.last_sign_in_at).getTime() < 7 * dayMs;
     }).length;
     return { total, admins, banned, recentLogin };
-  }, [users]);
+  }, [users, nowRef]);
 
   const visibleUsers = useMemo(() => {
     const q = query.trim().toLowerCase();

@@ -34,6 +34,13 @@ alter table public.events
 alter table public.events
   add column if not exists place_name text;
 
+-- 地図表示用の緯度・経度（ジオコーディング結果のキャッシュ）
+alter table public.events
+  add column if not exists lat double precision;
+
+alter table public.events
+  add column if not exists lng double precision;
+
 create table if not exists public.event_shares (
   id uuid primary key default gen_random_uuid(),
   event_id uuid not null references public.events(id) on delete cascade,
