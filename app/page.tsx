@@ -333,17 +333,6 @@ type OgData = {
   city?: string;
 };
 
-// 47都道府県（場所の選択フォールバック用）
-const PREFECTURES = [
-  "北海道", "青森県", "岩手県", "宮城県", "秋田県", "山形県", "福島県",
-  "茨城県", "栃木県", "群馬県", "埼玉県", "千葉県", "東京都", "神奈川県",
-  "新潟県", "富山県", "石川県", "福井県", "山梨県", "長野県", "岐阜県",
-  "静岡県", "愛知県", "三重県", "滋賀県", "京都府", "大阪府", "兵庫県",
-  "奈良県", "和歌山県", "鳥取県", "島根県", "岡山県", "広島県", "山口県",
-  "徳島県", "香川県", "愛媛県", "高知県", "福岡県", "佐賀県", "長崎県",
-  "熊本県", "大分県", "宮崎県", "鹿児島県", "沖縄県",
-];
-
 const isJapaneseHoliday = (date: Date): string | null => {
   const holiday = HolidayJp.between(
     new Date(date.getFullYear(), date.getMonth(), date.getDate()),
@@ -989,15 +978,6 @@ export default function Home() {
       .then((data) => {
         // eslint-disable-next-line react-hooks/set-state-in-effect
         setOgData(data);
-        // OGから場所を取得できたら、未入力の場合だけ自動補完
-        if (data.prefecture || data.city) {
-          // eslint-disable-next-line react-hooks/set-state-in-effect
-          setEditForm((current) => ({
-            ...current,
-            prefecture: current.prefecture || data.prefecture || "",
-            city: current.city || data.city || "",
-          }));
-        }
       })
       .catch(() => {
         // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -1008,28 +988,6 @@ export default function Home() {
         setOgLoading(false);
       });
   }, [detailEvent]);
-
-  // 新規作成フォーム: URLを入力したら場所(県・市)を自動取得して未入力欄を補完
-  useEffect(() => {
-    const url = eventForm.url.trim();
-    if (!url) return;
-    const normalized = /^https?:\/\//i.test(url) ? url : `https://${url}`;
-    const timer = window.setTimeout(() => {
-      fetch(`/api/og?url=${encodeURIComponent(normalized)}`)
-        .then((r) => (r.ok ? (r.json() as Promise<OgData>) : null))
-        .then((data) => {
-          if (!data || (!data.prefecture && !data.city)) return;
-          // eslint-disable-next-line react-hooks/set-state-in-effect
-          setEventForm((current) => ({
-            ...current,
-            prefecture: current.prefecture || data.prefecture || "",
-            city: current.city || data.city || "",
-          }));
-        })
-        .catch(() => {});
-    }, 800);
-    return () => window.clearTimeout(timer);
-  }, [eventForm.url]);
 
   useEffect(() => {
     if (typeof window === "undefined" || !("Notification" in window)) return;
@@ -2259,33 +2217,6 @@ export default function Home() {
                   placeholder="https://..."
                 />
               </label>
-              <label className="space-y-1">
-                <span className="text-xs font-semibold text-[#64748b]">都道府県（URLから自動取得・編集可）</span>
-                <select
-                  className="w-full rounded-lg border border-[#cbd5e1] bg-white p-3 text-sm outline-none transition focus:border-[#0f766e] focus:ring-2 focus:ring-[#99f6e4]"
-                  value={eventForm.prefecture}
-                  onChange={(event) =>
-                    setEventForm((current) => ({ ...current, prefecture: event.target.value }))
-                  }
-                >
-                  <option value="">選択しない</option>
-                  {PREFECTURES.map((pref) => (
-                    <option key={pref} value={pref}>{pref}</option>
-                  ))}
-                </select>
-              </label>
-              <label className="space-y-1">
-                <span className="text-xs font-semibold text-[#64748b]">市区町村</span>
-                <input
-                  type="text"
-                  className="w-full rounded-lg border border-[#cbd5e1] p-3 text-sm outline-none transition focus:border-[#0f766e] focus:ring-2 focus:ring-[#99f6e4]"
-                  value={eventForm.city}
-                  onChange={(event) =>
-                    setEventForm((current) => ({ ...current, city: event.target.value }))
-                  }
-                  placeholder="例: 渋谷区"
-                />
-              </label>
             </div>
 
             <div className="mt-5 space-y-2">
@@ -2492,33 +2423,6 @@ export default function Home() {
                       setEditForm((current) => ({ ...current, url: extracted }));
                     }}
                     placeholder="https://..."
-                  />
-                </label>
-                <label className="space-y-1">
-                  <span className="text-xs font-semibold text-[#64748b]">都道府県（URLから自動取得・編集可）</span>
-                  <select
-                    className="w-full rounded-lg border border-[#cbd5e1] bg-white p-3 text-sm outline-none transition focus:border-[#0f766e] focus:ring-2 focus:ring-[#99f6e4]"
-                    value={editForm.prefecture}
-                    onChange={(event) =>
-                      setEditForm((current) => ({ ...current, prefecture: event.target.value }))
-                    }
-                  >
-                    <option value="">選択しない</option>
-                    {PREFECTURES.map((pref) => (
-                      <option key={pref} value={pref}>{pref}</option>
-                    ))}
-                  </select>
-                </label>
-                <label className="space-y-1">
-                  <span className="text-xs font-semibold text-[#64748b]">市区町村</span>
-                  <input
-                    type="text"
-                    className="w-full rounded-lg border border-[#cbd5e1] p-3 text-sm outline-none transition focus:border-[#0f766e] focus:ring-2 focus:ring-[#99f6e4]"
-                    value={editForm.city}
-                    onChange={(event) =>
-                      setEditForm((current) => ({ ...current, city: event.target.value }))
-                    }
-                    placeholder="例: 渋谷区"
                   />
                 </label>
               </div>

@@ -440,6 +440,9 @@ drop policy if exists "users can update own profile" on public.profiles;
 drop policy if exists "admins can manage all profiles" on public.profiles;
 drop policy if exists "Enable read access for users based on id" on public.profiles;
 drop policy if exists "Enable update for users based on id" on public.profiles;
+drop policy if exists "users_can_view_own_profile" on public.profiles;
+drop policy if exists "users_can_update_own_profile" on public.profiles;
+drop policy if exists "service_role_admin_operations" on public.profiles;
 
 -- Disable RLS temporarily to allow admin operations
 alter table public.profiles disable row level security;

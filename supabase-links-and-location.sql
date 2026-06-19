@@ -2,13 +2,8 @@
 -- Supabase SQL エディタで実行してください。
 
 -- 1) TODO機能を完全削除 -------------------------------------------------
-drop policy if exists "users can view own todos" on public.todos;
-drop policy if exists "users can insert own todos" on public.todos;
-drop policy if exists "users can update own todos" on public.todos;
-drop policy if exists "users can delete own todos" on public.todos;
-
-drop index if exists public.todos_user_id_idx;
-
+-- テーブルを cascade で消すと、付随するポリシー・索引も自動で削除されます。
+-- テーブルが存在しなくても if exists により安全に何もしません。
 drop table if exists public.todos cascade;
 
 -- 2) 予定に「場所」情報を追加 -------------------------------------------

@@ -46,6 +46,17 @@ const BASE_COLS = "id, title, start_at, url, note, category_id, user_id, event_v
 
 const UNCATEGORIZED = "未設定";
 
+// 47都道府県
+const PREFECTURES = [
+  "北海道", "青森県", "岩手県", "宮城県", "秋田県", "山形県", "福島県",
+  "茨城県", "栃木県", "群馬県", "埼玉県", "千葉県", "東京都", "神奈川県",
+  "新潟県", "富山県", "石川県", "福井県", "山梨県", "長野県", "岐阜県",
+  "静岡県", "愛知県", "三重県", "滋賀県", "京都府", "大阪府", "兵庫県",
+  "奈良県", "和歌山県", "鳥取県", "島根県", "岡山県", "広島県", "山口県",
+  "徳島県", "香川県", "愛媛県", "高知県", "福岡県", "佐賀県", "長崎県",
+  "熊本県", "大分県", "宮崎県", "鹿児島県", "沖縄県",
+];
+
 const normalizeUrl = (url: string) =>
   /^https?:\/\//i.test(url) ? url : `https://${url}`;
 
@@ -64,12 +75,10 @@ const faviconOf = (url: string) => {
     : "";
 };
 
-// 食べログ等のタイトルから余計なサイト名・キャッチを落として店名らしく整える
+// サイト名区切りや末尾の括弧情報を落として店名らしく整える
 const cleanStoreName = (raw: string) => {
   if (!raw) return "";
-  // 「店名 | 食べログ」「店名 - ぐるなび」などサイト名区切りで分割（スペース付き記号のみ）
   let s = raw.split(/\s*[|｜]\s*|\s+[-–—:：/]\s+/)[0].trim();
-  // 「（渋谷/カフェ）」のような末尾の括弧情報を除去
   s = s.replace(/[（(【\[][^（()）【】\[\]]*[）)】\]]\s*$/g, "").trim();
   return s || raw.trim();
 };
@@ -84,6 +93,12 @@ export default function LinksPage() {
   const [activePrefecture, setActivePrefecture] = useState<string>("all");
   const [toasts, setToasts] = useState<ToastItem[]>([]);
   const ogCache = useRef<Record<string, OgInfo>>({});
+
+  // 詳細パネル
+  const [detailId, setDetailId] = useState<string | null>(null);
+  const [editPref, setEditPref] = useState("");
+  const [editCity, setEditCity] = useState("");
+  const [savingLoc, setSavingLoc] = useState(false);
 
   const show = useCallback((msg: string, type: ToastItem["type"] = "info") => {
     const id = Date.now() + Math.random();
@@ -258,6 +273,7 @@ export default function LinksPage() {
         storeName: (og?.storeName || it.eventTitle).trim(),
         genre: og?.genre ?? UNCATEGORIZED,
         emoji: og?.emoji ?? "📌",
+        // 保存済みの県市を優先、無ければOG推定を表示用に使う
         prefecture: it.prefecture || og?.prefecture || "",
         city: it.city || og?.city || "",
       };
@@ -266,6 +282,51 @@ export default function LinksPage() {
 
   type EnrichedItem = (typeof enriched)[number];
 
+  const detail = useMemo(
+    () => enriched.find((it) => it.id === detailId) ?? null,
+    [enriched, detailId],
+  );
+
+  const openDetail = (it: EnrichedItem) => {
+    setDetailId(it.id);
+    // 編集欄は保存済みの値（OG推定ではなく実データ）で初期化
+    const raw = items.find((x) => x.id === it.id);
+    setEditPref(raw?.prefecture ?? "");
+    setEditCity(raw?.city ?? "");
+  };
+
+  const closeDetail = () => {
+    setDetailId(null);
+    setSavingLoc(false);
+  };
+
+  const saveLocation = async () => {
+    if (!detail) return;
+    setSavingLoc(true);
+    const { error } = await supabase
+      .from("events")
+      .update({ prefecture: editPref || null, city: editCity || null })
+      .eq("id", detail.id);
+    setSavingLoc(false);
+
+    if (error) {
+      if (error.code === "42703" || error.code === "PGRST204") {
+        show("場所の保存にはSQL（prefecture/city列の追加）の実行が必要です。", "error");
+      } else {
+        show("場所の保存に失敗しました", "error");
+      }
+      return;
+    }
+
+    // ローカル状態を更新
+    setItems((prev) =>
+      prev.map((x) =>
+        x.id === detail.id ? { ...x, prefecture: editPref, city: editCity } : x,
+      ),
+    );
+    show("場所を保存しました", "success");
+  };
+
   const genres = useMemo(() => {
     const map = new Map<string, { emoji: string; count: number }>();
     enriched.forEach((it) => {
@@ -273,7 +334,6 @@ export default function LinksPage() {
       if (cur) cur.count += 1;
       else map.set(it.genre, { emoji: it.emoji, count: 1 });
     });
-    // 件数順、ただし「未設定」は最後
     return Array.from(map.entries())
       .map(([genre, v]) => ({ genre, ...v }))
       .sort((a, b) => {
@@ -310,7 +370,6 @@ export default function LinksPage() {
     });
   }, [enriched, query, activeGenre, activePrefecture]);
 
-  // ジャンルごとにグループ化
   const grouped = useMemo(() => {
     const map = new Map<string, { emoji: string; items: EnrichedItem[] }>();
     visible.forEach((it) => {
@@ -346,7 +405,7 @@ export default function LinksPage() {
         </header>
 
         <p className="text-sm text-[var(--fg-muted)]">
-          予定に登録したURLを、お店のジャンル別にまとめています。「前に行ったカフェどこだっけ？」をここで探せます。
+          予定に登録したURLを、お店のジャンル別にまとめています。カードを押すと詳細が開き、そこから場所の追加やリンクを開けます。
         </p>
 
         {/* 検索 */}
@@ -438,12 +497,11 @@ export default function LinksPage() {
               </div>
               <div className="grid gap-3 sm:grid-cols-2">
                 {group.items.map((it) => (
-                  <a
+                  <button
                     key={it.id}
-                    href={normalizeUrl(it.url)}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="group flex gap-3 rounded-xl border border-[var(--border)] bg-[var(--surface-alt)] p-3 transition hover:border-[var(--accent)]"
+                    type="button"
+                    onClick={() => openDetail(it)}
+                    className="group flex gap-3 rounded-xl border border-[var(--border)] bg-[var(--surface-alt)] p-3 text-left transition hover:border-[var(--accent)]"
                   >
                     <div className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-white">
                       {faviconOf(it.url) ? (
@@ -469,17 +527,112 @@ export default function LinksPage() {
                           <span className="badge badge-slate">👥 {it.ownerName}</span>
                         )}
                       </div>
-                      {it.note && (
-                        <p className="mt-1 line-clamp-1 text-xs text-[var(--fg-muted)]">{it.note}</p>
-                      )}
                     </div>
-                  </a>
+                  </button>
                 ))}
               </div>
             </section>
           ))
         )}
       </div>
+
+      {/* 詳細パネル */}
+      {detail && (
+        <div className="confirm-overlay" onClick={closeDetail}>
+          <div
+            className="confirm-card max-w-md"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-start gap-3">
+              <div className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-white">
+                {faviconOf(detail.url) ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={faviconOf(detail.url)} alt="" className="h-7 w-7" />
+                ) : (
+                  <span className="text-xl">🔗</span>
+                )}
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="eyebrow">{detail.emoji} {detail.genre}</p>
+                <h3 className="mt-1 break-words text-lg font-black text-[var(--fg-strong)]">
+                  {detail.storeName}
+                </h3>
+                <p className="mt-0.5 truncate text-xs text-[var(--fg-muted)]">{hostOf(detail.url)}</p>
+              </div>
+            </div>
+
+            <div className="mt-4 flex flex-wrap items-center gap-1.5">
+              <span className="badge badge-slate">
+                {format(detail.date, "yyyy/M/d", { locale: ja })} に予定
+              </span>
+              {detail.ownerName && (
+                <span className="badge badge-slate">👥 {detail.ownerName}</span>
+              )}
+            </div>
+
+            {detail.eventTitle && detail.eventTitle !== detail.storeName && (
+              <p className="mt-3 text-xs text-[var(--fg-muted)]">予定名: {detail.eventTitle}</p>
+            )}
+            {detail.note && (
+              <p className="mt-2 whitespace-pre-wrap text-sm text-[var(--fg-muted)]">{detail.note}</p>
+            )}
+
+            {/* 場所の追加・編集 */}
+            <div className="mt-4 rounded-xl border border-[var(--border)] bg-[var(--surface-alt)] p-3">
+              <p className="text-xs font-bold text-[var(--fg-muted)]">場所（あとから登録できます）</p>
+              {detail.ownerName ? (
+                <p className="mt-2 text-sm text-[var(--fg)]">
+                  {detail.prefecture || detail.city
+                    ? [detail.prefecture, detail.city].filter(Boolean).join(" ")
+                    : "未登録"}
+                  <span className="ml-1 text-xs text-[var(--fg-muted)]">（共有相手の予定のため編集不可）</span>
+                </p>
+              ) : (
+                <>
+                  <div className="mt-2 grid grid-cols-2 gap-2">
+                    <select
+                      className="field-input"
+                      value={editPref}
+                      onChange={(e) => setEditPref(e.target.value)}
+                    >
+                      <option value="">都道府県</option>
+                      {PREFECTURES.map((p) => (
+                        <option key={p} value={p}>{p}</option>
+                      ))}
+                    </select>
+                    <input
+                      className="field-input"
+                      placeholder="市区町村（例: 渋谷区）"
+                      value={editCity}
+                      onChange={(e) => setEditCity(e.target.value)}
+                    />
+                  </div>
+                  <button
+                    type="button"
+                    className="btn btn-soft mt-2"
+                    disabled={savingLoc}
+                    onClick={saveLocation}
+                  >
+                    {savingLoc ? "保存中…" : "場所を保存"}
+                  </button>
+                </>
+              )}
+            </div>
+
+            <div className="mt-5 flex justify-between gap-2">
+              <button className="btn btn-soft" onClick={closeDetail}>閉じる</button>
+              <a
+                className="btn btn-primary"
+                href={normalizeUrl(detail.url)}
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                URLを開く ↗
+              </a>
+            </div>
+          </div>
+        </div>
+      )}
 
       <MobileNavigation />
     </main>
