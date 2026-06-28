@@ -69,9 +69,20 @@ export async function POST(request: Request) {
     if (!geminiRes.ok) {
       const detail = await geminiRes.text().catch(() => "");
       console.error("Gemini OCR error", geminiRes.status, detail);
+
+      let message: string;
+      if (geminiRes.status === 429) {
+        message =
+          "AI読み取りの上限に達しました。しばらく時間をおいてからお試しください。";
+      } else if (geminiRes.status === 400 || geminiRes.status === 403) {
+        message = "APIキーが無効か、権限がありません。設定を確認してください。";
+      } else {
+        message = `AI読み取りに失敗しました (${geminiRes.status})`;
+      }
+
       return NextResponse.json(
-        { error: `OCRに失敗しました (${geminiRes.status})` },
-        { status: 502 },
+        { error: message },
+        { status: geminiRes.status === 429 ? 429 : 502 },
       );
     }
 
