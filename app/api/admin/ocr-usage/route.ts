@@ -1,9 +1,14 @@
 import { NextResponse } from "next/server";
 import { createSupabaseAdmin } from "@/lib/supabaseAdmin";
-import { nextPacificMidnight } from "@/lib/quotaReset";
+import { nextPacificMidnight, startOfPacificDay } from "@/lib/quotaReset";
 
 // 管理者向け: AI読み取り（Gemini OCR）の使用状況を返す。
 // ocr_usage テーブル（supabase-ocr-usage.sql）が必要。
+// Geminiの無料枠（gemini-2.5-flash 既定）の制限:
+//   RPM(1分あたりリクエスト数) = 10
+//   TPM(1分あたりトークン数)   = 250,000
+//   RPD(1日あたりリクエスト数) = 250
+// いずれも env で上書き可（GEMINI_LIMIT_RPM / TPM / RPD）。
 
 const getAdminEmails = () =>
   (process.env.ADMIN_EMAILS ?? "")
@@ -16,13 +21,9 @@ const isAdminRole = (role?: string | null) => {
   return normalized === "admin" || normalized === "admine";
 };
 
-// 日本時間（JST）での「今日の0時」をUTC ISO文字列で返す
-const startOfJstTodayIso = () => {
-  const now = Date.now();
-  const jst = new Date(now + 9 * 3600 * 1000);
-  const midnightUtcMs =
-    Date.UTC(jst.getUTCFullYear(), jst.getUTCMonth(), jst.getUTCDate()) - 9 * 3600 * 1000;
-  return new Date(midnightUtcMs).toISOString();
+const numEnv = (name: string, fallback: number) => {
+  const v = Number(process.env[name]);
+  return Number.isFinite(v) && v > 0 ? v : fallback;
 };
 
 export async function GET(request: Request) {
@@ -57,13 +58,13 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "管理者権限が必要です。" }, { status: 403 });
   }
 
-  const startIso = startOfJstTodayIso();
+  // RPDは太平洋時間の当日0時から集計（Geminiの日次リセットに合わせる）
+  const dayStart = startOfPacificDay();
 
-  // 今日の使用記録を取得
   const { data: rows, error } = await admin
     .from("ocr_usage")
     .select("status, total_tokens, created_at")
-    .gte("created_at", startIso)
+    .gte("created_at", dayStart.toISOString())
     .order("created_at", { ascending: false });
 
   if (error) {
@@ -82,23 +83,32 @@ export async function GET(request: Request) {
   const successRows = usageRows.filter((r) => r.status === "success");
   const limitRows = usageRows.filter((r) => r.status === "limit");
 
-  // 直近の上限到達（今日に限らず全期間）
-  const { data: lastLimit } = await admin
-    .from("ocr_usage")
-    .select("created_at")
-    .eq("status", "limit")
-    .order("created_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
+  // 直近60秒のリクエスト（RPM/TPM用）
+  const oneMinuteAgo = Date.now() - 60 * 1000;
+  const recentRows = successRows.filter((r) => new Date(r.created_at).getTime() >= oneMinuteAgo);
+
+  const limits = {
+    rpm: numEnv("GEMINI_LIMIT_RPM", 10),
+    tpm: numEnv("GEMINI_LIMIT_TPM", 250000),
+    rpd: numEnv("GEMINI_LIMIT_RPD", 250),
+  };
+
+  const lastLimit = limitRows[0] ?? null;
 
   return NextResponse.json({
-    todayCount: successRows.length,
-    todayTokens: successRows.reduce((sum, r) => sum + (r.total_tokens ?? 0), 0),
+    model: process.env.GEMINI_MODEL || "gemini-2.5-flash",
+    // 直近1分間のリクエスト数（RPM）
+    rpm: { used: recentRows.length, limit: limits.rpm },
+    // 直近1分間の処理トークン数（TPM）
+    tpm: {
+      used: recentRows.reduce((sum, r) => sum + (r.total_tokens ?? 0), 0),
+      limit: limits.tpm,
+    },
+    // 当日（太平洋時間）の累計リクエスト数（RPD）
+    rpd: { used: successRows.length, limit: limits.rpd },
+    // RPDのリセット時刻
+    rpdResetAt: nextPacificMidnight().toISOString(),
     todayLimitHits: limitRows.length,
     lastLimitAt: lastLimit?.created_at ?? null,
-    // 次に無料枠がリセットされる時刻（太平洋時間0時）
-    nextResetAt: nextPacificMidnight().toISOString(),
-    // 無料枠の目安（公式に保証された値ではない概算）
-    dailyRequestEstimate: 250,
   });
 }

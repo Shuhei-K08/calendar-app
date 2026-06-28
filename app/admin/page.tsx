@@ -25,17 +25,62 @@ type AdminDebug = {
 
 type ToastItem = { id: number; message: string; type: "success" | "error" | "info" };
 
+type LimitMetric = { used: number; limit: number };
+
 type OcrUsage = {
-  todayCount: number;
-  todayTokens: number;
+  model: string;
+  rpm: LimitMetric;
+  tpm: LimitMetric;
+  rpd: LimitMetric;
+  rpdResetAt: string | null;
   todayLimitHits: number;
   lastLimitAt: string | null;
-  nextResetAt: string | null;
-  dailyRequestEstimate: number;
   error?: string;
   code?: string | null;
   detail?: string;
 };
+
+function UsageBar({
+  label,
+  used,
+  limit,
+  unit,
+  sub,
+}: {
+  label: string;
+  used: number;
+  limit: number;
+  unit: string;
+  sub?: string;
+}) {
+  const ratio = limit > 0 ? used / limit : 0;
+  const pct = Math.min(100, Math.round(ratio * 100));
+  const color = ratio >= 1 ? "var(--rose, #e11d48)" : ratio >= 0.7 ? "#f59e0b" : "var(--accent)";
+  return (
+    <div>
+      <div className="flex items-baseline justify-between gap-2">
+        <span className="text-sm font-bold text-[var(--fg-strong)]">{label}</span>
+        <span className="text-sm font-black text-[var(--fg-strong)]">
+          {used.toLocaleString("ja-JP")}
+          <span className="text-xs font-semibold text-[var(--fg-muted)]">
+            {" "}
+            / {limit.toLocaleString("ja-JP")} {unit}
+          </span>
+        </span>
+      </div>
+      <div className="mt-1.5 h-2.5 w-full overflow-hidden rounded-full bg-[var(--surface-alt)]">
+        <div
+          className="h-full rounded-full transition-all"
+          style={{ width: `${Math.max(pct, used > 0 ? 3 : 0)}%`, backgroundColor: color }}
+        />
+      </div>
+      <div className="mt-1 flex justify-between gap-2 text-xs text-[var(--fg-muted)]">
+        <span>{sub ?? ""}</span>
+        <span>{pct}%</span>
+      </div>
+    </div>
+  );
+}
 
 const formatJstDateTime = (iso: string) =>
   new Intl.DateTimeFormat("ja-JP", {
@@ -347,55 +392,52 @@ export default function AdminPage() {
               </div>
             ) : (
               <>
-                <div className="mt-4 flex justify-end">
+                <div className="mt-4 flex items-center justify-between gap-2">
+                  <p className="text-xs text-[var(--fg-muted)]">モデル: {ocrUsage.model}</p>
                   <button className="btn btn-soft" onClick={() => void fetchOcrUsage()}>
                     更新
                   </button>
                 </div>
-                <div className="mt-3 grid gap-3 sm:grid-cols-3">
-                  <div className="stat-card glass-card p-4" style={{ borderTopColor: "var(--accent)" }}>
-                    <p className="text-xs font-bold uppercase tracking-[0.12em] text-[var(--fg-muted)]">今日の読み取り回数</p>
-                    <p className="mt-1 text-3xl font-black text-[var(--fg-strong)]">{ocrUsage.todayCount}</p>
-                    <p className="mt-1 text-xs text-[var(--fg-muted)]">無料枠の目安 約{ocrUsage.dailyRequestEstimate}回/日</p>
-                  </div>
-                  <div className="stat-card glass-card p-4" style={{ borderTopColor: "var(--violet)" }}>
-                    <p className="text-xs font-bold uppercase tracking-[0.12em] text-[var(--fg-muted)]">今日の使用トークン</p>
-                    <p className="mt-1 text-3xl font-black text-[var(--fg-strong)]">{ocrUsage.todayTokens.toLocaleString("ja-JP")}</p>
-                    <p className="mt-1 text-xs text-[var(--fg-muted)]">読み取った画像の合計</p>
-                  </div>
-                  <div className="stat-card glass-card p-4" style={{ borderTopColor: "var(--rose)" }}>
-                    <p className="text-xs font-bold uppercase tracking-[0.12em] text-[var(--fg-muted)]">上限到達（今日）</p>
-                    <p className="mt-1 text-3xl font-black text-[var(--fg-strong)]">{ocrUsage.todayLimitHits}</p>
-                    <p className="mt-1 text-xs text-[var(--fg-muted)]">
-                      {ocrUsage.lastLimitAt
-                        ? `直近: ${formatJstDateTime(ocrUsage.lastLimitAt)}`
-                        : "なし"}
-                    </p>
-                  </div>
+
+                <div className="mt-4 space-y-4">
+                  <UsageBar
+                    label="1分あたりのリクエスト数（RPM）"
+                    used={ocrUsage.rpm.used}
+                    limit={ocrUsage.rpm.limit}
+                    unit="回"
+                    sub="直近1分間の実績。毎分リセットされます。"
+                  />
+                  <UsageBar
+                    label="1分あたりのトークン数（TPM）"
+                    used={ocrUsage.tpm.used}
+                    limit={ocrUsage.tpm.limit}
+                    unit="tokens"
+                    sub="直近1分間の実績。毎分リセットされます。"
+                  />
+                  <UsageBar
+                    label="1日あたりのリクエスト数（RPD）"
+                    used={ocrUsage.rpd.used}
+                    limit={ocrUsage.rpd.limit}
+                    unit="回"
+                    sub={
+                      ocrUsage.rpdResetAt
+                        ? `次のリセット: ${formatJstDateTime(ocrUsage.rpdResetAt)}頃（日本時間）`
+                        : undefined
+                    }
+                  />
                 </div>
 
-                {ocrUsage.nextResetAt && (
-                  <div
-                    className={`mt-3 flex items-center gap-2 rounded-xl p-3 text-sm ${
-                      ocrUsage.todayLimitHits > 0
-                        ? "bg-[var(--rose-50,#fff1f2)] font-bold text-[var(--rose,#e11d48)]"
-                        : "bg-[var(--surface-alt)] text-[var(--fg-muted)]"
-                    }`}
-                  >
-                    <svg viewBox="0 0 24 24" className="h-4 w-4 shrink-0" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <circle cx="12" cy="12" r="9" />
-                      <path d="M12 7v5l3 2" />
-                    </svg>
-                    <span>
-                      {ocrUsage.todayLimitHits > 0 ? "上限に達しています。" : ""}
-                      次のリセット: {formatJstDateTime(ocrUsage.nextResetAt)}頃（日本時間）
-                    </span>
+                {ocrUsage.todayLimitHits > 0 && (
+                  <div className="mt-4 rounded-xl bg-[var(--rose-50,#fff1f2)] p-3 text-sm font-bold text-[var(--rose,#e11d48)]">
+                    本日 {ocrUsage.todayLimitHits} 回 上限に達しました
+                    {ocrUsage.lastLimitAt ? `（直近: ${formatJstDateTime(ocrUsage.lastLimitAt)}）` : ""}。
                   </div>
                 )}
 
-                <p className="mt-2 text-xs leading-5 text-[var(--fg-muted)]">
-                  ※ Googleは「残り回数」を提供していないため、ここでは実際の使用量を表示しています。
-                  無料枠は太平洋時間0時（夏時間で日本時間16〜17時頃）にリセットされます。回数の目安は概算で、保証値ではありません。
+                <p className="mt-3 text-xs leading-5 text-[var(--fg-muted)]">
+                  ※ RPM/TPMは「直近1分間」の実績スナップショットです（毎分ゼロに戻るため、見た時点では0のことが多いです）。
+                  RPDは太平洋時間0時にリセットされます。上限値は {ocrUsage.model} 無料枠の目安（RPM 10 / TPM 25万 / RPD 250）で、
+                  実際の値はGoogle側の変更やアカウントにより異なります。
                 </p>
               </>
             ))}

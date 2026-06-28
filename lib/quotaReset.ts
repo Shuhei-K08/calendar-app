@@ -35,6 +35,12 @@ const pacificWallToUtc = (y: number, m: number, d: number, h: number, min: numbe
   return new Date(asUtc - offset);
 };
 
+// 現在の太平洋日の0時(UTCのDate)を返す（RPDの集計開始点）
+export const startOfPacificDay = (from: Date = new Date()): Date => {
+  const p = pacificParts(from);
+  return pacificWallToUtc(p.year, p.month, p.day, 0, 0);
+};
+
 // 次に無料枠がリセットされる時刻(UTCのDate)を返す
 export const nextPacificMidnight = (from: Date = new Date()): Date => {
   const now = pacificParts(from);
