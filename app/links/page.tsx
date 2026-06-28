@@ -52,6 +52,34 @@ const BASE_COLS = "id, title, start_at, url, note, category_id, user_id, event_v
 
 const UNCATEGORIZED = "未設定";
 
+// ジャンルのプルダウン候補（OGの自動判定と同じ分類）
+const GENRE_GROUPS: { label: string; options: string[] }[] = [
+  {
+    label: "グルメ・飲食",
+    options: [
+      "居酒屋", "寿司・海鮮", "焼肉", "焼き鳥", "ラーメン", "うどん・そば", "天ぷら",
+      "とんかつ", "しゃぶしゃぶ・鍋", "お好み焼き", "ステーキ", "ハンバーガー", "カレー",
+      "中華", "韓国料理", "タイ料理", "インド料理", "イタリアン", "フレンチ", "カフェ",
+      "スイーツ・パティスリー", "パン・ベーカリー", "食べ放題", "バー", "ベジタリアン・ヴィーガン",
+    ],
+  },
+  { label: "旅行・宿泊", options: ["ホテル", "旅館", "リゾート", "民泊", "温泉"] },
+  { label: "アウトドア", options: ["キャンプ", "登山・ハイキング", "釣り", "サーフィン", "BBQ"] },
+  { label: "スポーツ", options: ["野球", "サッカー", "バスケ", "ラグビー"] },
+  { label: "フィットネス", options: ["ヨガ・ピラティス", "ジム"] },
+  { label: "ショッピング", options: ["EC", "ファッション", "家電", "アウトレット"] },
+  { label: "エンタメ", options: ["映画", "音楽・ライブ", "美術館・博物館", "テーマパーク"] },
+  { label: "自動車", options: ["新車・中古車", "カー用品"] },
+  { label: "バイク", options: ["ツーリング", "バイク用品"] },
+  { label: "医療・クリニック", options: ["歯科", "皮膚科", "眼科"] },
+  { label: "美容", options: ["ヘアサロン", "ネイル", "エステ"] },
+  { label: "不動産", options: ["賃貸", "売買"] },
+  { label: "株・投資", options: ["株式", "FX", "仮想通貨"] },
+  { label: "その他", options: ["グルメ・飲食", "ショッピング", "エンタメ"] },
+];
+
+const ALL_GENRE_OPTIONS = new Set(GENRE_GROUPS.flatMap((g) => g.options));
+
 // 47都道府県
 const PREFECTURES = [
   "北海道", "青森県", "岩手県", "宮城県", "秋田県", "山形県", "福島県",
@@ -726,7 +754,7 @@ export default function LinksPage() {
               </div>
               <div className="grid gap-3 sm:grid-cols-2">
                 {group.items.map((g) => (
-                  <div key={g.key} className="relative">
+                  <div key={g.key} className="relative min-w-0">
                   <button
                     type="button"
                     onClick={() => openDetail(g)}
@@ -886,20 +914,26 @@ export default function LinksPage() {
                     value={editName}
                     onChange={(e) => setEditName(e.target.value)}
                   />
-                  <input
-                    list="link-genre-options"
+                  <select
                     className="field-input mt-2 w-full"
-                    placeholder="ジャンル（例: カフェ、病院）— 未設定や誤りを修正"
                     value={editGenre}
                     onChange={(e) => setEditGenre(e.target.value)}
-                  />
-                  <datalist id="link-genre-options">
-                    {genres
-                      .filter((g) => g.genre !== UNCATEGORIZED)
-                      .map((g) => (
-                        <option key={g.genre} value={g.genre} />
-                      ))}
-                  </datalist>
+                  >
+                    <option value="">未設定</option>
+                    {/* 既存の値が候補に無い場合も選べるよう残す */}
+                    {editGenre && !ALL_GENRE_OPTIONS.has(editGenre) && (
+                      <option value={editGenre}>{editGenre}</option>
+                    )}
+                    {GENRE_GROUPS.map((grp) => (
+                      <optgroup key={grp.label} label={grp.label}>
+                        {grp.options.map((o) => (
+                          <option key={`${grp.label}-${o}`} value={o}>
+                            {o}
+                          </option>
+                        ))}
+                      </optgroup>
+                    ))}
+                  </select>
                   <div className="mt-2 grid grid-cols-2 gap-2">
                     <select
                       className="field-input"
