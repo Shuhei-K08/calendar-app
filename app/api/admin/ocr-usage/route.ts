@@ -67,9 +67,13 @@ export async function GET(request: Request) {
     .order("created_at", { ascending: false });
 
   if (error) {
-    // テーブル未作成など
+    const tableMissing =
+      error.code === "PGRST205" || error.code === "42P01" || error.code === "PGRST204";
+    const message = tableMissing
+      ? "ocr_usage テーブルが見つかりません。SQLを実行したか確認し、数十秒待ってから再読み込みしてください（Supabaseのスキーマ反映待ちの場合があります）。"
+      : `使用状況の取得でエラーが発生しました: ${error.message}`;
     return NextResponse.json(
-      { error: "使用状況を取得できませんでした。ocr_usage テーブルのSQLを実行してください。", detail: error.message },
+      { error: message, code: error.code ?? null, detail: error.message },
       { status: 200 },
     );
   }

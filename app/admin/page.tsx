@@ -33,6 +33,8 @@ type OcrUsage = {
   nextResetAt: string | null;
   dailyRequestEstimate: number;
   error?: string;
+  code?: string | null;
+  detail?: string;
 };
 
 const formatJstDateTime = (iso: string) =>
@@ -318,9 +320,12 @@ export default function AdminPage() {
             </div>
 
             {ocrUsage.error ? (
-              <p className="mt-3 rounded-xl bg-[var(--amber-50)] p-3 text-sm text-[var(--amber-900)]">
-                使用状況を表示するには、Supabaseで <code>supabase-ocr-usage.sql</code> を実行してください。
-              </p>
+              <div className="mt-3 rounded-xl bg-[var(--amber-50)] p-3 text-sm text-[var(--amber-900)]">
+                <p>{ocrUsage.error}</p>
+                {ocrUsage.code && (
+                  <p className="mt-1 text-xs opacity-70">エラーコード: {ocrUsage.code}</p>
+                )}
+              </div>
             ) : (
               <>
                 <div className="mt-3 grid gap-3 sm:grid-cols-3">
