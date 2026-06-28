@@ -19,6 +19,7 @@ type DbLinkEvent = {
   user_id: string;
   event_visibility?: string | null;
   is_favorite?: boolean | null;
+  link_genre?: string | null;
 };
 
 type LinkItem = {
@@ -32,6 +33,7 @@ type LinkItem = {
   date: Date;
   ownerName: string | null; // null = 自分の予定
   isFavorite: boolean;
+  linkGenre: string; // 手動設定したジャンル（空=未設定）
 };
 
 type OgInfo = {
@@ -45,7 +47,7 @@ type OgInfo = {
 type ToastItem = { id: number; msg: string; type: "success" | "error" | "info" };
 
 const FULL_COLS =
-  "id, title, start_at, url, note, prefecture, city, place_name, category_id, user_id, event_visibility, is_favorite";
+  "id, title, start_at, url, note, prefecture, city, place_name, category_id, user_id, event_visibility, is_favorite, link_genre";
 const BASE_COLS = "id, title, start_at, url, note, category_id, user_id, event_visibility";
 
 const UNCATEGORIZED = "未設定";
@@ -115,6 +117,7 @@ export default function LinksPage() {
   const [editName, setEditName] = useState("");
   const [editPref, setEditPref] = useState("");
   const [editCity, setEditCity] = useState("");
+  const [editGenre, setEditGenre] = useState("");
   const [savingLoc, setSavingLoc] = useState(false);
   // 都道府県ごとの市区町村一覧キャッシュ
   const [cityListByPref, setCityListByPref] = useState<Record<string, string[]>>({});
@@ -222,6 +225,7 @@ export default function LinksPage() {
         date: new Date(e.start_at),
         ownerName: e.user_id === user.id ? null : ownerMap.get(e.user_id) ?? "共有相手",
         isFavorite: e.is_favorite ?? false,
+        linkGenre: e.link_genre ?? "",
       }))
       .sort((a, b) => b.date.getTime() - a.date.getTime());
 
@@ -341,8 +345,9 @@ export default function LinksPage() {
         ...it,
         // 手入力した店名を最優先、無ければOG店名、最後に予定名
         storeName: (it.placeName || og?.storeName || it.eventTitle).trim(),
-        genre: og?.genre ?? UNCATEGORIZED,
-        emoji: og?.emoji ?? "📌",
+        // 手動ジャンルを最優先、無ければOG判定
+        genre: (it.linkGenre || og?.genre || UNCATEGORIZED).trim(),
+        emoji: it.linkGenre ? "🏷️" : og?.emoji ?? "📌",
         // 保存済みの県市を優先、無ければOG推定を表示用に使う
         prefecture: it.prefecture || og?.prefecture || "",
         city: it.city || og?.city || "",
@@ -368,6 +373,7 @@ export default function LinksPage() {
     prefecture: string;
     city: string;
     placeName: string;
+    linkGenre: string;
     isFavorite: boolean;
     hasOwn: boolean;
     ownIds: string[];
@@ -398,6 +404,7 @@ export default function LinksPage() {
           prefecture: rep.prefecture,
           city: rep.city,
           placeName: rep.placeName,
+          linkGenre: rep.linkGenre,
           isFavorite: own.some((x) => x.isFavorite),
           hasOwn: own.length > 0,
           ownIds: own.map((x) => x.id),
@@ -445,6 +452,7 @@ export default function LinksPage() {
     setEditName(g.storeName);
     setEditPref(g.prefecture);
     setEditCity(g.city);
+    setEditGenre(g.linkGenre);
     if (g.prefecture) void loadCities(g.prefecture);
   };
 
@@ -480,14 +488,31 @@ export default function LinksPage() {
     if (!detail || !detail.hasOwn) return;
     const ids = detail.ownIds;
     setSavingLoc(true);
-    const { error } = await supabase
+
+    const base = {
+      place_name: editName.trim() || null,
+      prefecture: editPref || null,
+      city: editCity.trim() || null,
+    };
+    const genreVal = editGenre.trim() || null;
+
+    let { error } = await supabase
       .from("events")
-      .update({
-        place_name: editName.trim() || null,
-        prefecture: editPref || null,
-        city: editCity.trim() || null,
-      })
+      .update({ ...base, link_genre: genreVal })
       .in("id", ids);
+
+    let genreSaved = !error;
+
+    // link_genre 列が無い古いDBでは、ジャンルを外して場所だけ保存
+    if (error && (error.code === "42703" || error.code === "PGRST204")) {
+      const retry = await supabase.from("events").update(base).in("id", ids);
+      error = retry.error;
+      genreSaved = false;
+      if (!error) {
+        show("ジャンルを保存するにはSQL（link_genre列の追加）が必要です。場所のみ保存しました。", "error");
+      }
+    }
+
     setSavingLoc(false);
 
     if (error) {
@@ -503,11 +528,17 @@ export default function LinksPage() {
     setItems((prev) =>
       prev.map((x) =>
         ids.includes(x.id)
-          ? { ...x, placeName: editName.trim(), prefecture: editPref, city: editCity.trim() }
+          ? {
+              ...x,
+              placeName: editName.trim(),
+              prefecture: editPref,
+              city: editCity.trim(),
+              ...(genreSaved ? { linkGenre: editGenre.trim() } : {}),
+            }
           : x,
       ),
     );
-    show("保存しました", "success");
+    if (genreSaved) show("保存しました", "success");
   };
 
   const genres = useMemo(() => {
@@ -839,9 +870,9 @@ export default function LinksPage() {
               </div>
             </div>
 
-            {/* 店名・場所の追加・編集 */}
+            {/* 店名・ジャンル・場所の追加・編集 */}
             <div className="mt-4 rounded-xl border border-[var(--border)] bg-[var(--surface-alt)] p-3">
-              <p className="text-xs font-bold text-[var(--fg-muted)]">店名・場所（URLから自動取得・違っていれば修正できます）</p>
+              <p className="text-xs font-bold text-[var(--fg-muted)]">店名・ジャンル・場所（URLから自動取得・違っていれば修正できます）</p>
               {!detail.hasOwn ? (
                 <p className="mt-2 text-sm text-[var(--fg)]">
                   {[detail.prefecture, detail.city].filter(Boolean).join(" ") || "場所未登録"}
@@ -855,6 +886,20 @@ export default function LinksPage() {
                     value={editName}
                     onChange={(e) => setEditName(e.target.value)}
                   />
+                  <input
+                    list="link-genre-options"
+                    className="field-input mt-2 w-full"
+                    placeholder="ジャンル（例: カフェ、病院）— 未設定や誤りを修正"
+                    value={editGenre}
+                    onChange={(e) => setEditGenre(e.target.value)}
+                  />
+                  <datalist id="link-genre-options">
+                    {genres
+                      .filter((g) => g.genre !== UNCATEGORIZED)
+                      .map((g) => (
+                        <option key={g.genre} value={g.genre} />
+                      ))}
+                  </datalist>
                   <div className="mt-2 grid grid-cols-2 gap-2">
                     <select
                       className="field-input"
