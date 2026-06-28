@@ -265,6 +265,7 @@ type DbEvent = {
 type DbRecurringEvent = DbEvent & {
   recurrence_rule: RecurrenceRule;
   recurrence_until: string | null;
+  excluded_dates?: string[] | null;
 };
 
 type ConnectedUser = {
@@ -636,6 +637,10 @@ const expandRecurringEvents = (
     const originalEnd = new Date(row.end_at);
     const duration = originalEnd.getTime() - originalStart.getTime();
     const until = row.recurrence_until ? new Date(row.recurrence_until) : windowEnd;
+    // 「その日だけ削除」された回の除外セット（ミリ秒タイムスタンプで比較）
+    const excludedTimes = new Set(
+      (row.excluded_dates ?? []).map((iso) => new Date(iso).getTime()),
+    );
     const events: CalendarEvent[] = [];
     let occurrenceStart = originalStart;
     let guard = 0;
@@ -643,7 +648,7 @@ const expandRecurringEvents = (
     while (occurrenceStart <= until && occurrenceStart <= windowEnd && guard < 500) {
       const occurrenceEnd = new Date(occurrenceStart.getTime() + duration);
 
-      if (occurrenceEnd >= windowStart) {
+      if (occurrenceEnd >= windowStart && !excludedTimes.has(occurrenceStart.getTime())) {
         events.push({
           id: `${row.id}:${occurrenceStart.toISOString()}`,
           title: row.title,
@@ -874,8 +879,18 @@ export default function Home() {
 
     let { data: recurringEvents, error: recurringError } = await supabase
       .from("recurring_events")
-      .select("id, title, start_at, end_at, user_id, note, all_day, category_id, event_visibility, recurrence_rule, recurrence_until")
+      .select("id, title, start_at, end_at, user_id, note, all_day, category_id, event_visibility, recurrence_rule, recurrence_until, excluded_dates")
       .eq("user_id", user.id);
+
+    // excluded_dates 列が無い古いDB向けフォールバック
+    if (recurringError?.code === "42703" || recurringError?.code === "PGRST204") {
+      const retry = await supabase
+        .from("recurring_events")
+        .select("id, title, start_at, end_at, user_id, note, all_day, category_id, event_visibility, recurrence_rule, recurrence_until")
+        .eq("user_id", user.id);
+      recurringEvents = retry.data?.map((r) => ({ ...r, excluded_dates: null })) ?? null;
+      recurringError = retry.error;
+    }
 
     if (recurringError?.code === "PGRST205") {
       recurringEvents = [];
@@ -899,10 +914,19 @@ export default function Home() {
     let sharedRecurringEvents: DbRecurringEvent[] = [];
 
     if (sharedRecurringIds.length > 0) {
-      const { data, error } = await supabase
+      let { data, error } = await supabase
         .from("recurring_events")
-        .select("id, title, start_at, end_at, user_id, note, all_day, category_id, event_visibility, recurrence_rule, recurrence_until")
+        .select("id, title, start_at, end_at, user_id, note, all_day, category_id, event_visibility, recurrence_rule, recurrence_until, excluded_dates")
         .in("id", sharedRecurringIds);
+
+      if (error?.code === "42703" || error?.code === "PGRST204") {
+        const retry = await supabase
+          .from("recurring_events")
+          .select("id, title, start_at, end_at, user_id, note, all_day, category_id, event_visibility, recurrence_rule, recurrence_until")
+          .in("id", sharedRecurringIds);
+        data = retry.data?.map((r) => ({ ...r, excluded_dates: null })) ?? null;
+        error = retry.error;
+      }
 
       if (!error) {
         sharedRecurringEvents = (data ?? []) as DbRecurringEvent[];
@@ -1592,18 +1616,41 @@ export default function Home() {
     setConfirmDeleteEvent(null);
 
     if (event.recurringId) {
+      // 繰り返し予定はカレンダーからは「その日だけ」削除する（行は残す）。
+      // 全削除は 設定 → 繰り返し予定 から。
+      const { data: rowData, error: fetchError } = await supabase
+        .from("recurring_events")
+        .select("excluded_dates")
+        .eq("id", event.recurringId)
+        .single();
+
+      if (fetchError?.code === "42703" || fetchError?.code === "PGRST204") {
+        show("この日だけ削除するにはSQL（excluded_dates列の追加）を実行してください。", "error");
+        return;
+      }
+
+      const existing: string[] = rowData?.excluded_dates ?? [];
+      const targetIso = event.start.toISOString();
+      const nextExcluded = existing.includes(targetIso)
+        ? existing
+        : [...existing, targetIso];
+
       const { error } = await supabase
         .from("recurring_events")
-        .delete()
+        .update({ excluded_dates: nextExcluded })
         .eq("id", event.recurringId);
 
       if (error) {
         console.error(error);
-        show("削除に失敗しました", "error");
+        if (error.code === "42703" || error.code === "PGRST204") {
+          show("この日だけ削除するにはSQL（excluded_dates列の追加）を実行してください。", "error");
+        } else {
+          show("削除に失敗しました", "error");
+        }
         return;
       }
 
-      show("予定を削除しました", "success");
+      show("この日の予定を削除しました", "success");
       setDetailEvent(null);
       setDayDetail(null);
       await fetchEvents();
@@ -2815,7 +2862,7 @@ export default function Home() {
               <div className="mt-6 space-y-4">
                 {detailEvent.recurringId && (
                   <div className="rounded-xl bg-[#f8fafc] p-3 text-sm font-bold text-[#475569]">
-                    この予定は繰り返し予定です。保存や削除は同じ繰り返し予定全体に反映されます。
+                    この予定は繰り返し予定です。削除はこの日のみ反映されます（すべて削除する場合は 設定 → 繰り返し予定 から）。編集内容は繰り返し予定全体に反映されます。
                   </div>
                 )}
                 <div>
@@ -2963,10 +3010,14 @@ export default function Home() {
           <div className="confirm-card" onClick={(e) => e.stopPropagation()}>
             <p className="text-xs font-bold uppercase tracking-[0.14em] text-[#64748b]">確認</p>
             <p className="mt-2 text-base font-black text-[#0f172a]">
-              「{confirmDeleteEvent.title}」を削除しますか？
+              {confirmDeleteEvent.recurringId
+                ? `「${confirmDeleteEvent.title}」の${format(confirmDeleteEvent.start, "M月d日", { locale: ja })}の予定を削除しますか？`
+                : `「${confirmDeleteEvent.title}」を削除しますか？`}
             </p>
             {confirmDeleteEvent.recurringId && (
-              <p className="mt-1 text-sm text-[#64748b]">この操作は繰り返し予定全体に反映されます。</p>
+              <p className="mt-1 text-sm text-[#64748b]">
+                この日のみ削除します（繰り返し予定は残ります）。すべて削除する場合は 設定 → 繰り返し予定 から行ってください。
+              </p>
             )}
             <div className="mt-5 grid grid-cols-2 gap-2">
               <button
@@ -2979,7 +3030,7 @@ export default function Home() {
                 className="h-11 rounded-xl bg-[#be123c] font-bold text-white transition hover:bg-[#9f1239]"
                 onClick={() => void deleteEvent(confirmDeleteEvent, true)}
               >
-                削除する
+                {confirmDeleteEvent.recurringId ? "この日を削除" : "削除する"}
               </button>
             </div>
           </div>
