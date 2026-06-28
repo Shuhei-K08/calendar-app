@@ -389,15 +389,19 @@ function EventImageField({
   onImageUrlChange,
   onOcrText,
   show,
+  onBusyChange,
 }: {
   imageUrl: string;
   onImageUrlChange: (url: string) => void;
   onOcrText: (text: string) => void;
   show: ImageFieldToast;
+  onBusyChange?: (busy: boolean) => void;
 }) {
   const inputRef = useRef<HTMLInputElement | null>(null);
+  const progressTimer = useRef<ReturnType<typeof setInterval> | null>(null);
   const [uploading, setUploading] = useState(false);
   const [ocrRunning, setOcrRunning] = useState(false);
+  const [ocrProgress, setOcrProgress] = useState(0);
   const [showOriginal, setShowOriginal] = useState(false);
 
   const handleSelect = async (event: ChangeEvent<HTMLInputElement>) => {
@@ -409,6 +413,7 @@ function EventImageField({
       return;
     }
     setUploading(true);
+    onBusyChange?.(true);
     try {
       const {
         data: { user },
@@ -432,6 +437,7 @@ function EventImageField({
       show("画像を添付しました", "success");
     } finally {
       setUploading(false);
+      onBusyChange?.(false);
     }
   };
 
@@ -441,6 +447,13 @@ function EventImageField({
       return;
     }
     setOcrRunning(true);
+    onBusyChange?.(true);
+    // 進捗はGeminiから取得できないため、待機中に擬似的に進める（完了で100%）
+    setOcrProgress(5);
+    if (progressTimer.current) clearInterval(progressTimer.current);
+    progressTimer.current = setInterval(() => {
+      setOcrProgress((p) => (p < 95 ? p + Math.max(1, Math.round((95 - p) / 10)) : p));
+    }, 300);
     try {
       const res = await fetch("/api/ocr", {
         method: "POST",
@@ -457,13 +470,19 @@ function EventImageField({
         show("文字を読み取れませんでした", "error");
         return;
       }
+      setOcrProgress(100);
       onOcrText(text);
       show("読み取った文字をメモに追加しました", "success");
     } catch (error) {
       console.error(error);
       show("文字の読み取りに失敗しました", "error");
     } finally {
+      if (progressTimer.current) {
+        clearInterval(progressTimer.current);
+        progressTimer.current = null;
+      }
       setOcrRunning(false);
+      onBusyChange?.(false);
     }
   };
 
@@ -498,14 +517,15 @@ function EventImageField({
                 type="button"
                 className="rounded-lg border border-[#cbd5e1] px-3 py-1.5 text-xs font-bold text-[#334155] disabled:opacity-60"
                 onClick={() => inputRef.current?.click()}
-                disabled={uploading}
+                disabled={uploading || ocrRunning}
               >
                 {uploading ? "アップロード中…" : "画像を変更"}
               </button>
               <button
                 type="button"
-                className="rounded-lg border border-[#fca5a5] px-3 py-1.5 text-xs font-bold text-[#b91c1c]"
+                className="rounded-lg border border-[#fca5a5] px-3 py-1.5 text-xs font-bold text-[#b91c1c] disabled:opacity-60"
                 onClick={handleRemove}
+                disabled={ocrRunning}
               >
                 削除
               </button>
@@ -513,11 +533,21 @@ function EventImageField({
           </div>
           <button
             type="button"
-            className="w-full rounded-lg bg-[#0f766e] px-3 py-2 text-xs font-bold text-white disabled:opacity-60"
+            className="flex w-full items-center justify-center gap-2 rounded-lg bg-[#0f766e] px-3 py-2 text-xs font-bold text-white disabled:opacity-70"
             onClick={runOcr}
             disabled={ocrRunning}
           >
-            {ocrRunning ? "文字を読み取り中…" : "文字を読み取ってメモに追加"}
+            {ocrRunning ? (
+              <>
+                <svg className="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
+                  <circle cx="12" cy="12" r="9" strokeOpacity="0.25" />
+                  <path d="M21 12a9 9 0 0 0-9-9" strokeLinecap="round" />
+                </svg>
+                文字を読み取り中… {ocrProgress}%
+              </>
+            ) : (
+              "文字を読み取ってメモに追加"
+            )}
           </button>
         </div>
       ) : (
@@ -730,6 +760,7 @@ export default function Home() {
   const [linkOptionsLoaded, setLinkOptionsLoaded] = useState(false);
   const [linkPickerTarget, setLinkPickerTarget] = useState<"new" | "edit" | null>(null);
   const [linkPickerQuery, setLinkPickerQuery] = useState("");
+  const [ocrBusy, setOcrBusy] = useState(false);
   const [ogData, setOgData] = useState<OgData | null>(null);
   const [ogLoading, setOgLoading] = useState(false);
   const [shareDraftIds, setShareDraftIds] = useState<string[]>([]);
@@ -1306,6 +1337,7 @@ export default function Home() {
 
   const openEventModal = (date = new Date()) => {
     setEventForm(createBlankForm(date));
+    setOcrBusy(false);
     setIsEventModalOpen(true);
   };
 
@@ -1397,6 +1429,7 @@ export default function Home() {
 
   const openDetailEvent = (event: CalendarEvent) => {
     setDetailEvent(event);
+    setOcrBusy(false);
     setIsDetailEditing(false);
   };
 
@@ -2540,6 +2573,7 @@ export default function Home() {
                     }))
                   }
                   show={show}
+                  onBusyChange={setOcrBusy}
                 />
               </div>
               <label className="space-y-1 sm:col-span-2">
@@ -2643,10 +2677,10 @@ export default function Home() {
             <div className="mt-6">
               <button
                 className="h-11 w-full rounded-lg bg-[#0f766e] px-5 text-sm font-semibold text-white shadow-sm transition hover:bg-[#115e59] disabled:cursor-not-allowed disabled:opacity-50"
-                disabled={!eventForm.title.trim()}
+                disabled={!eventForm.title.trim() || ocrBusy}
                 onClick={addEvent}
               >
-                登録する
+                {ocrBusy ? "画像を処理中…" : "登録する"}
               </button>
             </div>
           </div>
@@ -2786,6 +2820,7 @@ export default function Home() {
                       }))
                     }
                     show={show}
+                    onBusyChange={setOcrBusy}
                   />
                 </div>
                 <label className="space-y-1 sm:col-span-2">
@@ -3053,14 +3088,16 @@ export default function Home() {
                 </div>
 
                 <button
-                  className="h-11 w-full rounded-lg bg-[#0f766e] px-5 text-sm font-semibold text-white shadow-sm transition hover:bg-[#115e59]"
+                  className="h-11 w-full rounded-lg bg-[#0f766e] px-5 text-sm font-semibold text-white shadow-sm transition hover:bg-[#115e59] disabled:cursor-not-allowed disabled:opacity-50"
                   onClick={updateEvent}
+                  disabled={ocrBusy}
                 >
-                  予定を保存
+                  {ocrBusy ? "画像を処理中…" : "予定を保存"}
                 </button>
                 <button
-                  className="h-11 w-full rounded-lg border border-[#fecdd3] px-5 text-sm font-semibold text-[#be123c] transition hover:bg-[#fff1f2]"
+                  className="h-11 w-full rounded-lg border border-[#fecdd3] px-5 text-sm font-semibold text-[#be123c] transition hover:bg-[#fff1f2] disabled:cursor-not-allowed disabled:opacity-50"
                   onClick={() => deleteEvent(detailEvent)}
+                  disabled={ocrBusy}
                 >
                   削除する
                 </button>
