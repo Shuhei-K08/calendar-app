@@ -108,9 +108,11 @@ const MAIN_CATEGORIES: MainCategory[] = [
       /amazon|楽天市場|メルカリ|mercari|yahoo.*ショッピング|ショッピングモール|百貨店|デパート|アウトレット/i,
     ],
     subGenres: [
-      { label: "EC", emoji: "🛒", patterns: [/amazon|楽天市場|メルカリ|mercari|yahoo.*ショッピング/i] },
       { label: "ファッション", emoji: "👗", patterns: [/ファッション|fashion|アパレル|apparel/i] },
       { label: "家電", emoji: "💻", patterns: [/家電|electronics|ヨドバシ|ビックカメラ|ヤマダ/i] },
+      { label: "ドラッグストア", emoji: "💊", patterns: [/ドラッグストア|drugstore|薬局|マツモトキヨシ|マツキヨ|ウエルシア|スギ薬局|ツルハ|ココカラ/i] },
+      { label: "スーパーマーケット", emoji: "🛒", patterns: [/スーパーマーケット|supermarket|イオン|aeon|西友|ライフ|まいばすけっと|業務スーパー/i] },
+      { label: "デパート", emoji: "🏬", patterns: [/百貨店|デパート|department store|伊勢丹|高島屋|三越|大丸|そごう|阪急百貨店/i] },
       { label: "アウトレット", emoji: "🏷️", patterns: [/アウトレット|outlet/i] },
     ],
   },

@@ -88,8 +88,9 @@ const GENRE_GROUPS: { label: string; options: { name: string; emoji: string }[] 
     { name: "ヨガ・ピラティス", emoji: "🧘" }, { name: "ジム", emoji: "🏋️" },
   ] },
   { label: "ショッピング", options: [
-    { name: "EC", emoji: "🛒" }, { name: "ファッション", emoji: "👗" },
-    { name: "家電", emoji: "💻" }, { name: "アウトレット", emoji: "🏷️" },
+    { name: "ファッション", emoji: "👗" }, { name: "家電", emoji: "💻" },
+    { name: "ドラッグストア", emoji: "💊" }, { name: "スーパーマーケット", emoji: "🛒" },
+    { name: "デパート", emoji: "🏬" }, { name: "アウトレット", emoji: "🏷️" },
   ] },
   { label: "エンタメ", options: [
     { name: "映画", emoji: "🎬" }, { name: "音楽・ライブ", emoji: "🎵" },
@@ -113,6 +114,9 @@ const GENRE_GROUPS: { label: string; options: { name: string; emoji: string }[] 
   { label: "株・投資", options: [
     { name: "株式", emoji: "📊" }, { name: "FX", emoji: "💱" }, { name: "仮想通貨", emoji: "₿" },
   ] },
+  { label: "その他", options: [
+    { name: "その他", emoji: "📌" },
+  ] },
 ];
 
 const GENRE_EMOJI: Record<string, string> = Object.fromEntries(
@@ -122,6 +126,7 @@ const MAIN_EMOJI: Record<string, string> = {
   "グルメ・飲食": "🍽️", "旅行・宿泊": "✈️", "アウトドア": "🏕️", "スポーツ": "🏟️",
   "フィットネス": "💪", "ショッピング": "🛍️", "エンタメ": "🎭", "自動車": "🚗",
   "バイク": "🏍️", "医療・クリニック": "🏥", "美容": "💇", "不動産": "🏠", "株・投資": "📈",
+  "その他": "📌",
 };
 const ALL_GENRE_SET = new Set(Object.keys(GENRE_EMOJI));
 const genreEmoji = (name: string) => GENRE_EMOJI[name] ?? MAIN_EMOJI[name] ?? "🏷️";
