@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent } from "react";
 import { useRouter } from "next/navigation";
 import { Calendar, dateFnsLocalizer, Event, View } from "react-big-calendar";
 import { addMonths, addWeeks, addYears, format, getDay, parse, startOfWeek } from "date-fns";
@@ -230,6 +230,7 @@ type CalendarEvent = Event & {
   url: string;
   prefecture: string;
   city: string;
+  imageUrl: string;
   canDelete: boolean;
   isShared: boolean;
   ownerId: string;
@@ -255,6 +256,7 @@ type DbEvent = {
   url: string | null;
   prefecture?: string | null;
   city?: string | null;
+  image_url?: string | null;
   all_day: boolean | null;
   category_id: string | null;
   event_visibility?: EventVisibility | null;
@@ -312,6 +314,7 @@ type EventForm = {
   url: string;
   prefecture: string;
   city: string;
+  imageUrl: string;
   categoryId: string;
   selectedUserIds: string[];
   shareType: EventVisibility;
@@ -365,6 +368,196 @@ const extractUrlFromClipboard = (clipboardData: DataTransfer): string => {
   return extractUrl(text);
 };
 
+type ImageFieldToast = (message: string, type?: ToastType) => void;
+
+type TesseractLike = {
+  recognize: (
+    image: Blob | string,
+    lang: string,
+    options?: { logger?: (m: { status: string; progress: number }) => void },
+  ) => Promise<{ data: { text: string } }>;
+};
+
+const loadTesseract = async (): Promise<TesseractLike> => {
+  const w = window as unknown as { Tesseract?: TesseractLike };
+  if (w.Tesseract) return w.Tesseract;
+  await new Promise<void>((resolve, reject) => {
+    const script = document.createElement("script");
+    script.src = "https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js";
+    script.onload = () => resolve();
+    script.onerror = () => reject(new Error("OCRライブラリの読み込みに失敗しました"));
+    document.head.appendChild(script);
+  });
+  if (!w.Tesseract) throw new Error("OCRライブラリの初期化に失敗しました");
+  return w.Tesseract;
+};
+
+function EventImageField({
+  imageUrl,
+  onImageUrlChange,
+  onOcrText,
+  show,
+}: {
+  imageUrl: string;
+  onImageUrlChange: (url: string) => void;
+  onOcrText: (text: string) => void;
+  show: ImageFieldToast;
+}) {
+  const inputRef = useRef<HTMLInputElement | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const [ocrRunning, setOcrRunning] = useState(false);
+  const [ocrProgress, setOcrProgress] = useState(0);
+  const [showOriginal, setShowOriginal] = useState(false);
+  const [lastFile, setLastFile] = useState<File | null>(null);
+
+  const handleSelect = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) return;
+    if (!file.type.startsWith("image/")) {
+      show("画像ファイルを選択してください", "error");
+      return;
+    }
+    setLastFile(file);
+    setUploading(true);
+    try {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user) {
+        show("ログインが必要です", "error");
+        return;
+      }
+      const ext = (file.name.split(".").pop() || "png").toLowerCase();
+      const path = `${user.id}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
+      const { error } = await supabase.storage
+        .from("event-images")
+        .upload(path, file, { cacheControl: "3600", upsert: false });
+      if (error) {
+        console.error(error);
+        show("画像のアップロードに失敗しました。SQL（event-imagesバケット作成）を実行してください。", "error");
+        return;
+      }
+      const { data } = supabase.storage.from("event-images").getPublicUrl(path);
+      onImageUrlChange(data.publicUrl);
+      show("画像を添付しました", "success");
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const runOcr = async () => {
+    const source: Blob | string | null = lastFile ?? (imageUrl || null);
+    if (!source) {
+      show("先に画像を選択してください", "error");
+      return;
+    }
+    setOcrRunning(true);
+    setOcrProgress(0);
+    try {
+      const Tesseract = await loadTesseract();
+      const { data } = await Tesseract.recognize(source, "jpn+eng", {
+        logger: (m) => {
+          if (m.status === "recognizing text") setOcrProgress(Math.round(m.progress * 100));
+        },
+      });
+      const text = (data.text || "").replace(/\s+\n/g, "\n").trim();
+      if (!text) {
+        show("文字を読み取れませんでした", "error");
+        return;
+      }
+      onOcrText(text);
+      show("読み取った文字をメモに追加しました", "success");
+    } catch (error) {
+      console.error(error);
+      show("文字の読み取りに失敗しました", "error");
+    } finally {
+      setOcrRunning(false);
+    }
+  };
+
+  const handleRemove = () => {
+    onImageUrlChange("");
+    setLastFile(null);
+  };
+
+  return (
+    <div className="space-y-2">
+      <span className="text-xs font-semibold text-[#64748b]">画像</span>
+      <input
+        ref={inputRef}
+        type="file"
+        accept="image/*"
+        className="hidden"
+        onChange={handleSelect}
+      />
+      {imageUrl ? (
+        <div className="space-y-2">
+          <div className="flex items-center gap-3 rounded-lg border border-[#cbd5e1] p-2">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={imageUrl} alt="添付画像" className="h-16 w-16 shrink-0 rounded-md object-cover" />
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                className="rounded-lg border border-[#cbd5e1] px-3 py-1.5 text-xs font-bold text-[#334155]"
+                onClick={() => setShowOriginal(true)}
+              >
+                元画像を表示
+              </button>
+              <button
+                type="button"
+                className="rounded-lg border border-[#cbd5e1] px-3 py-1.5 text-xs font-bold text-[#334155] disabled:opacity-60"
+                onClick={() => inputRef.current?.click()}
+                disabled={uploading}
+              >
+                {uploading ? "アップロード中…" : "画像を変更"}
+              </button>
+              <button
+                type="button"
+                className="rounded-lg border border-[#fca5a5] px-3 py-1.5 text-xs font-bold text-[#b91c1c]"
+                onClick={handleRemove}
+              >
+                削除
+              </button>
+            </div>
+          </div>
+          <button
+            type="button"
+            className="w-full rounded-lg bg-[#0f766e] px-3 py-2 text-xs font-bold text-white disabled:opacity-60"
+            onClick={runOcr}
+            disabled={ocrRunning}
+          >
+            {ocrRunning ? `文字を読み取り中… ${ocrProgress}%` : "文字を読み取ってメモに追加"}
+          </button>
+        </div>
+      ) : (
+        <button
+          type="button"
+          className="w-full rounded-lg border border-dashed border-[#cbd5e1] px-3 py-3 text-xs font-bold text-[#334155] disabled:opacity-60"
+          onClick={() => inputRef.current?.click()}
+          disabled={uploading}
+        >
+          {uploading ? "アップロード中…" : "画像を選択してアップロード"}
+        </button>
+      )}
+      {showOriginal && (
+        <div
+          className="fixed inset-0 z-[70] flex items-center justify-center bg-black/70 p-4"
+          onClick={() => setShowOriginal(false)}
+        >
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={imageUrl}
+            alt="元画像"
+            className="max-h-[90vh] max-w-[90vw] rounded-lg object-contain"
+            onClick={(event) => event.stopPropagation()}
+          />
+        </div>
+      )}
+    </div>
+  );
+}
+
 const createBlankForm = (date = new Date()): EventForm => {
   const startDate = new Date(date);
   startDate.setHours(9, 0, 0, 0);
@@ -381,6 +574,7 @@ const createBlankForm = (date = new Date()): EventForm => {
     url: "",
     prefecture: "",
     city: "",
+    imageUrl: "",
     categoryId: "",
     selectedUserIds: [],
     shareType: "together",
@@ -484,6 +678,7 @@ const expandRecurringEvents = (
           url: row.url ?? "",
           prefecture: row.prefecture ?? "",
           city: row.city ?? "",
+          imageUrl: row.image_url ?? "",
           canDelete: meta.canDelete,
           isShared: meta.isShared,
           ownerId: row.user_id,
@@ -536,6 +731,7 @@ export default function Home() {
   const [isEventModalOpen, setIsEventModalOpen] = useState(false);
   const [detailEvent, setDetailEvent] = useState<CalendarEvent | null>(null);
   const [isDetailEditing, setIsDetailEditing] = useState(false);
+  const [detailImageOpen, setDetailImageOpen] = useState(false);
   const [ogData, setOgData] = useState<OgData | null>(null);
   const [ogLoading, setOgLoading] = useState(false);
   const [shareDraftIds, setShareDraftIds] = useState<string[]>([]);
@@ -672,7 +868,7 @@ export default function Home() {
 
     let { data: myEvents, error: myError } = await supabase
         .from("events")
-        .select("id, title, start_at, end_at, user_id, note, url, prefecture, city, all_day, category_id, event_visibility")
+        .select("id, title, start_at, end_at, user_id, note, url, prefecture, city, image_url, all_day, category_id, event_visibility")
         .eq("user_id", user.id);
 
     if (myError?.code === "42703") {
@@ -687,6 +883,7 @@ export default function Home() {
         url: null,
         prefecture: null,
         city: null,
+        image_url: null,
         all_day: false,
         category_id: null,
         event_visibility: "private",
@@ -755,7 +952,7 @@ export default function Home() {
     if (sharedEventIds.length > 0) {
       let { data, error } = await supabase
         .from("events")
-        .select("id, title, start_at, end_at, user_id, note, url, prefecture, city, all_day, category_id, event_visibility")
+        .select("id, title, start_at, end_at, user_id, note, url, prefecture, city, image_url, all_day, category_id, event_visibility")
         .in("id", sharedEventIds);
 
       if (error?.code === "42703") {
@@ -770,6 +967,7 @@ export default function Home() {
           url: null,
           prefecture: null,
           city: null,
+          image_url: null,
           all_day: false,
           category_id: null,
           event_visibility: "together",
@@ -885,6 +1083,7 @@ export default function Home() {
         url: event.url ?? "",
         prefecture: event.prefecture ?? "",
         city: event.city ?? "",
+        imageUrl: event.image_url ?? "",
         canDelete: event.canDelete,
         isShared: event.isShared,
         ownerId: event.ownerId,
@@ -952,6 +1151,7 @@ export default function Home() {
         url: detailEvent.url,
         prefecture: detailEvent.prefecture,
         city: detailEvent.city,
+        imageUrl: detailEvent.imageUrl,
         categoryId: detailEvent.categoryId ?? "",
         selectedUserIds: detailEvent.sharedWith.map((user) => user.id),
         shareType: detailEvent.visibility === "private" ? "together" : detailEvent.visibility,
@@ -1191,6 +1391,7 @@ export default function Home() {
       url: form.url.trim() || null,
       prefecture: form.prefecture.trim() || null,
       city: form.city.trim() || null,
+      image_url: form.imageUrl.trim() || null,
       event_visibility:
         form.selectedUserIds.length > 0 ? form.shareType : "private",
       user_id: user.id,
@@ -1203,8 +1404,8 @@ export default function Home() {
       .single();
 
     if (error?.code === "PGRST204" || error?.code === "42703") {
-      // まず新しい列(prefecture/city)だけ外して再試行（分類・メモ等は維持）
-      const { prefecture, city, ...withoutLocation } = eventPayload;
+      // まず新しい列(prefecture/city/image_url)だけ外して再試行（分類・メモ等は維持）
+      const { prefecture, city, image_url, ...withoutLocation } = eventPayload;
       let retry = await supabase.from("events").insert(withoutLocation).select().single();
 
       if (retry.error?.code === "PGRST204" || retry.error?.code === "42703") {
@@ -1214,8 +1415,8 @@ export default function Home() {
         if (!retry.error && (note || all_day || category_id || event_visibility !== "private")) {
           show("DB列がまだ不足しています。SQL実行後はメモ・終日・分類も保存されます。", "error");
         }
-      } else if (!retry.error && (prefecture || city)) {
-        show("場所を保存するにはSQL（prefecture/city列の追加）を実行してください。", "error");
+      } else if (!retry.error && (prefecture || city || image_url)) {
+        show("場所・画像を保存するにはSQL（prefecture/city/image_url列の追加）を実行してください。", "error");
       }
 
       insertedEvent = retry.data;
@@ -1284,6 +1485,7 @@ export default function Home() {
       url: editForm.url.trim() || null,
       prefecture: editForm.prefecture.trim() || null,
       city: editForm.city.trim() || null,
+      image_url: editForm.imageUrl.trim() || null,
       event_visibility: shareDraftIds.length > 0 ? editForm.shareType : "private",
     };
 
@@ -1330,8 +1532,8 @@ export default function Home() {
       .eq("id", detailEvent.id);
 
     if (error?.code === "PGRST204" || error?.code === "42703") {
-      // まず新しい列(prefecture/city)だけ外して再試行（分類・メモ等は維持）
-      const { prefecture, city, ...withoutLocation } = payload;
+      // まず新しい列(prefecture/city/image_url)だけ外して再試行（分類・メモ等は維持）
+      const { prefecture, city, image_url, ...withoutLocation } = payload;
       let retry = await supabase.from("events").update(withoutLocation).eq("id", detailEvent.id);
 
       if (retry.error?.code === "PGRST204" || retry.error?.code === "42703") {
@@ -1341,8 +1543,8 @@ export default function Home() {
         if (!retry.error && (note || all_day || category_id || event_visibility !== "private")) {
           show("DB列がまだ不足しています。SQL実行後はメモ・終日・分類も保存されます。", "error");
         }
-      } else if (!retry.error && (prefecture || city)) {
-        show("場所を保存するにはSQL（prefecture/city列の追加）を実行してください。", "error");
+      } else if (!retry.error && (prefecture || city || image_url)) {
+        show("場所・画像を保存するにはSQL（prefecture/city/image_url列の追加）を実行してください。", "error");
       }
 
       error = retry.error;
@@ -2199,6 +2401,21 @@ export default function Home() {
                   placeholder="申し送り、持ち物、集合場所など"
                 />
               </label>
+              <div className="sm:col-span-2">
+                <EventImageField
+                  imageUrl={eventForm.imageUrl}
+                  onImageUrlChange={(url) =>
+                    setEventForm((current) => ({ ...current, imageUrl: url }))
+                  }
+                  onOcrText={(text) =>
+                    setEventForm((current) => ({
+                      ...current,
+                      note: current.note.trim() ? `${current.note.trim()}\n${text}` : text,
+                    }))
+                  }
+                  show={show}
+                />
+              </div>
               <label className="space-y-1 sm:col-span-2">
                 <span className="text-xs font-semibold text-[#64748b]">URL（お店・予約ページなど）</span>
                 <input
@@ -2302,7 +2519,21 @@ export default function Home() {
       )}
 
       {detailEvent && (
-        <div className="fixed inset-0 z-50 flex items-start overflow-hidden bg-[#0f172a]/40 p-3 pt-4 sm:items-center sm:justify-center" onClick={() => { setDetailEvent(null); setIsDetailEditing(false); }}>
+        <div className="fixed inset-0 z-50 flex items-start overflow-hidden bg-[#0f172a]/40 p-3 pt-4 sm:items-center sm:justify-center" onClick={() => { setDetailEvent(null); setIsDetailEditing(false); setDetailImageOpen(false); }}>
+          {detailImageOpen && detailEvent.imageUrl && (
+            <div
+              className="fixed inset-0 z-[70] flex items-center justify-center bg-black/70 p-4"
+              onClick={(event) => { event.stopPropagation(); setDetailImageOpen(false); }}
+            >
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={detailEvent.imageUrl}
+                alt="元画像"
+                className="max-h-[90vh] max-w-[90vw] rounded-lg object-contain"
+                onClick={(event) => event.stopPropagation()}
+              />
+            </div>
+          )}
           <div className="max-h-[88vh] w-full max-w-full overflow-y-auto overflow-x-hidden rounded-2xl bg-white p-4 shadow-2xl sm:max-w-lg sm:p-6" onClick={(e) => e.stopPropagation()}>
             <div className="mb-4 border-b border-[#e2e8f0] bg-white pb-4">
               <div>
@@ -2407,6 +2638,21 @@ export default function Home() {
                     }
                   />
                 </label>
+                <div className="sm:col-span-2">
+                  <EventImageField
+                    imageUrl={editForm.imageUrl}
+                    onImageUrlChange={(url) =>
+                      setEditForm((current) => ({ ...current, imageUrl: url }))
+                    }
+                    onOcrText={(text) =>
+                      setEditForm((current) => ({
+                        ...current,
+                        note: current.note.trim() ? `${current.note.trim()}\n${text}` : text,
+                      }))
+                    }
+                    show={show}
+                  />
+                </div>
                 <label className="space-y-1 sm:col-span-2">
                   <span className="text-xs font-semibold text-[#64748b]">URL（お店・予約ページなど）</span>
                   <input
@@ -2469,6 +2715,33 @@ export default function Home() {
                     {detailEvent.note || "メモはありません。"}
                   </p>
                 </div>
+                {detailEvent.imageUrl && (
+                  <div className="rounded-xl bg-[#f8fafc] p-3">
+                    <p className="text-xs font-semibold text-[#64748b]">画像</p>
+                    <div className="mt-2 flex items-center gap-3">
+                      <button
+                        type="button"
+                        className="shrink-0"
+                        onClick={() => setDetailImageOpen(true)}
+                        aria-label="元画像を表示"
+                      >
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          src={detailEvent.imageUrl}
+                          alt="添付画像"
+                          className="h-20 w-20 rounded-md object-cover"
+                        />
+                      </button>
+                      <button
+                        type="button"
+                        className="rounded-lg border border-[#cbd5e1] px-3 py-1.5 text-xs font-bold text-[#334155]"
+                        onClick={() => setDetailImageOpen(true)}
+                      >
+                        元画像を表示
+                      </button>
+                    </div>
+                  </div>
+                )}
                 {detailEvent.url && (() => {
                   const normalizedUrl = /^https?:\/\//i.test(detailEvent.url)
                     ? detailEvent.url
