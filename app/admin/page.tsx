@@ -30,9 +30,20 @@ type OcrUsage = {
   todayTokens: number;
   todayLimitHits: number;
   lastLimitAt: string | null;
+  nextResetAt: string | null;
   dailyRequestEstimate: number;
   error?: string;
 };
+
+const formatJstDateTime = (iso: string) =>
+  new Intl.DateTimeFormat("ja-JP", {
+    timeZone: "Asia/Tokyo",
+    month: "long",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).format(new Date(iso));
 
 export default function AdminPage() {
   const router = useRouter();
@@ -328,14 +339,34 @@ export default function AdminPage() {
                     <p className="mt-1 text-3xl font-black text-[var(--fg-strong)]">{ocrUsage.todayLimitHits}</p>
                     <p className="mt-1 text-xs text-[var(--fg-muted)]">
                       {ocrUsage.lastLimitAt
-                        ? `直近: ${new Date(ocrUsage.lastLimitAt).toLocaleString("ja-JP")}`
+                        ? `直近: ${formatJstDateTime(ocrUsage.lastLimitAt)}`
                         : "なし"}
                     </p>
                   </div>
                 </div>
-                <p className="mt-3 text-xs leading-5 text-[var(--fg-muted)]">
+
+                {ocrUsage.nextResetAt && (
+                  <div
+                    className={`mt-3 flex items-center gap-2 rounded-xl p-3 text-sm ${
+                      ocrUsage.todayLimitHits > 0
+                        ? "bg-[var(--rose-50,#fff1f2)] font-bold text-[var(--rose,#e11d48)]"
+                        : "bg-[var(--surface-alt)] text-[var(--fg-muted)]"
+                    }`}
+                  >
+                    <svg viewBox="0 0 24 24" className="h-4 w-4 shrink-0" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <circle cx="12" cy="12" r="9" />
+                      <path d="M12 7v5l3 2" />
+                    </svg>
+                    <span>
+                      {ocrUsage.todayLimitHits > 0 ? "上限に達しています。" : ""}
+                      次のリセット: {formatJstDateTime(ocrUsage.nextResetAt)}頃（日本時間）
+                    </span>
+                  </div>
+                )}
+
+                <p className="mt-2 text-xs leading-5 text-[var(--fg-muted)]">
                   ※ Googleは「残り回数」を提供していないため、ここでは実際の使用量を表示しています。
-                  無料枠は毎日 日本時間17時頃（太平洋時間0時）にリセットされます。回数の目安は概算で、保証値ではありません。
+                  無料枠は太平洋時間0時（夏時間で日本時間16〜17時頃）にリセットされます。回数の目安は概算で、保証値ではありません。
                 </p>
               </>
             )}

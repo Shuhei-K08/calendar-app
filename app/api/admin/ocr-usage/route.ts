@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createSupabaseAdmin } from "@/lib/supabaseAdmin";
+import { nextPacificMidnight } from "@/lib/quotaReset";
 
 // 管理者向け: AI読み取り（Gemini OCR）の使用状況を返す。
 // ocr_usage テーブル（supabase-ocr-usage.sql）が必要。
@@ -91,6 +92,8 @@ export async function GET(request: Request) {
     todayTokens: successRows.reduce((sum, r) => sum + (r.total_tokens ?? 0), 0),
     todayLimitHits: limitRows.length,
     lastLimitAt: lastLimit?.created_at ?? null,
+    // 次に無料枠がリセットされる時刻（太平洋時間0時）
+    nextResetAt: nextPacificMidnight().toISOString(),
     // 無料枠の目安（公式に保証された値ではない概算）
     dailyRequestEstimate: 250,
   });

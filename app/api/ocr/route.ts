@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createSupabaseAdmin } from "@/lib/supabaseAdmin";
+import { formatJst, nextPacificMidnight } from "@/lib/quotaReset";
 
 // Google Gemini（Google AI Studio）の無料枠を使った画像OCR。
 // 必要な環境変数:
@@ -105,8 +106,8 @@ export async function POST(request: Request) {
 
       let message: string;
       if (geminiRes.status === 429) {
-        message =
-          "AI読み取りの上限に達しました。しばらく時間をおいてからお試しください。";
+        const resetAt = formatJst(nextPacificMidnight());
+        message = `AI読み取りの上限に達しました。${resetAt}頃にリセットされます。`;
         await logOcrUsage({ imageUrl, status: "limit" });
       } else if (geminiRes.status === 400 || geminiRes.status === 403) {
         message = "APIキーが無効か、権限がありません。設定を確認してください。";
