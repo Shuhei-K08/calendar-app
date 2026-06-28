@@ -109,8 +109,9 @@ export default function LinksPage() {
   const autoSaveTried = useRef<Set<string>>(new Set());
   const cityTried = useRef<Set<string>>(new Set());
 
-  // 詳細パネル
-  const [detailId, setDetailId] = useState<string | null>(null);
+  // 詳細パネル（URLグループ単位）
+  const [detailKey, setDetailKey] = useState<string | null>(null);
+  const [expandedOccId, setExpandedOccId] = useState<string | null>(null);
   const [editName, setEditName] = useState("");
   const [editPref, setEditPref] = useState("");
   const [editCity, setEditCity] = useState("");
@@ -351,9 +352,71 @@ export default function LinksPage() {
 
   type EnrichedItem = (typeof enriched)[number];
 
+  type LinkOccurrence = {
+    id: string;
+    eventTitle: string;
+    note: string | null;
+    date: Date;
+    ownerName: string | null;
+  };
+  type LinkGroup = {
+    key: string;
+    url: string;
+    storeName: string;
+    genre: string;
+    emoji: string;
+    prefecture: string;
+    city: string;
+    placeName: string;
+    isFavorite: boolean;
+    hasOwn: boolean;
+    ownIds: string[];
+    occurrences: LinkOccurrence[];
+    latestDate: Date;
+  };
+
+  // 同じURLの予定をまとめる（1URL = 1カード、予定日は複数）
+  const urlGroups = useMemo<LinkGroup[]>(() => {
+    const map = new Map<string, EnrichedItem[]>();
+    for (const it of enriched) {
+      const key = normalizeUrl(it.url).toLowerCase();
+      const arr = map.get(key);
+      if (arr) arr.push(it);
+      else map.set(key, [it]);
+    }
+    return Array.from(map.entries())
+      .map(([key, list]) => {
+        const sorted = [...list].sort((a, b) => b.date.getTime() - a.date.getTime());
+        const own = sorted.filter((x) => x.ownerName === null);
+        const rep = own[0] ?? sorted[0];
+        return {
+          key,
+          url: rep.url,
+          storeName: rep.storeName,
+          genre: rep.genre,
+          emoji: rep.emoji,
+          prefecture: rep.prefecture,
+          city: rep.city,
+          placeName: rep.placeName,
+          isFavorite: own.some((x) => x.isFavorite),
+          hasOwn: own.length > 0,
+          ownIds: own.map((x) => x.id),
+          occurrences: sorted.map((x) => ({
+            id: x.id,
+            eventTitle: x.eventTitle,
+            note: x.note,
+            date: x.date,
+            ownerName: x.ownerName,
+          })),
+          latestDate: sorted[0].date,
+        };
+      })
+      .sort((a, b) => b.latestDate.getTime() - a.latestDate.getTime());
+  }, [enriched]);
+
   const detail = useMemo(
-    () => enriched.find((it) => it.id === detailId) ?? null,
-    [enriched, detailId],
+    () => urlGroups.find((g) => g.key === detailKey) ?? null,
+    [urlGroups, detailKey],
   );
 
   const loadCities = useCallback(async (pref: string) => {
@@ -375,32 +438,34 @@ export default function LinksPage() {
     }
   }, []);
 
-  const openDetail = (it: EnrichedItem) => {
-    setDetailId(it.id);
+  const openDetail = (g: LinkGroup) => {
+    setDetailKey(g.key);
+    setExpandedOccId(null);
     // 編集欄は「保存済み or 自動取得」の値で初期化（違っていれば直して保存）
-    setEditName(it.storeName);
-    setEditPref(it.prefecture);
-    setEditCity(it.city);
-    if (it.prefecture) void loadCities(it.prefecture);
+    setEditName(g.storeName);
+    setEditPref(g.prefecture);
+    setEditCity(g.city);
+    if (g.prefecture) void loadCities(g.prefecture);
   };
 
   const closeDetail = () => {
-    setDetailId(null);
+    setDetailKey(null);
+    setExpandedOccId(null);
     setSavingLoc(false);
   };
 
   const toggleFavorite = useCallback(
-    async (item: { id: string; isFavorite: boolean; ownerName: string | null }) => {
-      if (item.ownerName !== null) return; // 共有相手の予定は変更不可
-      const next = !item.isFavorite;
-      setItems((prev) => prev.map((x) => (x.id === item.id ? { ...x, isFavorite: next } : x)));
+    async (g: { ownIds: string[]; isFavorite: boolean; hasOwn: boolean }) => {
+      if (!g.hasOwn) return; // 共有相手のみのリンクは変更不可
+      const next = !g.isFavorite;
+      const ids = g.ownIds;
+      setItems((prev) => prev.map((x) => (ids.includes(x.id) ? { ...x, isFavorite: next } : x)));
       const { error } = await supabase
         .from("events")
         .update({ is_favorite: next })
-        .eq("id", item.id);
+        .in("id", ids);
       if (error) {
-        // 失敗したら元に戻す
-        setItems((prev) => prev.map((x) => (x.id === item.id ? { ...x, isFavorite: !next } : x)));
+        setItems((prev) => prev.map((x) => (ids.includes(x.id) ? { ...x, isFavorite: !next } : x)));
         if (error.code === "42703" || error.code === "PGRST204") {
           show("お気に入りを使うにはSQL（is_favorite列の追加）を実行してください。", "error");
         } else {
@@ -412,7 +477,8 @@ export default function LinksPage() {
   );
 
   const saveLocation = async () => {
-    if (!detail) return;
+    if (!detail || !detail.hasOwn) return;
+    const ids = detail.ownIds;
     setSavingLoc(true);
     const { error } = await supabase
       .from("events")
@@ -421,7 +487,7 @@ export default function LinksPage() {
         prefecture: editPref || null,
         city: editCity.trim() || null,
       })
-      .eq("id", detail.id);
+      .in("id", ids);
     setSavingLoc(false);
 
     if (error) {
@@ -433,10 +499,10 @@ export default function LinksPage() {
       return;
     }
 
-    // ローカル状態を更新
+    // ローカル状態を更新（同じURLの自分の予定すべて）
     setItems((prev) =>
       prev.map((x) =>
-        x.id === detail.id
+        ids.includes(x.id)
           ? { ...x, placeName: editName.trim(), prefecture: editPref, city: editCity.trim() }
           : x,
       ),
@@ -446,10 +512,10 @@ export default function LinksPage() {
 
   const genres = useMemo(() => {
     const map = new Map<string, { emoji: string; count: number }>();
-    enriched.forEach((it) => {
-      const cur = map.get(it.genre);
+    urlGroups.forEach((g) => {
+      const cur = map.get(g.genre);
       if (cur) cur.count += 1;
-      else map.set(it.genre, { emoji: it.emoji, count: 1 });
+      else map.set(g.genre, { emoji: g.emoji, count: 1 });
     });
     return Array.from(map.entries())
       .map(([genre, v]) => ({ genre, ...v }))
@@ -458,45 +524,47 @@ export default function LinksPage() {
         if (b.genre === UNCATEGORIZED) return -1;
         return b.count - a.count;
       });
-  }, [enriched]);
+  }, [urlGroups]);
 
   const prefectures = useMemo(() => {
     const set = new Set<string>();
-    enriched.forEach((it) => {
-      if (it.prefecture) set.add(it.prefecture);
+    urlGroups.forEach((g) => {
+      if (g.prefecture) set.add(g.prefecture);
     });
     return Array.from(set);
-  }, [enriched]);
+  }, [urlGroups]);
 
-
-  const favCount = useMemo(() => enriched.filter((it) => it.isFavorite).length, [enriched]);
+  const favCount = useMemo(() => urlGroups.filter((g) => g.isFavorite).length, [urlGroups]);
 
   const visible = useMemo(() => {
     const q = query.trim().toLowerCase();
-    return enriched.filter((it) => {
-      if (favOnly && !it.isFavorite) return false;
-      if (activeGenre !== "all" && it.genre !== activeGenre) return false;
-      if (activePrefecture !== "all" && it.prefecture !== activePrefecture) return false;
+    return urlGroups.filter((g) => {
+      if (favOnly && !g.isFavorite) return false;
+      if (activeGenre !== "all" && g.genre !== activeGenre) return false;
+      if (activePrefecture !== "all" && g.prefecture !== activePrefecture) return false;
       if (!q) return true;
       return (
-        it.storeName.toLowerCase().includes(q) ||
-        it.eventTitle.toLowerCase().includes(q) ||
-        it.url.toLowerCase().includes(q) ||
-        (it.note ?? "").toLowerCase().includes(q) ||
-        it.prefecture.toLowerCase().includes(q) ||
-        it.city.toLowerCase().includes(q) ||
-        it.genre.toLowerCase().includes(q) ||
-        hostOf(it.url).toLowerCase().includes(q)
+        g.storeName.toLowerCase().includes(q) ||
+        g.url.toLowerCase().includes(q) ||
+        g.genre.toLowerCase().includes(q) ||
+        g.prefecture.toLowerCase().includes(q) ||
+        g.city.toLowerCase().includes(q) ||
+        hostOf(g.url).toLowerCase().includes(q) ||
+        g.occurrences.some(
+          (o) =>
+            o.eventTitle.toLowerCase().includes(q) ||
+            (o.note ?? "").toLowerCase().includes(q),
+        )
       );
     });
-  }, [enriched, query, activeGenre, activePrefecture]);
+  }, [urlGroups, query, activeGenre, activePrefecture, favOnly]);
 
   const grouped = useMemo(() => {
-    const map = new Map<string, { emoji: string; items: EnrichedItem[] }>();
-    visible.forEach((it) => {
-      const g = map.get(it.genre);
-      if (g) g.items.push(it);
-      else map.set(it.genre, { emoji: it.emoji, items: [it] });
+    const map = new Map<string, { emoji: string; items: LinkGroup[] }>();
+    visible.forEach((g) => {
+      const e = map.get(g.genre);
+      if (e) e.items.push(g);
+      else map.set(g.genre, { emoji: g.emoji, items: [g] });
     });
     return Array.from(map.entries()).sort((a, b) => {
       if (a[0] === UNCATEGORIZED) return 1;
@@ -626,47 +694,48 @@ export default function LinksPage() {
                 <span className="badge badge-slate">{group.items.length}</span>
               </div>
               <div className="grid gap-3 sm:grid-cols-2">
-                {group.items.map((it) => (
-                  <div key={it.id} className="relative">
+                {group.items.map((g) => (
+                  <div key={g.key} className="relative">
                   <button
                     type="button"
-                    onClick={() => openDetail(it)}
+                    onClick={() => openDetail(g)}
                     className="group flex w-full gap-3 rounded-xl border border-[var(--border)] bg-[var(--surface-alt)] p-3 pr-10 text-left transition hover:border-[var(--accent)]"
                   >
                     <div className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-white">
-                      {faviconOf(it.url) ? (
+                      {faviconOf(g.url) ? (
                         // eslint-disable-next-line @next/next/no-img-element
-                        <img src={faviconOf(it.url)} alt="" className="h-6 w-6" />
+                        <img src={faviconOf(g.url)} alt="" className="h-6 w-6" />
                       ) : (
                         <span className="text-lg">🔗</span>
                       )}
                     </div>
                     <div className="min-w-0 flex-1">
-                      <p className="truncate font-bold text-[var(--fg-strong)]">{it.storeName}</p>
-                      <p className="truncate text-xs text-[var(--fg-muted)]">{hostOf(it.url)}</p>
+                      <p className="truncate font-bold text-[var(--fg-strong)]">{g.storeName}</p>
+                      <p className="truncate text-xs text-[var(--fg-muted)]">{hostOf(g.url)}</p>
                       <div className="mt-2 flex flex-wrap items-center gap-1.5">
                         <span className="badge badge-slate">
-                          {format(it.date, "yyyy/M/d", { locale: ja })}
+                          {format(g.latestDate, "yyyy/M/d", { locale: ja })}
+                          {g.occurrences.length > 1 && ` 他${g.occurrences.length - 1}件`}
                         </span>
-                        {(it.prefecture || it.city) && (
+                        {(g.prefecture || g.city) && (
                           <span className="badge badge-accent">
-                            📍 {[it.prefecture, it.city].filter(Boolean).join(" ")}
+                            📍 {[g.prefecture, g.city].filter(Boolean).join(" ")}
                           </span>
                         )}
-                        {it.ownerName && (
-                          <span className="badge badge-slate">👥 {it.ownerName}</span>
+                        {!g.hasOwn && (
+                          <span className="badge badge-slate">👥 共有</span>
                         )}
                       </div>
                     </div>
                   </button>
-                    {it.ownerName === null && (
+                    {g.hasOwn && (
                       <button
                         type="button"
-                        aria-label={it.isFavorite ? "お気に入りを解除" : "お気に入りに追加"}
-                        onClick={() => void toggleFavorite(it)}
+                        aria-label={g.isFavorite ? "お気に入りを解除" : "お気に入りに追加"}
+                        onClick={() => void toggleFavorite(g)}
                         className="absolute right-2 top-2 text-lg leading-none transition hover:scale-110"
                       >
-                        {it.isFavorite ? "⭐" : "☆"}
+                        {g.isFavorite ? "⭐" : "☆"}
                       </button>
                     )}
                   </div>
@@ -681,7 +750,7 @@ export default function LinksPage() {
       {detail && (
         <div className="confirm-overlay" onClick={closeDetail}>
           <div
-            className="confirm-card max-w-md"
+            className="confirm-card max-h-[85vh] max-w-md overflow-y-auto"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-start gap-3">
@@ -700,7 +769,7 @@ export default function LinksPage() {
                 </h3>
                 <p className="mt-0.5 truncate text-xs text-[var(--fg-muted)]">{hostOf(detail.url)}</p>
               </div>
-              {detail.ownerName === null && (
+              {detail.hasOwn && (
                 <button
                   type="button"
                   aria-label={detail.isFavorite ? "お気に入りを解除" : "お気に入りに追加"}
@@ -712,26 +781,68 @@ export default function LinksPage() {
               )}
             </div>
 
-            <div className="mt-4 flex flex-wrap items-center gap-1.5">
-              <span className="badge badge-slate">
-                {format(detail.date, "yyyy/M/d", { locale: ja })} に予定
-              </span>
-              {detail.ownerName && (
-                <span className="badge badge-slate">👥 {detail.ownerName}</span>
-              )}
+            {/* 予定日リスト（日付タップで予定名・メモを表示） */}
+            <div className="mt-4">
+              <p className="text-xs font-bold text-[var(--fg-muted)]">
+                予定日（{detail.occurrences.length}件）— 日付をタップで予定名・メモを表示
+              </p>
+              <div className="mt-2 space-y-1.5">
+                {detail.occurrences.map((occ) => {
+                  const open = expandedOccId === occ.id;
+                  return (
+                    <div
+                      key={occ.id}
+                      className="rounded-xl border border-[var(--border)] bg-[var(--surface-alt)]"
+                    >
+                      <button
+                        type="button"
+                        onClick={() => setExpandedOccId(open ? null : occ.id)}
+                        className="flex w-full items-center justify-between gap-2 p-2.5 text-left"
+                      >
+                        <span className="flex flex-wrap items-center gap-1.5">
+                          <span className="badge badge-slate">
+                            {format(occ.date, "yyyy/M/d", { locale: ja })}
+                          </span>
+                          {occ.ownerName && (
+                            <span className="badge badge-slate">👥 {occ.ownerName}</span>
+                          )}
+                        </span>
+                        <svg
+                          viewBox="0 0 24 24"
+                          className={`h-4 w-4 shrink-0 text-[var(--fg-muted)] transition-transform ${open ? "rotate-180" : ""}`}
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        >
+                          <path d="m6 9 6 6 6-6" />
+                        </svg>
+                      </button>
+                      {open && (
+                        <div className="border-t border-[var(--border)] p-2.5">
+                          <p className="text-sm font-bold text-[var(--fg-strong)]">
+                            予定名: {occ.eventTitle || "（名称なし）"}
+                          </p>
+                          {occ.note ? (
+                            <p className="mt-1 whitespace-pre-wrap text-sm text-[var(--fg-muted)]">
+                              {occ.note}
+                            </p>
+                          ) : (
+                            <p className="mt-1 text-sm text-[var(--fg-muted)]">メモはありません。</p>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
             </div>
-
-            {detail.eventTitle && detail.eventTitle !== detail.storeName && (
-              <p className="mt-3 text-xs text-[var(--fg-muted)]">予定名: {detail.eventTitle}</p>
-            )}
-            {detail.note && (
-              <p className="mt-2 whitespace-pre-wrap text-sm text-[var(--fg-muted)]">{detail.note}</p>
-            )}
 
             {/* 店名・場所の追加・編集 */}
             <div className="mt-4 rounded-xl border border-[var(--border)] bg-[var(--surface-alt)] p-3">
               <p className="text-xs font-bold text-[var(--fg-muted)]">店名・場所（URLから自動取得・違っていれば修正できます）</p>
-              {detail.ownerName ? (
+              {!detail.hasOwn ? (
                 <p className="mt-2 text-sm text-[var(--fg)]">
                   {[detail.prefecture, detail.city].filter(Boolean).join(" ") || "場所未登録"}
                   <span className="ml-1 text-xs text-[var(--fg-muted)]">（共有相手の予定のため編集不可）</span>
