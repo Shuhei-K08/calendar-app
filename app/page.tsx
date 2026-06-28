@@ -370,28 +370,6 @@ const extractUrlFromClipboard = (clipboardData: DataTransfer): string => {
 
 type ImageFieldToast = (message: string, type?: ToastType) => void;
 
-type TesseractLike = {
-  recognize: (
-    image: Blob | string,
-    lang: string,
-    options?: { logger?: (m: { status: string; progress: number }) => void },
-  ) => Promise<{ data: { text: string } }>;
-};
-
-const loadTesseract = async (): Promise<TesseractLike> => {
-  const w = window as unknown as { Tesseract?: TesseractLike };
-  if (w.Tesseract) return w.Tesseract;
-  await new Promise<void>((resolve, reject) => {
-    const script = document.createElement("script");
-    script.src = "https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js";
-    script.onload = () => resolve();
-    script.onerror = () => reject(new Error("OCRライブラリの読み込みに失敗しました"));
-    document.head.appendChild(script);
-  });
-  if (!w.Tesseract) throw new Error("OCRライブラリの初期化に失敗しました");
-  return w.Tesseract;
-};
-
 function EventImageField({
   imageUrl,
   onImageUrlChange,
@@ -406,9 +384,7 @@ function EventImageField({
   const inputRef = useRef<HTMLInputElement | null>(null);
   const [uploading, setUploading] = useState(false);
   const [ocrRunning, setOcrRunning] = useState(false);
-  const [ocrProgress, setOcrProgress] = useState(0);
   const [showOriginal, setShowOriginal] = useState(false);
-  const [lastFile, setLastFile] = useState<File | null>(null);
 
   const handleSelect = async (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -418,7 +394,6 @@ function EventImageField({
       show("画像ファイルを選択してください", "error");
       return;
     }
-    setLastFile(file);
     setUploading(true);
     try {
       const {
@@ -447,21 +422,23 @@ function EventImageField({
   };
 
   const runOcr = async () => {
-    const source: Blob | string | null = lastFile ?? (imageUrl || null);
-    if (!source) {
+    if (!imageUrl) {
       show("先に画像を選択してください", "error");
       return;
     }
     setOcrRunning(true);
-    setOcrProgress(0);
     try {
-      const Tesseract = await loadTesseract();
-      const { data } = await Tesseract.recognize(source, "jpn+eng", {
-        logger: (m) => {
-          if (m.status === "recognizing text") setOcrProgress(Math.round(m.progress * 100));
-        },
+      const res = await fetch("/api/ocr", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ imageUrl }),
       });
-      const text = (data.text || "").replace(/\s+\n/g, "\n").trim();
+      const data = (await res.json().catch(() => ({}))) as { text?: string; error?: string };
+      if (!res.ok) {
+        show(data.error || "文字の読み取りに失敗しました", "error");
+        return;
+      }
+      const text = (data.text || "").trim();
       if (!text) {
         show("文字を読み取れませんでした", "error");
         return;
@@ -478,7 +455,6 @@ function EventImageField({
 
   const handleRemove = () => {
     onImageUrlChange("");
-    setLastFile(null);
   };
 
   return (
@@ -527,7 +503,7 @@ function EventImageField({
             onClick={runOcr}
             disabled={ocrRunning}
           >
-            {ocrRunning ? `文字を読み取り中… ${ocrProgress}%` : "文字を読み取ってメモに追加"}
+            {ocrRunning ? "文字を読み取り中…" : "文字を読み取ってメモに追加"}
           </button>
         </div>
       ) : (
