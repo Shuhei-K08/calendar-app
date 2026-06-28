@@ -23,6 +23,7 @@ const MAIN_CATEGORIES: MainCategory[] = [
       { label: "居酒屋", emoji: "🍻", patterns: [/居酒屋|izakaya/i] },
       { label: "寿司・海鮮", emoji: "🍣", patterns: [/寿司|鮨|sushi|刺身|海鮮料理/i] },
       { label: "焼肉", emoji: "🥩", patterns: [/焼肉専門|焼き肉|yakiniku/i] },
+      { label: "鉄板焼", emoji: "🍳", patterns: [/鉄板焼|鉄板焼き|teppanyaki/i] },
       { label: "焼き鳥", emoji: "🍢", patterns: [/焼き鳥|焼鳥|やきとり|yakitori/i] },
       { label: "ラーメン", emoji: "🍜", patterns: [/ラーメン専門|らーめん|ramen店/i] },
       { label: "うどん・そば", emoji: "🍝", patterns: [/うどん専門|そば専門|蕎麦屋|うどん店/i] },

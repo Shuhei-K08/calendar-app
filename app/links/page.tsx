@@ -52,6 +52,80 @@ const BASE_COLS = "id, title, start_at, url, note, category_id, user_id, event_v
 
 const UNCATEGORIZED = "未設定";
 
+// ジャンルのプルダウン候補（OGの自動判定と同じ分類＋絵文字）
+const GENRE_GROUPS: { label: string; options: { name: string; emoji: string }[] }[] = [
+  {
+    label: "グルメ・飲食",
+    options: [
+      { name: "居酒屋", emoji: "🍻" }, { name: "寿司・海鮮", emoji: "🍣" },
+      { name: "焼肉", emoji: "🥩" }, { name: "焼き鳥", emoji: "🍢" },
+      { name: "鉄板焼", emoji: "🍳" }, { name: "ラーメン", emoji: "🍜" },
+      { name: "うどん・そば", emoji: "🍝" }, { name: "天ぷら", emoji: "🍤" },
+      { name: "とんかつ", emoji: "🥩" }, { name: "しゃぶしゃぶ・鍋", emoji: "🫕" },
+      { name: "お好み焼き", emoji: "🥞" }, { name: "ステーキ", emoji: "🥩" },
+      { name: "ハンバーガー", emoji: "🍔" }, { name: "カレー", emoji: "🍛" },
+      { name: "中華", emoji: "🥡" }, { name: "韓国料理", emoji: "🌶️" },
+      { name: "タイ料理", emoji: "🌿" }, { name: "インド料理", emoji: "🫔" },
+      { name: "イタリアン", emoji: "🍝" }, { name: "フレンチ", emoji: "🥐" },
+      { name: "カフェ", emoji: "☕" }, { name: "スイーツ・パティスリー", emoji: "🍰" },
+      { name: "パン・ベーカリー", emoji: "🍞" }, { name: "食べ放題", emoji: "🍱" },
+      { name: "バー", emoji: "🍸" }, { name: "ベジタリアン・ヴィーガン", emoji: "🥗" },
+    ],
+  },
+  { label: "旅行・宿泊", options: [
+    { name: "ホテル", emoji: "🏨" }, { name: "旅館", emoji: "🏯" },
+    { name: "リゾート", emoji: "🏖️" }, { name: "民泊", emoji: "🏠" }, { name: "温泉", emoji: "♨️" },
+  ] },
+  { label: "アウトドア", options: [
+    { name: "キャンプ", emoji: "🏕️" }, { name: "登山・ハイキング", emoji: "⛰️" },
+    { name: "釣り", emoji: "🎣" }, { name: "サーフィン", emoji: "🏄" }, { name: "BBQ", emoji: "🔥" },
+  ] },
+  { label: "スポーツ", options: [
+    { name: "野球", emoji: "⚾" }, { name: "サッカー", emoji: "⚽" },
+    { name: "バスケ", emoji: "🏀" }, { name: "ラグビー", emoji: "🏉" },
+  ] },
+  { label: "フィットネス", options: [
+    { name: "ヨガ・ピラティス", emoji: "🧘" }, { name: "ジム", emoji: "🏋️" },
+  ] },
+  { label: "ショッピング", options: [
+    { name: "EC", emoji: "🛒" }, { name: "ファッション", emoji: "👗" },
+    { name: "家電", emoji: "💻" }, { name: "アウトレット", emoji: "🏷️" },
+  ] },
+  { label: "エンタメ", options: [
+    { name: "映画", emoji: "🎬" }, { name: "音楽・ライブ", emoji: "🎵" },
+    { name: "美術館・博物館", emoji: "🏛️" }, { name: "テーマパーク", emoji: "🎡" },
+  ] },
+  { label: "自動車", options: [
+    { name: "新車・中古車", emoji: "🚘" }, { name: "カー用品", emoji: "🔧" },
+  ] },
+  { label: "バイク", options: [
+    { name: "ツーリング", emoji: "🛣️" }, { name: "バイク用品", emoji: "🪖" },
+  ] },
+  { label: "医療・クリニック", options: [
+    { name: "歯科", emoji: "🦷" }, { name: "皮膚科", emoji: "🩺" }, { name: "眼科", emoji: "👁️" },
+  ] },
+  { label: "美容", options: [
+    { name: "ヘアサロン", emoji: "✂️" }, { name: "ネイル", emoji: "💅" }, { name: "エステ", emoji: "🧖" },
+  ] },
+  { label: "不動産", options: [
+    { name: "賃貸", emoji: "🔑" }, { name: "売買", emoji: "📝" },
+  ] },
+  { label: "株・投資", options: [
+    { name: "株式", emoji: "📊" }, { name: "FX", emoji: "💱" }, { name: "仮想通貨", emoji: "₿" },
+  ] },
+];
+
+const GENRE_EMOJI: Record<string, string> = Object.fromEntries(
+  GENRE_GROUPS.flatMap((g) => g.options.map((o) => [o.name, o.emoji])),
+);
+const MAIN_EMOJI: Record<string, string> = {
+  "グルメ・飲食": "🍽️", "旅行・宿泊": "✈️", "アウトドア": "🏕️", "スポーツ": "🏟️",
+  "フィットネス": "💪", "ショッピング": "🛍️", "エンタメ": "🎭", "自動車": "🚗",
+  "バイク": "🏍️", "医療・クリニック": "🏥", "美容": "💇", "不動産": "🏠", "株・投資": "📈",
+};
+const ALL_GENRE_SET = new Set(Object.keys(GENRE_EMOJI));
+const genreEmoji = (name: string) => GENRE_EMOJI[name] ?? MAIN_EMOJI[name] ?? "🏷️";
+
 // 47都道府県
 const PREFECTURES = [
   "北海道", "青森県", "岩手県", "宮城県", "秋田県", "山形県", "福島県",
@@ -347,7 +421,7 @@ export default function LinksPage() {
         storeName: (it.placeName || og?.storeName || it.eventTitle).trim(),
         // 手動ジャンルを最優先、無ければOG判定
         genre: (it.linkGenre || og?.genre || UNCATEGORIZED).trim(),
-        emoji: it.linkGenre ? "🏷️" : og?.emoji ?? "📌",
+        emoji: it.linkGenre ? genreEmoji(it.linkGenre) : og?.emoji ?? "📌",
         // 保存済みの県市を優先、無ければOG推定を表示用に使う
         prefecture: it.prefecture || og?.prefecture || "",
         city: it.city || og?.city || "",
@@ -893,17 +967,19 @@ export default function LinksPage() {
                     onChange={(e) => setEditGenre(e.target.value)}
                   >
                     <option value="">未設定</option>
-                    {/* 現在のジャンルが一覧に無い場合も選べるよう残す */}
-                    {editGenre && !genres.some((g) => g.genre === editGenre) && (
-                      <option value={editGenre}>{editGenre}</option>
+                    {/* 現在のジャンルが候補に無い場合も選べるよう残す */}
+                    {editGenre && !ALL_GENRE_SET.has(editGenre) && (
+                      <option value={editGenre}>{genreEmoji(editGenre)} {editGenre}</option>
                     )}
-                    {genres
-                      .filter((g) => g.genre !== UNCATEGORIZED)
-                      .map((g) => (
-                        <option key={g.genre} value={g.genre}>
-                          {g.emoji} {g.genre}
-                        </option>
-                      ))}
+                    {GENRE_GROUPS.map((grp) => (
+                      <optgroup key={grp.label} label={grp.label}>
+                        {grp.options.map((o) => (
+                          <option key={o.name} value={o.name}>
+                            {o.emoji} {o.name}
+                          </option>
+                        ))}
+                      </optgroup>
+                    ))}
                   </select>
                   <div className="mt-2 grid grid-cols-2 gap-2">
                     <select
