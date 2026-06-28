@@ -18,6 +18,7 @@ type DbLinkEvent = {
   category_id: string | null;
   user_id: string;
   event_visibility?: string | null;
+  is_favorite?: boolean | null;
 };
 
 type LinkItem = {
@@ -30,6 +31,7 @@ type LinkItem = {
   placeName: string;
   date: Date;
   ownerName: string | null; // null = 自分の予定
+  isFavorite: boolean;
 };
 
 type OgInfo = {
@@ -43,7 +45,7 @@ type OgInfo = {
 type ToastItem = { id: number; msg: string; type: "success" | "error" | "info" };
 
 const FULL_COLS =
-  "id, title, start_at, url, note, prefecture, city, place_name, category_id, user_id, event_visibility";
+  "id, title, start_at, url, note, prefecture, city, place_name, category_id, user_id, event_visibility, is_favorite";
 const BASE_COLS = "id, title, start_at, url, note, category_id, user_id, event_visibility";
 
 const UNCATEGORIZED = "未設定";
@@ -101,6 +103,7 @@ export default function LinksPage() {
   const [query, setQuery] = useState("");
   const [activeGenre, setActiveGenre] = useState<string>("all");
   const [activePrefecture, setActivePrefecture] = useState<string>("all");
+  const [favOnly, setFavOnly] = useState(false);
   const [toasts, setToasts] = useState<ToastItem[]>([]);
   const ogCache = useRef<Record<string, OgInfo>>({});
   const autoSaveTried = useRef<Set<string>>(new Set());
@@ -217,6 +220,7 @@ export default function LinksPage() {
         placeName: e.place_name ?? "",
         date: new Date(e.start_at),
         ownerName: e.user_id === user.id ? null : ownerMap.get(e.user_id) ?? "共有相手",
+        isFavorite: e.is_favorite ?? false,
       }))
       .sort((a, b) => b.date.getTime() - a.date.getTime());
 
@@ -385,6 +389,28 @@ export default function LinksPage() {
     setSavingLoc(false);
   };
 
+  const toggleFavorite = useCallback(
+    async (item: { id: string; isFavorite: boolean; ownerName: string | null }) => {
+      if (item.ownerName !== null) return; // 共有相手の予定は変更不可
+      const next = !item.isFavorite;
+      setItems((prev) => prev.map((x) => (x.id === item.id ? { ...x, isFavorite: next } : x)));
+      const { error } = await supabase
+        .from("events")
+        .update({ is_favorite: next })
+        .eq("id", item.id);
+      if (error) {
+        // 失敗したら元に戻す
+        setItems((prev) => prev.map((x) => (x.id === item.id ? { ...x, isFavorite: !next } : x)));
+        if (error.code === "42703" || error.code === "PGRST204") {
+          show("お気に入りを使うにはSQL（is_favorite列の追加）を実行してください。", "error");
+        } else {
+          show("お気に入りの更新に失敗しました", "error");
+        }
+      }
+    },
+    [show],
+  );
+
   const saveLocation = async () => {
     if (!detail) return;
     setSavingLoc(true);
@@ -443,9 +469,12 @@ export default function LinksPage() {
   }, [enriched]);
 
 
+  const favCount = useMemo(() => enriched.filter((it) => it.isFavorite).length, [enriched]);
+
   const visible = useMemo(() => {
     const q = query.trim().toLowerCase();
     return enriched.filter((it) => {
+      if (favOnly && !it.isFavorite) return false;
       if (activeGenre !== "all" && it.genre !== activeGenre) return false;
       if (activePrefecture !== "all" && it.prefecture !== activePrefecture) return false;
       if (!q) return true;
@@ -524,8 +553,17 @@ export default function LinksPage() {
           {genres.length > 0 && (
             <div className="mt-3 flex flex-wrap gap-2">
               <button
-                className={`chip ${activeGenre === "all" ? "chip-active" : ""}`}
-                onClick={() => setActiveGenre("all")}
+                className={`chip ${favOnly ? "chip-active" : ""}`}
+                onClick={() => setFavOnly((v) => !v)}
+              >
+                ⭐ お気に入り（{favCount}）
+              </button>
+              <button
+                className={`chip ${activeGenre === "all" && !favOnly ? "chip-active" : ""}`}
+                onClick={() => {
+                  setActiveGenre("all");
+                  setFavOnly(false);
+                }}
               >
                 すべて（{enriched.length}）
               </button>
@@ -589,11 +627,11 @@ export default function LinksPage() {
               </div>
               <div className="grid gap-3 sm:grid-cols-2">
                 {group.items.map((it) => (
+                  <div key={it.id} className="relative">
                   <button
-                    key={it.id}
                     type="button"
                     onClick={() => openDetail(it)}
-                    className="group flex gap-3 rounded-xl border border-[var(--border)] bg-[var(--surface-alt)] p-3 text-left transition hover:border-[var(--accent)]"
+                    className="group flex w-full gap-3 rounded-xl border border-[var(--border)] bg-[var(--surface-alt)] p-3 pr-10 text-left transition hover:border-[var(--accent)]"
                   >
                     <div className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-white">
                       {faviconOf(it.url) ? (
@@ -621,6 +659,17 @@ export default function LinksPage() {
                       </div>
                     </div>
                   </button>
+                    {it.ownerName === null && (
+                      <button
+                        type="button"
+                        aria-label={it.isFavorite ? "お気に入りを解除" : "お気に入りに追加"}
+                        onClick={() => void toggleFavorite(it)}
+                        className="absolute right-2 top-2 text-lg leading-none transition hover:scale-110"
+                      >
+                        {it.isFavorite ? "⭐" : "☆"}
+                      </button>
+                    )}
+                  </div>
                 ))}
               </div>
             </section>
@@ -651,6 +700,16 @@ export default function LinksPage() {
                 </h3>
                 <p className="mt-0.5 truncate text-xs text-[var(--fg-muted)]">{hostOf(detail.url)}</p>
               </div>
+              {detail.ownerName === null && (
+                <button
+                  type="button"
+                  aria-label={detail.isFavorite ? "お気に入りを解除" : "お気に入りに追加"}
+                  onClick={() => void toggleFavorite(detail)}
+                  className="shrink-0 text-2xl leading-none transition hover:scale-110"
+                >
+                  {detail.isFavorite ? "⭐" : "☆"}
+                </button>
+              )}
             </div>
 
             <div className="mt-4 flex flex-wrap items-center gap-1.5">

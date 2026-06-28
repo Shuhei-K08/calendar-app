@@ -369,6 +369,19 @@ const extractUrlFromClipboard = (clipboardData: DataTransfer): string => {
   return extractUrl(text);
 };
 
+const normalizeLinkUrl = (url: string) =>
+  /^https?:\/\//i.test(url) ? url : `https://${url}`;
+
+const linkHostOf = (url: string) => {
+  try {
+    return new URL(normalizeLinkUrl(url)).hostname.replace(/^www\./, "");
+  } catch {
+    return "";
+  }
+};
+
+type LinkOption = { url: string; label: string; host: string; isFavorite: boolean };
+
 type ImageFieldToast = (message: string, type?: ToastType) => void;
 
 function EventImageField({
@@ -713,6 +726,10 @@ export default function Home() {
   const [detailEvent, setDetailEvent] = useState<CalendarEvent | null>(null);
   const [isDetailEditing, setIsDetailEditing] = useState(false);
   const [detailImageOpen, setDetailImageOpen] = useState(false);
+  const [linkOptions, setLinkOptions] = useState<LinkOption[]>([]);
+  const [linkOptionsLoaded, setLinkOptionsLoaded] = useState(false);
+  const [linkPickerTarget, setLinkPickerTarget] = useState<"new" | "edit" | null>(null);
+  const [linkPickerQuery, setLinkPickerQuery] = useState("");
   const [ogData, setOgData] = useState<OgData | null>(null);
   const [ogLoading, setOgLoading] = useState(false);
   const [shareDraftIds, setShareDraftIds] = useState<string[]>([]);
@@ -1291,6 +1308,92 @@ export default function Home() {
     setEventForm(createBlankForm(date));
     setIsEventModalOpen(true);
   };
+
+  const fetchLinkOptions = useCallback(async () => {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) return;
+
+    type LinkRow = {
+      title: string;
+      url: string | null;
+      place_name?: string | null;
+      is_favorite?: boolean | null;
+      start_at: string;
+    };
+
+    let rows: LinkRow[] = [];
+    const full = await supabase
+      .from("events")
+      .select("title, url, place_name, is_favorite, start_at")
+      .eq("user_id", user.id)
+      .not("url", "is", null)
+      .order("start_at", { ascending: false });
+
+    if (full.error?.code === "42703" || full.error?.code === "PGRST204") {
+      const basic = await supabase
+        .from("events")
+        .select("title, url, start_at")
+        .eq("user_id", user.id)
+        .not("url", "is", null)
+        .order("start_at", { ascending: false });
+      rows = (basic.data ?? []) as LinkRow[];
+    } else {
+      rows = (full.data ?? []) as LinkRow[];
+    }
+
+    // URLで重複排除（お気に入り優先→新しい順）
+    const sorted = [...rows].sort((a, b) => {
+      const fav = Number(b.is_favorite ?? false) - Number(a.is_favorite ?? false);
+      if (fav !== 0) return fav;
+      return new Date(b.start_at).getTime() - new Date(a.start_at).getTime();
+    });
+    const seen = new Set<string>();
+    const options: LinkOption[] = [];
+    for (const row of sorted) {
+      const url = (row.url ?? "").trim();
+      if (!url) continue;
+      const key = normalizeLinkUrl(url).toLowerCase();
+      if (seen.has(key)) continue;
+      seen.add(key);
+      options.push({
+        url,
+        label: (row.place_name?.trim() || row.title || linkHostOf(url) || url).trim(),
+        host: linkHostOf(url),
+        isFavorite: row.is_favorite ?? false,
+      });
+    }
+
+    setLinkOptions(options);
+    setLinkOptionsLoaded(true);
+  }, []);
+
+  const openLinkPicker = (target: "new" | "edit") => {
+    setLinkPickerTarget(target);
+    setLinkPickerQuery("");
+    if (!linkOptionsLoaded) void fetchLinkOptions();
+  };
+
+  const chooseLink = (url: string) => {
+    if (linkPickerTarget === "new") {
+      setEventForm((current) => ({ ...current, url }));
+    } else if (linkPickerTarget === "edit") {
+      setEditForm((current) => ({ ...current, url }));
+    }
+    setLinkPickerTarget(null);
+  };
+
+  const filteredLinkOptions = useMemo(() => {
+    const q = linkPickerQuery.trim().toLowerCase();
+    if (!q) return linkOptions;
+    return linkOptions.filter(
+      (o) =>
+        o.label.toLowerCase().includes(q) ||
+        o.url.toLowerCase().includes(q) ||
+        o.host.toLowerCase().includes(q),
+    );
+  }, [linkOptions, linkPickerQuery]);
 
   const openDetailEvent = (event: CalendarEvent) => {
     setDetailEvent(event);
@@ -2440,7 +2543,16 @@ export default function Home() {
                 />
               </div>
               <label className="space-y-1 sm:col-span-2">
-                <span className="text-xs font-semibold text-[#64748b]">URL（お店・予約ページなど）</span>
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-xs font-semibold text-[#64748b]">URL（お店・予約ページなど）</span>
+                  <button
+                    type="button"
+                    className="rounded-lg border border-[#cbd5e1] px-2.5 py-1 text-xs font-bold text-[#0f766e]"
+                    onClick={() => openLinkPicker("new")}
+                  >
+                    🔗 リンク集から選択
+                  </button>
+                </div>
                 <input
                   type="text"
                   inputMode="url"
@@ -2677,7 +2789,16 @@ export default function Home() {
                   />
                 </div>
                 <label className="space-y-1 sm:col-span-2">
-                  <span className="text-xs font-semibold text-[#64748b]">URL（お店・予約ページなど）</span>
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-xs font-semibold text-[#64748b]">URL（お店・予約ページなど）</span>
+                    <button
+                      type="button"
+                      className="rounded-lg border border-[#cbd5e1] px-2.5 py-1 text-xs font-bold text-[#0f766e]"
+                      onClick={() => openLinkPicker("edit")}
+                    >
+                      🔗 リンク集から選択
+                    </button>
+                  </div>
                   <input
                     type="text"
                     inputMode="url"
@@ -3000,6 +3121,58 @@ export default function Home() {
             >
               はじめる
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* リンク集から選択 */}
+      {linkPickerTarget && (
+        <div
+          className="fixed inset-0 z-[65] flex items-end justify-center bg-[#0f172a]/40 p-3 sm:items-center"
+          onClick={() => setLinkPickerTarget(null)}
+        >
+          <div
+            className="w-full max-w-md rounded-2xl bg-white p-4 shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between">
+              <p className="text-base font-black text-[#0f172a]">リンク集から選択</p>
+              <button className="text-[#94a3b8]" onClick={() => setLinkPickerTarget(null)}>
+                ✕
+              </button>
+            </div>
+            <input
+              className="mt-3 w-full rounded-lg border border-[#cbd5e1] p-2.5 text-sm outline-none focus:border-[#0f766e]"
+              placeholder="店名・URLで検索"
+              value={linkPickerQuery}
+              onChange={(e) => setLinkPickerQuery(e.target.value)}
+            />
+            <div className="mt-3 max-h-[50vh] space-y-1.5 overflow-y-auto">
+              {!linkOptionsLoaded ? (
+                <p className="p-4 text-center text-sm text-[#94a3b8]">読み込み中…</p>
+              ) : filteredLinkOptions.length === 0 ? (
+                <p className="p-4 text-center text-sm text-[#94a3b8]">
+                  {linkOptions.length === 0
+                    ? "URL付きの予定がまだありません。"
+                    : "一致するリンクがありません。"}
+                </p>
+              ) : (
+                filteredLinkOptions.map((opt) => (
+                  <button
+                    key={opt.url}
+                    type="button"
+                    onClick={() => chooseLink(opt.url)}
+                    className="flex w-full items-center gap-2 rounded-lg border border-[#e2e8f0] p-2.5 text-left transition hover:border-[#0f766e] hover:bg-[#ecfdf5]"
+                  >
+                    <span className="text-base">{opt.isFavorite ? "⭐" : "🔗"}</span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-sm font-bold text-[#0f172a]">{opt.label}</span>
+                      <span className="block truncate text-xs text-[#94a3b8]">{opt.host || opt.url}</span>
+                    </span>
+                  </button>
+                ))
+              )}
+            </div>
           </div>
         </div>
       )}
