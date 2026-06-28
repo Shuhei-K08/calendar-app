@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { createSupabaseAdmin } from "@/lib/supabaseAdmin";
 
 // Google Gemini（Google AI Studio）の無料枠を使った画像OCR。
 // 必要な環境変数:
@@ -10,6 +11,38 @@ const OCR_PROMPT =
   "この画像に書かれている文字をすべて、原文のまま正確に抽出してください。" +
   "前置き・説明・要約・補足コメントは一切付けず、読み取った本文のみを返してください。" +
   "改行や箇条書きなど元の体裁はできるだけ保ってください。文字が無い場合は空文字を返してください。";
+
+// 画像の public URL から user_id を推定する。
+// 形式: https://<proj>.supabase.co/storage/v1/object/public/event-images/<user_id>/<file>
+const extractUserId = (imageUrl: string): string | null => {
+  const match = imageUrl.match(/\/event-images\/([0-9a-f-]{36})\//i);
+  return match ? match[1] : null;
+};
+
+type UsageStatus = "success" | "limit" | "error";
+
+const logOcrUsage = async (params: {
+  imageUrl: string;
+  status: UsageStatus;
+  promptTokens?: number;
+  outputTokens?: number;
+  totalTokens?: number;
+}) => {
+  try {
+    const admin = createSupabaseAdmin();
+    if (!admin) return; // service role 未設定なら記録しない（OCRは続行）
+    await admin.from("ocr_usage").insert({
+      user_id: extractUserId(params.imageUrl),
+      status: params.status,
+      prompt_tokens: params.promptTokens ?? 0,
+      output_tokens: params.outputTokens ?? 0,
+      total_tokens: params.totalTokens ?? 0,
+    });
+  } catch (error) {
+    // 記録の失敗はOCR本体に影響させない
+    console.error("ocr_usage log failed", error);
+  }
+};
 
 export async function POST(request: Request) {
   const apiKey = process.env.GEMINI_API_KEY;
@@ -74,10 +107,13 @@ export async function POST(request: Request) {
       if (geminiRes.status === 429) {
         message =
           "AI読み取りの上限に達しました。しばらく時間をおいてからお試しください。";
+        await logOcrUsage({ imageUrl, status: "limit" });
       } else if (geminiRes.status === 400 || geminiRes.status === 403) {
         message = "APIキーが無効か、権限がありません。設定を確認してください。";
+        await logOcrUsage({ imageUrl, status: "error" });
       } else {
         message = `AI読み取りに失敗しました (${geminiRes.status})`;
+        await logOcrUsage({ imageUrl, status: "error" });
       }
 
       return NextResponse.json(
@@ -88,6 +124,11 @@ export async function POST(request: Request) {
 
     const data = (await geminiRes.json()) as {
       candidates?: { content?: { parts?: { text?: string }[] } }[];
+      usageMetadata?: {
+        promptTokenCount?: number;
+        candidatesTokenCount?: number;
+        totalTokenCount?: number;
+      };
     };
 
     const text =
@@ -95,6 +136,14 @@ export async function POST(request: Request) {
         ?.map((p) => p.text ?? "")
         .join("")
         .trim() ?? "";
+
+    await logOcrUsage({
+      imageUrl,
+      status: "success",
+      promptTokens: data.usageMetadata?.promptTokenCount,
+      outputTokens: data.usageMetadata?.candidatesTokenCount,
+      totalTokens: data.usageMetadata?.totalTokenCount,
+    });
 
     return NextResponse.json({ text });
   } catch (error) {

@@ -25,6 +25,15 @@ type AdminDebug = {
 
 type ToastItem = { id: number; message: string; type: "success" | "error" | "info" };
 
+type OcrUsage = {
+  todayCount: number;
+  todayTokens: number;
+  todayLimitHits: number;
+  lastLimitAt: string | null;
+  dailyRequestEstimate: number;
+  error?: string;
+};
+
 export default function AdminPage() {
   const router = useRouter();
   const [users, setUsers] = useState<AdminUser[]>([]);
@@ -32,6 +41,7 @@ export default function AdminPage() {
   const [message, setMessage] = useState("");
   const [debug, setDebug] = useState<AdminDebug | null>(null);
   const [currentUserId, setCurrentUserId] = useState<string>("");
+  const [ocrUsage, setOcrUsage] = useState<OcrUsage | null>(null);
   const [claiming, setClaiming] = useState(false);
   const [query, setQuery] = useState("");
   const [filterRole, setFilterRole] = useState<"all" | "admin" | "user" | "banned">("all");
@@ -85,6 +95,25 @@ export default function AdminPage() {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     void fetchUsers();
   }, [fetchUsers]);
+
+  const fetchOcrUsage = useCallback(async () => {
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
+    if (!session) return;
+
+    const response = await fetch("/api/admin/ocr-usage", {
+      headers: { authorization: `Bearer ${session.access_token}` },
+    });
+    const result = await response.json();
+    if (!response.ok) return;
+    setOcrUsage(result as OcrUsage);
+  }, []);
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    void fetchOcrUsage();
+  }, [fetchOcrUsage]);
 
   const claimFirstAdmin = async () => {
     setClaiming(true);
@@ -262,6 +291,54 @@ export default function AdminPage() {
                 <p className="mt-1 text-3xl font-black text-[var(--fg-strong)]">{stat.value}</p>
               </div>
             ))}
+          </section>
+        )}
+
+        {!message && ocrUsage && (
+          <section className="glass-card p-4">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div>
+                <p className="eyebrow">AI読み取り（OCR）</p>
+                <h2 className="mt-1 text-lg font-black text-[var(--fg-strong)]">今日の利用状況</h2>
+              </div>
+              <button className="btn btn-soft" onClick={() => void fetchOcrUsage()}>
+                更新
+              </button>
+            </div>
+
+            {ocrUsage.error ? (
+              <p className="mt-3 rounded-xl bg-[var(--amber-50)] p-3 text-sm text-[var(--amber-900)]">
+                使用状況を表示するには、Supabaseで <code>supabase-ocr-usage.sql</code> を実行してください。
+              </p>
+            ) : (
+              <>
+                <div className="mt-3 grid gap-3 sm:grid-cols-3">
+                  <div className="stat-card glass-card p-4" style={{ borderTopColor: "var(--accent)" }}>
+                    <p className="text-xs font-bold uppercase tracking-[0.12em] text-[var(--fg-muted)]">今日の読み取り回数</p>
+                    <p className="mt-1 text-3xl font-black text-[var(--fg-strong)]">{ocrUsage.todayCount}</p>
+                    <p className="mt-1 text-xs text-[var(--fg-muted)]">無料枠の目安 約{ocrUsage.dailyRequestEstimate}回/日</p>
+                  </div>
+                  <div className="stat-card glass-card p-4" style={{ borderTopColor: "var(--violet)" }}>
+                    <p className="text-xs font-bold uppercase tracking-[0.12em] text-[var(--fg-muted)]">今日の使用トークン</p>
+                    <p className="mt-1 text-3xl font-black text-[var(--fg-strong)]">{ocrUsage.todayTokens.toLocaleString("ja-JP")}</p>
+                    <p className="mt-1 text-xs text-[var(--fg-muted)]">読み取った画像の合計</p>
+                  </div>
+                  <div className="stat-card glass-card p-4" style={{ borderTopColor: "var(--rose)" }}>
+                    <p className="text-xs font-bold uppercase tracking-[0.12em] text-[var(--fg-muted)]">上限到達（今日）</p>
+                    <p className="mt-1 text-3xl font-black text-[var(--fg-strong)]">{ocrUsage.todayLimitHits}</p>
+                    <p className="mt-1 text-xs text-[var(--fg-muted)]">
+                      {ocrUsage.lastLimitAt
+                        ? `直近: ${new Date(ocrUsage.lastLimitAt).toLocaleString("ja-JP")}`
+                        : "なし"}
+                    </p>
+                  </div>
+                </div>
+                <p className="mt-3 text-xs leading-5 text-[var(--fg-muted)]">
+                  ※ Googleは「残り回数」を提供していないため、ここでは実際の使用量を表示しています。
+                  無料枠は毎日 日本時間17時頃（太平洋時間0時）にリセットされます。回数の目安は概算で、保証値ではありません。
+                </p>
+              </>
+            )}
           </section>
         )}
 
