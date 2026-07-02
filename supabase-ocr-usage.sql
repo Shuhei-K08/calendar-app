@@ -14,6 +14,9 @@ create table if not exists public.ocr_usage (
 
 create index if not exists ocr_usage_created_at_idx on public.ocr_usage(created_at);
 
--- RLSを有効化。ポリシーは作らない＝一般ユーザーからは読み書き不可。
--- サーバー側の service role キー（RLSをバイパス）からのみ記録・集計する。
+-- RLSを有効化。ポリシーは作らない＝一般ユーザー(anon/authenticated)からは読み書き不可。
 alter table public.ocr_usage enable row level security;
+
+-- サーバー側で使う service_role にだけテーブル権限を付与する。
+-- （RLSのバイパスとテーブルのGRANTは別物。RLS有効化後はGRANTが必須）
+grant select, insert, update on table public.ocr_usage to service_role;
