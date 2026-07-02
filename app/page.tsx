@@ -755,6 +755,7 @@ export default function Home() {
   const [isEventModalOpen, setIsEventModalOpen] = useState(false);
   const [detailEvent, setDetailEvent] = useState<CalendarEvent | null>(null);
   const [isDetailEditing, setIsDetailEditing] = useState(false);
+  const [recurringEditScope, setRecurringEditScope] = useState<"single" | "all">("single");
   const [detailImageOpen, setDetailImageOpen] = useState(false);
   const [linkOptions, setLinkOptions] = useState<LinkOption[]>([]);
   const [linkOptionsLoaded, setLinkOptionsLoaded] = useState(false);
@@ -1431,6 +1432,31 @@ export default function Home() {
     setDetailEvent(event);
     setOcrBusy(false);
     setIsDetailEditing(false);
+    setRecurringEditScope("single");
+  };
+
+  // スマホ: カレンダーを横スワイプで前月/翌月へ
+  const swipeRef = useRef<{ x: number; y: number; t: number } | null>(null);
+  const handleCalendarTouchStart = (e: React.TouchEvent) => {
+    if (calendarView !== "month" || e.touches.length !== 1) {
+      swipeRef.current = null;
+      return;
+    }
+    const touch = e.touches[0];
+    swipeRef.current = { x: touch.clientX, y: touch.clientY, t: Date.now() };
+  };
+  const handleCalendarTouchEnd = (e: React.TouchEvent) => {
+    const start = swipeRef.current;
+    swipeRef.current = null;
+    if (!start || calendarView !== "month") return;
+    const touch = e.changedTouches[0];
+    const dx = touch.clientX - start.x;
+    const dy = touch.clientY - start.y;
+    // 横方向が十分大きく、縦より優勢で、素早いスワイプのときだけ月を移動
+    if (Math.abs(dx) < 60) return;
+    if (Math.abs(dx) < Math.abs(dy) * 1.5) return;
+    if (Date.now() - start.t > 800) return;
+    setCalendarDate((current) => addMonths(current, dx < 0 ? 1 : -1));
   };
 
   const applyPattern = (pattern: SchedulePattern) => {
@@ -1503,19 +1529,19 @@ export default function Home() {
     setEditForm((current) => ({ ...current, end: formatDateTimeLocal(nextEnd) }));
   };
 
-  const addEventWithForm = async (form: EventForm, keepOpen = false) => {
-    if (!form.title.trim()) return;
+  const addEventWithForm = async (form: EventForm, keepOpen = false): Promise<boolean> => {
+    if (!form.title.trim()) return false;
 
     const {
       data: { user },
     } = await supabase.auth.getUser();
 
-    if (!user) return;
+    if (!user) return false;
 
     const { startAt, endAt } = normalizeEventTimes(form);
     if (new Date(endAt).getTime() <= new Date(startAt).getTime()) {
       show("終了日時は開始日時より後にしてください", "error");
-      return;
+      return false;
     }
     const eventPayload = {
       title: form.title.trim(),
@@ -1562,7 +1588,7 @@ export default function Home() {
     if (error || !insertedEvent) {
       console.error(error);
       show("予定の追加に失敗しました", "error");
-      return;
+      return false;
     }
 
     if (form.selectedUserIds.length > 0) {
@@ -1584,7 +1610,7 @@ export default function Home() {
           shareRows,
         });
         show(`予定は追加しましたが、共有に失敗しました: ${shareError.message}`, "error");
-        return;
+        return false;
       }
     }
 
@@ -1598,6 +1624,7 @@ export default function Home() {
       setIsEventModalOpen(false);
     }
     await fetchEvents();
+    return true;
   };
 
   const addEvent = async () => addEventWithForm(eventForm, false);
@@ -1624,6 +1651,57 @@ export default function Home() {
       image_url: editForm.imageUrl.trim() || null,
       event_visibility: shareDraftIds.length > 0 ? editForm.shareType : "private",
     };
+
+    if (detailEvent.recurringId && recurringEditScope === "single") {
+      // 「この日だけ編集」: 元の回を excluded_dates に追加して繰り返しから除外し、
+      // 編集内容を単発の予定として新規作成する（切り出し）。
+      const originalIso = detailEvent.start.toISOString();
+
+      const { data: rowData, error: fetchError } = await supabase
+        .from("recurring_events")
+        .select("excluded_dates")
+        .eq("id", detailEvent.recurringId)
+        .single();
+
+      if (fetchError?.code === "42703" || fetchError?.code === "PGRST204") {
+        show("この日だけ編集するにはSQL（excluded_dates列の追加）を実行してください。", "error");
+        return;
+      }
+      if (fetchError) {
+        console.error(fetchError);
+        show(fetchError.message, "error");
+        return;
+      }
+
+      // 先に単発の予定を作成（失敗したら除外はしない＝元の繰り返しを残す）
+      const created = await addEventWithForm(
+        { ...editForm, selectedUserIds: shareDraftIds },
+        false,
+      );
+      if (!created) return;
+
+      const existing: string[] = rowData?.excluded_dates ?? [];
+      const nextExcluded = existing.includes(originalIso)
+        ? existing
+        : [...existing, originalIso];
+
+      const { error: excludeError } = await supabase
+        .from("recurring_events")
+        .update({ excluded_dates: nextExcluded })
+        .eq("id", detailEvent.recurringId);
+
+      if (excludeError) {
+        console.error(excludeError);
+        show("この日の予定を作成しましたが、繰り返しからの除外に失敗しました。", "error");
+      } else {
+        show("この日の予定を更新しました", "success");
+      }
+
+      await fetchEvents();
+      setDetailEvent(null);
+      setIsDetailEditing(false);
+      return;
+    }
 
     if (detailEvent.recurringId) {
       const { error } = await supabase
@@ -2054,7 +2132,11 @@ export default function Home() {
 
         {/* カレンダー（モバイル） */}
         <div className="calendar-section-mobile rounded-xl border border-[#d9e2ef] bg-white shadow-sm overflow-hidden">
-          <div className="calendar-shell h-full">
+          <div
+            className="calendar-shell h-full"
+            onTouchStart={handleCalendarTouchStart}
+            onTouchEnd={handleCalendarTouchEnd}
+          >
             <Calendar<CalendarEvent>
               key={calendarWeekStart + "-mobile"}
               localizer={calendarLocalizer}
@@ -3017,8 +3099,32 @@ export default function Home() {
             {detailEvent.canDelete && isDetailEditing && (
               <div className="mt-6 space-y-4">
                 {detailEvent.recurringId && (
-                  <div className="rounded-xl bg-[#f8fafc] p-3 text-sm font-bold text-[#475569]">
-                    この予定は繰り返し予定です。削除はこの日のみ反映されます（すべて削除する場合は 設定 → 繰り返し予定 から）。編集内容は繰り返し予定全体に反映されます。
+                  <div className="rounded-xl bg-[#f8fafc] p-3">
+                    <p className="text-xs font-bold text-[#64748b]">編集する範囲</p>
+                    <div className="mt-2 grid grid-cols-2 gap-2">
+                      {[
+                        { value: "single" as const, label: "この日だけ" },
+                        { value: "all" as const, label: "すべての繰り返し" },
+                      ].map((option) => (
+                        <button
+                          key={option.value}
+                          type="button"
+                          onClick={() => setRecurringEditScope(option.value)}
+                          className={`h-10 rounded-lg border text-sm font-bold transition ${
+                            recurringEditScope === option.value
+                              ? "border-[#0f766e] bg-[#0f766e] text-white"
+                              : "border-[#d9e2ef] bg-white text-[#475569]"
+                          }`}
+                        >
+                          {option.label}
+                        </button>
+                      ))}
+                    </div>
+                    <p className="mt-2 text-xs text-[#64748b]">
+                      {recurringEditScope === "single"
+                        ? "この日の予定だけを変更します（時間・URLなども変更でき、他の回はそのままです）。"
+                        : "変更内容が繰り返し予定のすべての回に反映されます。"}
+                    </p>
                   </div>
                 )}
                 <div>
