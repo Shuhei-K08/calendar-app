@@ -128,17 +128,6 @@ function CalendarToolbar({
     <div className="mb-3 flex flex-col gap-2">
       {/* ナビゲーション行 */}
       <div className="flex items-center gap-2">
-        <button
-          className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-[#d9e2ef] bg-white text-[#475569] shadow-sm transition hover:border-[#0f766e] hover:bg-[#ecfdf5] hover:text-[#0f766e] active:scale-95"
-          onClick={() => onNavigate("PREV")}
-          aria-label="前へ"
-          type="button"
-        >
-          <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-            <polyline points="15 18 9 12 15 6" />
-          </svg>
-        </button>
-
         <div className="flex flex-1 flex-col items-center gap-1">
           <span className="text-base font-black text-[#0f172a] sm:text-lg">{label}</span>
           <button
@@ -149,17 +138,6 @@ function CalendarToolbar({
             今日
           </button>
         </div>
-
-        <button
-          className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-[#d9e2ef] bg-white text-[#475569] shadow-sm transition hover:border-[#0f766e] hover:bg-[#ecfdf5] hover:text-[#0f766e] active:scale-95"
-          onClick={() => onNavigate("NEXT")}
-          aria-label="次へ"
-          type="button"
-        >
-          <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-            <polyline points="9 18 15 12 9 6" />
-          </svg>
-        </button>
       </div>
 
       {/* ビュー切替タブ */}
@@ -788,6 +766,8 @@ export default function Home() {
   const [showTutorial, setShowTutorial] = useState(false);
   const [calendarFilter, setCalendarFilter] = useState<CalendarFilter>("all");
   const [isFilterOpen, setIsFilterOpen] = useState(false);
+  const [isSearchOpen, setIsSearchOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
   const { toasts, show } = useToast();
   const calendarLocalizer = useMemo(
     () => createCalendarLocalizer(calendarWeekStart === "sunday" ? 0 : 1),
@@ -1996,6 +1976,60 @@ export default function Home() {
   }, [calendarFilter]);
 
   const visibleEvents = filterEvents(events);
+
+  // 予定検索: タイトル・メモ・分類・共有相手をあいまい一致で検索
+  const searchResults = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    if (!q) return [] as CalendarEvent[];
+    // eslint-disable-next-line react-hooks/purity -- 検索時点の現在時刻で近い順に並べたいだけ
+    const now = Date.now();
+    const matched = events.filter((event) => {
+      const haystack = [
+        event.title,
+        event.note,
+        event.categoryName,
+        event.ownerName,
+        event.prefecture,
+        event.city,
+      ]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase();
+      return haystack.includes(q);
+    });
+    // 繰り返し予定は最も近い1件に集約
+    const bestByKey = new Map<string, CalendarEvent>();
+    for (const event of matched) {
+      const key = event.recurringId ?? event.id ?? `${event.title}-${event.start.toISOString()}`;
+      const current = bestByKey.get(key);
+      if (!current) {
+        bestByKey.set(key, event);
+        continue;
+      }
+      const better =
+        Math.abs(event.start.getTime() - now) < Math.abs(current.start.getTime() - now);
+      if (better) bestByKey.set(key, event);
+    }
+    // 未来を優先し、今日に近い順に並べる
+    return Array.from(bestByKey.values())
+      .sort((a, b) => {
+        const da = a.start.getTime() - now;
+        const db = b.start.getTime() - now;
+        const fa = da >= 0 ? 0 : 1;
+        const fb = db >= 0 ? 0 : 1;
+        if (fa !== fb) return fa - fb;
+        return fa === 0 ? da - db : db - da;
+      })
+      .slice(0, 50);
+  }, [events, searchQuery]);
+
+  const openSearchResult = (event: CalendarEvent) => {
+    setCalendarDate(new Date(event.start));
+    setIsSearchOpen(false);
+    setSearchQuery("");
+    openDetailEvent(event);
+  };
+
   const selectedDayDate = dayDetail?.date ?? calendarDate;
   const selectedDayEvents = dayDetail?.events
     ? filterEvents(dayDetail.events)
@@ -2114,20 +2148,30 @@ export default function Home() {
         )}
 
         {/* 絞り込みバー（モバイル） */}
-        <div className="flex items-center gap-2 overflow-x-auto py-0.5">
-          {filterOptions.map((option) => (
-            <button
-              key={option.value}
-              className={`shrink-0 rounded-full border px-3 py-1 text-xs font-bold transition ${
-                calendarFilter === option.value
-                  ? "border-[#0f766e] bg-[#0f766e] text-white"
-                  : "border-[#d9e2ef] bg-white text-[#475569]"
-              }`}
-              onClick={() => setCalendarFilter(option.value)}
-            >
-              {option.label}
-            </button>
-          ))}
+        <div className="flex items-center gap-2 py-0.5">
+          <button
+            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-[#d9e2ef] bg-white text-base text-[#475569] transition active:scale-95"
+            onClick={() => setIsSearchOpen(true)}
+            aria-label="予定を検索"
+            type="button"
+          >
+            🔍
+          </button>
+          <div className="flex flex-1 items-center gap-2 overflow-x-auto">
+            {filterOptions.map((option) => (
+              <button
+                key={option.value}
+                className={`shrink-0 rounded-full border px-3 py-1 text-xs font-bold transition ${
+                  calendarFilter === option.value
+                    ? "border-[#0f766e] bg-[#0f766e] text-white"
+                    : "border-[#d9e2ef] bg-white text-[#475569]"
+                }`}
+                onClick={() => setCalendarFilter(option.value)}
+              >
+                {option.label}
+              </button>
+            ))}
+          </div>
         </div>
 
         {/* カレンダー（モバイル） */}
@@ -2251,6 +2295,14 @@ export default function Home() {
         <header className="page-header glass-card flex flex-col gap-3 p-3 sm:flex-row sm:items-center sm:justify-between">
           <ShareCalLogo />
           <div className="hidden sm:flex sm:flex-wrap sm:items-center sm:gap-2">
+            <button
+              className="flex h-10 items-center gap-1.5 rounded-lg border border-[#d9e2ef] bg-white px-3 text-sm font-bold text-[#475569] shadow-sm transition hover:border-[#0f766e] hover:bg-[#ecfdf5] hover:text-[#0f766e]"
+              onClick={() => setIsSearchOpen(true)}
+              aria-label="予定を検索"
+              type="button"
+            >
+              🔍 <span>検索</span>
+            </button>
             <DesktopNavigation />
           </div>
         </header>
@@ -2458,6 +2510,70 @@ export default function Home() {
         </section>
       </div>{/* /.mx-auto PC */}
 
+      {/* 予定検索モーダル */}
+      {isSearchOpen && (
+        <div
+          className="fixed inset-0 z-[60] flex items-start justify-center bg-[#0f172a]/40 p-3 pt-[8vh]"
+          onClick={() => { setIsSearchOpen(false); setSearchQuery(""); }}
+        >
+          <div
+            className="flex max-h-[80vh] w-full max-w-lg flex-col overflow-hidden rounded-2xl border border-[#d9e2ef] bg-white shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center gap-2 border-b border-[#e2e8f0] p-3">
+              <span className="text-lg">🔍</span>
+              <input
+                autoFocus
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="予定を検索（タイトル・メモ・分類）"
+                className="min-w-0 flex-1 bg-transparent text-base font-semibold text-[#0f172a] placeholder:text-[#94a3b8] focus:outline-none"
+              />
+              <button
+                className="shrink-0 rounded-lg border border-[#cbd5e1] bg-[#f8fafc] px-3 py-1.5 text-xs font-bold text-[#475569]"
+                onClick={() => { setIsSearchOpen(false); setSearchQuery(""); }}
+                type="button"
+              >
+                閉じる
+              </button>
+            </div>
+            <div className="flex-1 overflow-y-auto p-2">
+              {searchQuery.trim() === "" ? (
+                <p className="px-3 py-6 text-center text-sm text-[#94a3b8]">キーワードを入力してください</p>
+              ) : searchResults.length === 0 ? (
+                <p className="px-3 py-6 text-center text-sm text-[#94a3b8]">「{searchQuery}」に一致する予定はありません</p>
+              ) : (
+                <ul className="flex flex-col gap-1">
+                  {searchResults.map((event) => (
+                    <li key={`${event.id}-${event.start.toISOString()}`}>
+                      <button
+                        className="flex w-full items-center gap-3 rounded-xl border border-transparent p-2.5 text-left transition hover:border-[#0f766e] hover:bg-[#ecfdf5]"
+                        onClick={() => openSearchResult(event)}
+                        type="button"
+                      >
+                        <span
+                          className="h-9 w-1.5 shrink-0 rounded-full"
+                          style={{ backgroundColor: event.categoryColor ?? getDisplayStyle(event.displayKind).border }}
+                        />
+                        <span className="min-w-0 flex-1">
+                          <span className="block truncate text-sm font-bold text-[#0f172a]">{event.title}</span>
+                          <span className="mt-0.5 block truncate text-xs font-semibold text-[#64748b]">
+                            {format(event.start, "yyyy/M/d(E)", { locale: ja })}
+                            {event.allDay ? " 終日" : ` ${format(event.start, "HH:mm")}`}
+                            {event.categoryName ? ` ・ ${event.categoryName}` : ""}
+                            {event.recurringRule && event.recurringRule !== "none" ? " ・ 繰り返し" : ""}
+                          </span>
+                        </span>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {isEventModalOpen && (
         <div
