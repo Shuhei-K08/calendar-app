@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent } from "react";
 import { useRouter } from "next/navigation";
 import { Calendar, dateFnsLocalizer, Event, View } from "react-big-calendar";
-import { addMonths, addWeeks, addYears, format, getDay, parse, startOfWeek } from "date-fns";
+import { addDays, addMonths, addWeeks, addYears, endOfDay, format, getDay, isSameDay, parse, startOfDay, startOfWeek } from "date-fns";
 import { ja } from "date-fns/locale/ja";
 import "react-big-calendar/lib/css/react-big-calendar.css";
 import { supabase } from "@/lib/supabase";
@@ -66,9 +66,22 @@ const normalizeEventTimes = (form: EventForm) => {
   };
 };
 
+// その日にかかる予定（複数日にまたがる予定も含む）を開始時刻順で返す
 const getEventsOnDate = (events: CalendarEvent[], date: Date) => {
-  const target = format(date, "yyyy-MM-dd");
-  return events.filter((event) => format(event.start, "yyyy-MM-dd") === target);
+  const dayStart = startOfDay(date).getTime();
+  const dayEnd = endOfDay(date).getTime();
+  return events
+    .filter((event) => {
+      const start = event.start.getTime();
+      const end = event.end.getTime();
+      if (start > dayEnd) return false;
+      // 終了が当日0:00ちょうどの予定は前日扱い（開始と同時刻のものは除く）
+      return end > dayStart || (start >= dayStart && end >= start);
+    })
+    .sort((a, b) => {
+      if (a.allDay !== b.allDay) return a.allDay ? -1 : 1;
+      return a.start.getTime() - b.start.getTime();
+    });
 };
 
 const DESIGN_THEMES = {
@@ -123,34 +136,45 @@ function CalendarToolbar({
     day: "日",
     agenda: "一覧",
   };
+  const unit = view === "week" ? "週" : view === "day" ? "日" : view === "agenda" ? "期間" : "月";
 
   return (
-    <div className="mb-3 flex flex-col gap-2">
-      {/* ナビゲーション行 */}
-      <div className="flex items-center gap-2">
-        <div className="flex flex-1 flex-col items-center gap-1">
-          <span className="text-base font-black text-[#0f172a] sm:text-lg">{label}</span>
-          <button
-            className="rounded-full border border-[#cbd5e1] bg-[#f8fafc] px-3 py-0.5 text-xs font-bold text-[#475569] transition hover:border-[#0f766e] hover:bg-[#ecfdf5] hover:text-[#0f766e] active:scale-95"
-            onClick={() => onNavigate("TODAY")}
-            type="button"
-          >
-            今日
-          </button>
-        </div>
+    <div className="cal-toolbar">
+      <div className="cal-toolbar-nav">
+        <button
+          className="cal-nav-btn"
+          onClick={() => onNavigate("PREV")}
+          aria-label={`前の${unit}`}
+          title={`前の${unit}`}
+          type="button"
+        >
+          <svg viewBox="0 0 24 24" aria-hidden="true"><polyline points="15 18 9 12 15 6" /></svg>
+        </button>
+        <h2 className="cal-toolbar-label" aria-live="polite">{label}</h2>
+        <button
+          className="cal-nav-btn"
+          onClick={() => onNavigate("NEXT")}
+          aria-label={`次の${unit}`}
+          title={`次の${unit}`}
+          type="button"
+        >
+          <svg viewBox="0 0 24 24" aria-hidden="true"><polyline points="9 18 15 12 9 6" /></svg>
+        </button>
+        <button className="cal-today-btn" onClick={() => onNavigate("TODAY")} type="button">
+          今日
+        </button>
       </div>
 
       {/* ビュー切替タブ */}
-      <div className="flex rounded-xl border border-[#d9e2ef] bg-[#f1f5f9] p-1 gap-1">
+      <div className="cal-view-tabs" role="tablist" aria-label="表示切替">
         {(["month", "week", "day", "agenda"] as const).map((v) => (
           <button
             key={v}
             type="button"
-            className={`flex-1 rounded-lg py-1.5 text-sm font-bold transition ${
-              view === v
-                ? "bg-[#0f766e] text-white shadow-sm"
-                : "text-[#64748b] hover:bg-white hover:text-[#0f172a]"
-            }`}
+            role="tab"
+            aria-selected={view === v}
+            className="cal-view-tab"
+            data-active={view === v ? "true" : undefined}
             onClick={() => onView(v)}
           >
             {viewLabels[v]}
@@ -160,6 +184,56 @@ function CalendarToolbar({
     </div>
   );
 }
+
+// タップの間隔判定用（イベントハンドラ内でのみ呼ぶ）
+const currentTimeMs = () => Date.now();
+
+// 月表示の予定チップ: PCでは開始時刻も表示（スマホはCSSで時刻を隠す）
+function MonthEventChip({ event }: { event: CalendarEvent; title: string }) {
+  const showTime = !event.allDay && isSameDay(event.start, event.end);
+  return (
+    <span className="month-chip">
+      {showTime && <span className="month-chip-time">{format(event.start, "H:mm")}</span>}
+      <span className="month-chip-title">{event.title}</span>
+    </span>
+  );
+}
+
+// 週・日表示の予定ブロック: タイトルを先に大きく、時間と共有状況を下に
+function TimeEventBlock({ event }: { event: CalendarEvent; title: string }) {
+  const who = event.isShared
+    ? `${event.ownerName}さん`
+    : event.sharedWith.length > 0
+      ? `${event.sharedWith.map((u) => u.username).join("、")}と共有`
+      : "";
+  return (
+    <span className="time-block">
+      <span className="time-block-title">{event.title}</span>
+      {!event.allDay && (
+        <span className="time-block-meta">
+          {format(event.start, "H:mm")}〜{format(event.end, "H:mm")}
+          {who && ` · ${who}`}
+        </span>
+      )}
+    </span>
+  );
+}
+
+// 週・日表示を開いたときに最初に見せる時刻（朝8時）
+const CALENDAR_SCROLL_TIME = new Date(1970, 0, 1, 8, 0, 0);
+
+const SearchIcon = () => (
+  <svg className="h-[18px] w-[18px] shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <circle cx="11" cy="11" r="7" />
+    <path d="m20 20-3.5-3.5" />
+  </svg>
+);
+
+const PlusIcon = () => (
+  <svg className="h-4 w-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" aria-hidden="true">
+    <path d="M12 5v14M5 12h14" />
+  </svg>
+);
 
 const LoadingScreen = () => (
   <main className="loading-screen">
@@ -731,6 +805,8 @@ export default function Home() {
   const [eventForm, setEventForm] = useState<EventForm>(() => createBlankForm());
   const [editForm, setEditForm] = useState<EventForm>(() => createBlankForm());
   const [isEventModalOpen, setIsEventModalOpen] = useState(false);
+  // 新規登録フォームの「メモ・画像・URL」欄を開いているか
+  const [showMoreFields, setShowMoreFields] = useState(false);
   // よく使う予定の登録前確認
   const [confirmPattern, setConfirmPattern] = useState<SchedulePattern | null>(null);
   const [savingPattern, setSavingPattern] = useState(false);
@@ -772,7 +848,6 @@ export default function Home() {
     useState<SharedNotification | null>(null);
   const [showTutorial, setShowTutorial] = useState(false);
   const [calendarFilter, setCalendarFilter] = useState<CalendarFilter>("all");
-  const [isFilterOpen, setIsFilterOpen] = useState(false);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const { toasts, show } = useToast();
@@ -1325,6 +1400,7 @@ export default function Home() {
 
   const openEventModal = (date = new Date()) => {
     setEventForm(createBlankForm(date));
+    setShowMoreFields(false);
     setOcrBusy(false);
     setIsEventModalOpen(true);
   };
@@ -2057,9 +2133,8 @@ export default function Home() {
   };
 
   const selectedDayDate = dayDetail?.date ?? calendarDate;
-  const selectedDayEvents = dayDetail?.events
-    ? filterEvents(dayDetail.events)
-    : getEventsOnDate(visibleEvents, selectedDayDate);
+  const selectedDayEvents = getEventsOnDate(visibleEvents, selectedDayDate);
+  const timedCount = selectedDayEvents.filter((e) => !e.allDay).length;
   const monthStart = new Date(calendarDate.getFullYear(), calendarDate.getMonth(), 1);
   const monthEnd = new Date(calendarDate.getFullYear(), calendarDate.getMonth() + 1, 0, 23, 59, 59, 999);
   const isInSelectedMonth = (event: CalendarEvent) =>
@@ -2115,13 +2190,180 @@ export default function Home() {
     ]),
   ];
 
-  const openDateForRegistration = (date: Date) => {
-    setDayDetail({
-      date,
-      events: getEventsOnDate(events, date),
+  // 月表示の「何件まで表示するか」はウィンドウのリサイズ時にしか再計算されないため、
+  // 下の予定パネルの開閉などでカレンダーの高さが変わったらリサイズを通知して数え直させる
+  const mobileCalendarRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    const el = mobileCalendarRef.current;
+    if (!el || typeof ResizeObserver === "undefined") return;
+    let lastHeight = el.getBoundingClientRect().height;
+    let frame = 0;
+    const observer = new ResizeObserver((entries) => {
+      const height = entries[0]?.contentRect.height ?? lastHeight;
+      if (Math.abs(height - lastHeight) < 1) return;
+      lastHeight = height;
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(() => window.dispatchEvent(new window.Event("resize")));
     });
-    openEventModal(date);
+    observer.observe(el);
+    return () => {
+      cancelAnimationFrame(frame);
+      observer.disconnect();
+    };
+  }, [loading]);
+
+  // 日付タップ: 1回目はその日を選んで予定一覧を表示、選択中の日をもう一度タップすると追加画面
+  const lastDateTapRef = useRef<{ key: string; at: number } | null>(null);
+  const selectDate = (date: Date) => {
+    const key = format(date, "yyyy-MM-dd");
+    const now = currentTimeMs();
+    const last = lastDateTapRef.current;
+    // pointerup と click が連続して届くので二重発火は無視する。
+    // 選択でパネルの高さが変わると、後から届く click が別の日付に当たることがあるため、日付が違っても短時間なら無視
+    if (last && now - last.at < (last.key === key ? 450 : 350)) return;
+    lastDateTapRef.current = { key, at: now };
+
+    if (dayDetail && isSameDay(dayDetail.date, date)) {
+      openEventModal(date);
+      return;
+    }
+    setDayDetail({ date, events: [] });
+    setIsDayEventsOpen(true);
   };
+
+  // 「+N件」を押したら、その日を選んで一覧（スマホは下のパネル、PCは右側）に全件出す
+  const showDayFromMore = (date: Date) => {
+    lastDateTapRef.current = { key: format(date, "yyyy-MM-dd"), at: currentTimeMs() };
+    setDayDetail({ date, events: [] });
+    setIsDayEventsOpen(true);
+  };
+
+  // 日付タップ直後に届くクリックが、ずれた位置の予定に当たって詳細が開くのを防ぐ
+  const handleSelectCalendarEvent = (event: CalendarEvent) => {
+    const last = lastDateTapRef.current;
+    if (last && currentTimeMs() - last.at < 450) return;
+    openDetailEvent(event);
+  };
+
+  const shiftSelectedDay = (amount: number) => {
+    const next = addDays(selectedDayDate, amount);
+    setDayDetail({ date: next, events: [] });
+    if (next.getMonth() !== calendarDate.getMonth() || next.getFullYear() !== calendarDate.getFullYear()) {
+      setCalendarDate(next);
+    }
+  };
+
+  const goToday = () => {
+    const today = new Date();
+    setCalendarDate(today);
+    setDayDetail({ date: today, events: [] });
+  };
+
+  const calendarFormats = {
+    monthHeaderFormat: "yyyy年M月",
+    dayHeaderFormat: "M月d日(EEE)",
+    weekdayFormat: "EEE",
+    dateFormat: "d",
+    dayFormat: "d(EEE)",
+    agendaDateFormat: "M/d(EEE)",
+    dayRangeHeaderFormat: ({ start, end }: { start: Date; end: Date }) =>
+      `${format(start, "yyyy年M月d日", { locale: ja })} – ${format(end, "M月d日", { locale: ja })}`,
+    agendaHeaderFormat: ({ start, end }: { start: Date; end: Date }) =>
+      `${format(start, "yyyy年M月d日", { locale: ja })} – ${format(end, "M月d日", { locale: ja })}`,
+  };
+
+  const calendarMessages = {
+    today: "今日",
+    previous: "前へ",
+    next: "次へ",
+    month: "月",
+    week: "週",
+    day: "日",
+    agenda: "一覧",
+    date: "日付",
+    time: "時間",
+    event: "予定",
+    allDay: "終日",
+    noEventsInRange: "この期間の予定はまだありません",
+    showMore: (total: number) => `他${total}件`,
+  };
+
+  const calendarEventPropGetter = (event: CalendarEvent) => ({
+    className: `${event.displayKind}-event`,
+    style: {
+      backgroundColor: getDisplayStyle(event.displayKind).background,
+      borderLeft: `4px solid ${event.categoryColor ?? getDisplayStyle(event.displayKind).border}`,
+      color: getDisplayStyle(event.displayKind).text,
+    },
+  });
+
+  const calendarDayPropGetter = (date: Date) => {
+    const classes: string[] = [];
+    if (dayDetail && isSameDay(date, dayDetail.date)) classes.push("is-selected-day");
+    const dow = date.getDay();
+    if (isJapaneseHoliday(date) || dow === 0) classes.push("is-holiday");
+    else if (dow === 6) classes.push("is-saturday");
+    return { className: classes.join(" ") };
+  };
+
+  const renderDateHeader = ({ date, label }: { date: Date; label: string }) => {
+    const dayCount = getEventsOnDate(visibleEvents, date).length;
+    const dow = date.getDay();
+    const holidayName = isJapaneseHoliday(date);
+    const color = holidayName !== null || dow === 0 ? "var(--holiday)" : dow === 6 ? "var(--saturday)" : undefined;
+    return (
+      <span className="calendar-date-head">
+        {dayCount >= 3 && (
+          <span className="day-count-badge" title={`この日の予定 ${dayCount}件`}>{dayCount}件</span>
+        )}
+        {holidayName && <span className="calendar-holiday-name">{holidayName}</span>}
+        <button
+          className="calendar-date-button"
+          style={color ? { color } : undefined}
+          type="button"
+          title={holidayName ?? undefined}
+          aria-label={`${format(date, "M月d日(E)", { locale: ja })}${holidayName ? ` ${holidayName}` : ""}`}
+          onPointerUp={(event) => { event.preventDefault(); event.stopPropagation(); selectDate(date); }}
+          onClick={(event) => { event.preventDefault(); event.stopPropagation(); selectDate(date); }}
+        >
+          {label}
+        </button>
+      </span>
+    );
+  };
+
+  const handleSelectSlot = (slotInfo: { start: Date; slots?: Date[]; action?: string }) => {
+    if (slotInfo.action === "select") return;
+    const date = slotInfo.slots && slotInfo.slots.length > 0 ? slotInfo.slots[0] : slotInfo.start;
+    if (calendarView === "month") {
+      selectDate(date);
+      return;
+    }
+    // 週・日表示: 押した時間で追加画面を開く
+    setDayDetail({ date, events: [] });
+    setEventForm(() => {
+      const base = createBlankForm(date);
+      const start = new Date(date);
+      const end = new Date(start.getTime() + 60 * 60 * 1000);
+      return { ...base, start: formatDateTimeLocal(start), end: formatDateTimeLocal(end) };
+    });
+    setShowMoreFields(false);
+    setOcrBusy(false);
+    setIsEventModalOpen(true);
+  };
+
+  const legendItems: { kind: EventDisplayKind; label: string }[] = [
+    { kind: "own", label: "自分" },
+    { kind: "partner", label: "自分→相手に共有" },
+    { kind: "incoming", label: "相手から共有" },
+    { kind: "together", label: "私たちの予定" },
+  ];
+
+  const filterKindColor = (value: CalendarFilter) =>
+    value === "all" ? "var(--accent)"
+    : value === "own" ? "#38bdf8"
+    : value.startsWith("person:") ? "#8b5cf6"
+    : "#f59e0b";
 
   // ── Keyboard shortcuts: T=today, N=new, /=filter focus, Esc=close ──
   useEffect(() => {
@@ -2139,61 +2381,121 @@ export default function Home() {
         if (showTutorial) { setShowTutorial(false); return; }
         return;
       }
+      if (isEventModalOpen || detailEvent || isSearchOpen) return;
       if (e.key === "n" || e.key === "N") {
         e.preventDefault();
-        openEventModal(calendarDate);
+        openEventModal(dayDetail?.date ?? calendarDate);
       } else if (e.key === "t" || e.key === "T") {
         e.preventDefault();
         setCalendarDate(new Date());
-      } else if (e.key === "/" ) {
+        setDayDetail({ date: new Date(), events: [] });
+      } else if (e.key === "/") {
         e.preventDefault();
-        setIsFilterOpen((v) => !v);
+        setIsSearchOpen(true);
+      } else if (e.key === "ArrowLeft" || e.key === "ArrowRight") {
+        e.preventDefault();
+        const step = e.key === "ArrowLeft" ? -1 : 1;
+        setCalendarDate((current) =>
+          calendarView === "week" ? addWeeks(current, step)
+          : calendarView === "day" ? addDays(current, step)
+          : addMonths(current, step),
+        );
       }
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, [calendarDate, isEventModalOpen, detailEvent, dayDetail, showTutorial]);
+  }, [calendarDate, calendarView, isEventModalOpen, isSearchOpen, detailEvent, dayDetail, showTutorial]);
+
+  // 終日の予定と時間の決まった予定を分けて表示する
+  const renderDayEventGroups = () => {
+    const allDay = selectedDayEvents.filter((e) => e.allDay);
+    const timed = selectedDayEvents.filter((e) => !e.allDay);
+    return (
+      <>
+        {allDay.length > 0 && timed.length > 0 && <p className="day-group-label">終日</p>}
+        {allDay.map((event) => renderDayEventRow(event))}
+        {allDay.length > 0 && timed.length > 0 && <p className="day-group-label">時間指定（{timedCount}件）</p>}
+        {timed.map((event) => renderDayEventRow(event))}
+      </>
+    );
+  };
+
+  const renderDayEventRow = (event: CalendarEvent) => {
+    const style = getDisplayStyle(event.displayKind);
+    const multiDay = !isSameDay(event.start, event.end);
+    const time = event.allDay
+      ? "終日"
+      : multiDay
+        ? `${format(event.start, "M/d HH:mm")}〜${format(event.end, "M/d HH:mm")}`
+        : `${format(event.start, "HH:mm")}〜${format(event.end, "HH:mm")}`;
+    const who = event.isShared
+      ? `${event.ownerName}さんから`
+      : event.sharedWith.length > 0
+        ? `${event.sharedWith.map((u) => u.username).join("、")}と共有`
+        : event.categoryName || "";
+    return (
+      <button
+        key={`${event.id}-${event.start.toISOString()}`}
+        className="day-event-row"
+        style={{ backgroundColor: style.background }}
+        onClick={() => openDetailEvent(event)}
+        type="button"
+      >
+        <span className="day-event-bar" style={{ backgroundColor: event.categoryColor ?? style.border }} />
+        <span className="min-w-0 flex-1">
+          <span className="day-event-title">{event.title}</span>
+          <span className="day-event-meta">
+            {time}
+            {who && ` · ${who}`}
+            {event.recurringRule && event.recurringRule !== "none" && " · 繰り返し"}
+          </span>
+        </span>
+      </button>
+    );
+  };
 
   if (loading) {
     return <LoadingScreen />;
   }
 
   return (
-    <main className="page-shell page-shell-home min-h-screen px-4 pb-28 pt-4 text-[var(--fg)] sm:px-6 sm:pb-4 lg:px-8">
+    <main className="page-shell page-shell-home min-h-screen px-4 pb-28 pt-4 text-[var(--fg)] sm:px-6 sm:pb-6 lg:px-8">
 
       {/* ========== モバイル専用レイアウト ========== */}
       <div className="page-shell-mobile-inner sm:hidden">
 
         {/* 通知プロンプト（モバイル） */}
         {notificationsEnabled && showNotificationPrompt && notificationPermission === "default" && (
-          <div className="relative flex items-center gap-2 rounded-xl border border-[#bae6fd] bg-[#f0f9ff] px-3 py-2">
-            <p className="flex-1 text-xs font-bold text-[#075985]">共有通知を受け取りますか？</p>
-            <button className="rounded-lg bg-[#0f766e] px-3 py-1 text-xs font-bold text-white" onClick={requestNotificationPermission}>許可</button>
-            <button className="text-[#94a3b8]" onClick={() => { window.localStorage.setItem("sharecal_notification_prompt_dismissed", "true"); setShowNotificationPrompt(false); }}>✕</button>
+          <div className="notice-banner">
+            <p className="flex-1 text-xs font-bold">共有されたときに通知を受け取りますか？</p>
+            <button className="notice-banner-action" onClick={requestNotificationPermission}>受け取る</button>
+            <button
+              className="notice-banner-close"
+              aria-label="通知の案内を閉じる"
+              onClick={() => { window.localStorage.setItem("sharecal_notification_prompt_dismissed", "true"); setShowNotificationPrompt(false); }}
+            >
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12" /></svg>
+            </button>
           </div>
         )}
 
-        {/* 絞り込みバー（モバイル） */}
-        <div className="flex items-center gap-2 py-0.5">
-          <button
-            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-[#d9e2ef] bg-white text-base text-[#475569] transition active:scale-95"
-            onClick={() => setIsSearchOpen(true)}
-            aria-label="予定を検索"
-            type="button"
-          >
-            🔍
+        {/* 検索 + 絞り込み（モバイル） */}
+        <div className="flex items-center gap-2">
+          <button className="icon-btn" onClick={() => setIsSearchOpen(true)} aria-label="予定を検索" type="button">
+            <SearchIcon />
           </button>
-          <div className="flex flex-1 items-center gap-2 overflow-x-auto">
+          <div className="filter-chip-row" role="radiogroup" aria-label="表示する予定">
             {filterOptions.map((option) => (
               <button
                 key={option.value}
-                className={`shrink-0 rounded-full border px-3 py-1 text-xs font-bold transition ${
-                  calendarFilter === option.value
-                    ? "border-[#0f766e] bg-[#0f766e] text-white"
-                    : "border-[#d9e2ef] bg-white text-[#475569]"
-                }`}
+                role="radio"
+                aria-checked={calendarFilter === option.value}
+                className="filter-chip"
+                data-active={calendarFilter === option.value ? "true" : undefined}
                 onClick={() => setCalendarFilter(option.value)}
+                type="button"
               >
+                <span className="filter-chip-dot" style={{ backgroundColor: filterKindColor(option.value) }} />
                 {option.label}
               </button>
             ))}
@@ -2201,7 +2503,7 @@ export default function Home() {
         </div>
 
         {/* カレンダー（モバイル） */}
-        <div className="calendar-section-mobile rounded-xl border border-[#d9e2ef] bg-white shadow-sm overflow-hidden">
+        <div className="calendar-section-mobile calendar-card" ref={mobileCalendarRef}>
           <div
             className="calendar-shell h-full"
             onTouchStart={handleCalendarTouchStart}
@@ -2218,323 +2520,237 @@ export default function Home() {
               date={calendarDate}
               view={calendarView}
               dayLayoutAlgorithm="no-overlap"
-              popup
+              popup={false}
+              doShowMoreDrillDown={false}
               selectable="ignoreEvents"
-              eventPropGetter={(event) => ({
-                className: `${event.displayKind}-event`,
-                style: {
-                  backgroundColor: getDisplayStyle(event.displayKind).background,
-                  borderLeft: `4px solid ${event.categoryColor ?? getDisplayStyle(event.displayKind).border}`,
-                  color: getDisplayStyle(event.displayKind).text,
-                },
-              })}
+              messages={calendarMessages}
+              formats={calendarFormats}
+              eventPropGetter={calendarEventPropGetter}
+              dayPropGetter={calendarDayPropGetter}
               onNavigate={(date) => setCalendarDate(date)}
               onView={(view) => setCalendarView(view)}
               longPressThreshold={350}
+              scrollToTime={CALENDAR_SCROLL_TIME}
               components={{
                 toolbar: CalendarToolbar,
-                month: {
-                  dateHeader: ({ date, label }) => {
-                    const dow = date.getDay();
-                    const holidayName = isJapaneseHoliday(date);
-                    const isHoliday = holidayName !== null;
-                    const color =
-                      isHoliday || dow === 0 ? "#e11d48"
-                      : dow === 6            ? "#2563eb"
-                      :                        undefined;
-                    return (
-                      <button
-                        className="calendar-date-button"
-                        style={color ? { color } : undefined}
-                        type="button"
-                        title={holidayName ?? undefined}
-                        onPointerUp={(event) => { event.preventDefault(); event.stopPropagation(); openDateForRegistration(date); }}
-                        onClick={(event) => { event.preventDefault(); event.stopPropagation(); openDateForRegistration(date); }}
-                      >
-                        {label}
-                      </button>
-                    );
-                  },
-                },
+                month: { dateHeader: renderDateHeader, event: MonthEventChip },
+                week: { event: TimeEventBlock },
+                day: { event: TimeEventBlock },
               }}
-              onDrillDown={(date) => { openDateForRegistration(date); }}
-              onShowMore={(shownEvents, date) => { setDayDetail({ date, events: shownEvents as CalendarEvent[] }); }}
-              onSelectSlot={(slotInfo) => {
-                if (slotInfo.action === "select") return;
-                const date = Array.isArray(slotInfo.slots) ? slotInfo.slots[0] : slotInfo.start;
-                openDateForRegistration(date as Date);
-              }}
-              onSelectEvent={(event) => openDetailEvent(event)}
+              onDrillDown={(date) => selectDate(date)}
+              onShowMore={(_shownEvents, date) => showDayFromMore(date)}
+              onSelectSlot={handleSelectSlot}
+              onSelectEvent={handleSelectCalendarEvent}
             />
           </div>
         </div>
 
-        {/* 本日の予定バー（モバイル） */}
-        <div className="shrink-0 rounded-xl border border-[#d9e2ef] bg-white shadow-sm">
-          <button
-            className="flex w-full items-center justify-between px-3 py-2"
-            onClick={() => setIsDayEventsOpen((v) => !v)}
-          >
-            <span className="flex items-center gap-2">
-              <span className="text-sm font-bold text-[#0f172a]">
-                {format(selectedDayDate, "M/d(E)", { locale: ja })} の予定
-              </span>
-              {selectedDayEvents.length > 0 && (
-                <span className="rounded-full bg-[#0f766e] px-2 py-0.5 text-xs font-bold text-white">
-                  {selectedDayEvents.length}
-                </span>
-              )}
-            </span>
-            <span className="text-[#94a3b8]">{isDayEventsOpen ? "▲" : "▼"}</span>
-          </button>
+        {/* 選択した日の予定（モバイル） */}
+        <section className="day-panel" aria-label="選択した日の予定">
+          <div className="day-panel-head">
+            <button
+              className="day-panel-toggle"
+              onClick={() => setIsDayEventsOpen((v) => !v)}
+              aria-expanded={isDayEventsOpen}
+              type="button"
+            >
+              <span className="day-panel-date">{format(selectedDayDate, "M月d日(E)", { locale: ja })}</span>
+              {isSameDay(selectedDayDate, new Date()) && <span className="today-pill">今日</span>}
+              <span className="day-panel-count">{selectedDayEvents.length}件</span>
+              <svg className={`day-panel-chevron ${isDayEventsOpen ? "is-open" : ""}`} viewBox="0 0 24 24" aria-hidden="true"><polyline points="6 15 12 9 18 15" /></svg>
+            </button>
+            <button className="add-btn" onClick={() => openEventModal(selectedDayDate)} type="button">
+              <PlusIcon />
+              追加
+            </button>
+          </div>
           {isDayEventsOpen && (
-            <div className="max-h-40 overflow-y-auto border-t border-[#f1f5f9] px-3 pb-2">
+            <div className="day-panel-body">
               {selectedDayEvents.length === 0 ? (
-                <p className="py-2 text-xs text-[#94a3b8]">この日の予定はありません</p>
+                <p className="day-panel-empty">予定はありません。「追加」か、日付をもう一度タップで登録できます。</p>
               ) : (
-                <div className="flex flex-col gap-1 pt-2">
-                  {selectedDayEvents.map((event) => (
-                    <button
-                      key={`${event.id}-${event.start.toISOString()}`}
-                      className="flex items-center gap-2 rounded-lg px-2 py-1.5 text-left hover:bg-[#f8fafc]"
-                      onClick={() => openDetailEvent(event)}
-                    >
-                      <span
-                        className="h-2 w-2 shrink-0 rounded-full"
-                        style={{ backgroundColor: event.categoryColor ?? getDisplayStyle(event.displayKind).border }}
-                      />
-                      <span className="flex-1 truncate text-sm font-semibold text-[#0f172a]">{event.title}</span>
-                      <span className="shrink-0 text-xs text-[#94a3b8]">
-                        {event.allDay ? "終日" : format(event.start, "HH:mm")}
-                      </span>
-                    </button>
-                  ))}
-                </div>
+                renderDayEventGroups()
               )}
             </div>
           )}
-        </div>
+        </section>
       </div>
 
       {/* ========== PC レイアウト（sm以上） ========== */}
-      <div className="mx-auto hidden max-w-7xl flex-col gap-5 sm:flex">
-        <header className="page-header glass-card flex flex-col gap-3 p-3 sm:flex-row sm:items-center sm:justify-between">
-          <ShareCalLogo />
-          <div className="hidden sm:flex sm:flex-wrap sm:items-center sm:gap-2">
-            <button
-              className="flex h-10 items-center gap-1.5 rounded-lg border border-[#d9e2ef] bg-white px-3 text-sm font-bold text-[#475569] shadow-sm transition hover:border-[#0f766e] hover:bg-[#ecfdf5] hover:text-[#0f766e]"
-              onClick={() => setIsSearchOpen(true)}
-              aria-label="予定を検索"
-              type="button"
-            >
-              🔍 <span>検索</span>
-            </button>
+      <div className="mx-auto hidden w-full max-w-[1400px] flex-col gap-4 sm:flex">
+        <header className="page-header glass-card flex items-center justify-between gap-3 p-3">
+          <div className="xl:hidden"><ShareCalLogo compact /></div>
+          <div className="hidden xl:block"><ShareCalLogo /></div>
+          <div className="flex flex-wrap items-center justify-end gap-2">
+            <div className="lg:hidden">
+              <button className="icon-btn" onClick={() => setIsSearchOpen(true)} aria-label="予定を検索" type="button">
+                <SearchIcon />
+              </button>
+            </div>
             <DesktopNavigation />
           </div>
         </header>
 
+        {/* タブレット幅: 追加ボタンを右下に固定 */}
+        <div className="contents lg:hidden">
+          <button className="tablet-fab" onClick={() => openEventModal(selectedDayDate)} type="button">
+            <PlusIcon />
+            予定を追加
+          </button>
+        </div>
+
         {notificationsEnabled && showNotificationPrompt && notificationPermission === "default" && (
-          <section className="relative flex flex-col gap-3 rounded-2xl border border-[#bae6fd] bg-[#f0f9ff] p-4 pr-12 shadow-sm sm:flex-row sm:items-center sm:justify-between">
+          <div className="notice-banner">
+            <svg className="h-5 w-5 shrink-0" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M6 8a6 6 0 1 1 12 0c0 7 3 9 3 9H3s3-2 3-9M10.3 21a1.94 1.94 0 0 0 3.4 0" /></svg>
+            <p className="flex-1 text-sm font-bold">予定が共有されたときに、画面とブラウザ通知でお知らせできます。</p>
+            <button className="notice-banner-action" onClick={requestNotificationPermission}>通知を受け取る</button>
             <button
-              className="absolute right-3 top-3 flex h-8 w-8 items-center justify-center rounded-full border border-[#bae6fd] bg-white text-lg leading-none text-[#075985]"
-              aria-label="通知案内を閉じる"
+              className="notice-banner-close"
+              aria-label="通知の案内を閉じる"
               onClick={() => { window.localStorage.setItem("sharecal_notification_prompt_dismissed", "true"); setShowNotificationPrompt(false); }}
-            >×</button>
-            <div>
-              <p className="text-sm font-bold text-[#075985]">共有通知を受け取る</p>
-              <p className="mt-1 text-sm text-[#475569]">新しく予定が共有された時に、画面上とブラウザ通知で知らせます。</p>
-            </div>
-            <button className="h-10 rounded-lg bg-[#0f766e] px-4 text-sm font-bold text-white" onClick={requestNotificationPermission}>通知を許可</button>
-          </section>
+            >
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12" /></svg>
+            </button>
+          </div>
         )}
 
-        <section className="rounded-2xl border border-[#d9e2ef] bg-white p-3 shadow-sm">
-          <div className="flex items-center justify-between gap-3">
-            <div>
-              <p className="text-xs font-black uppercase tracking-[0.14em] text-[#64748b]">View</p>
-              <h2 className="text-base font-black text-[#0f172a]">
-                {filterOptions.find((o) => o.value === calendarFilter)?.label ?? "表示をしぼる"}
-              </h2>
-              <p className="mt-0.5 text-xs font-bold text-[#64748b]">
-                {filterOptions.find((o) => o.value === calendarFilter)?.description}
+        <div className="home-grid">
+          {/* カレンダー本体 */}
+          <section className="calendar-card home-grid-main p-2 sm:p-3">
+            <div className="calendar-shell desktop-calendar">
+              <Calendar<CalendarEvent>
+                key={calendarWeekStart}
+                localizer={calendarLocalizer}
+                events={visibleEvents}
+                startAccessor="start"
+                endAccessor="end"
+                allDayAccessor="allDay"
+                culture="ja"
+                date={calendarDate}
+                view={calendarView}
+                dayLayoutAlgorithm="no-overlap"
+                popup={false}
+                doShowMoreDrillDown={false}
+                selectable="ignoreEvents"
+                messages={calendarMessages}
+                formats={calendarFormats}
+                eventPropGetter={calendarEventPropGetter}
+                dayPropGetter={calendarDayPropGetter}
+                onNavigate={(date) => setCalendarDate(date)}
+                onView={(view) => setCalendarView(view)}
+                longPressThreshold={350}
+                scrollToTime={CALENDAR_SCROLL_TIME}
+                components={{
+                  toolbar: CalendarToolbar,
+                  month: { dateHeader: renderDateHeader, event: MonthEventChip },
+                  week: { event: TimeEventBlock },
+                  day: { event: TimeEventBlock },
+                }}
+                onDrillDown={(date) => selectDate(date)}
+                onShowMore={(_shownEvents, date) => showDayFromMore(date)}
+                onSelectSlot={handleSelectSlot}
+                onSelectEvent={handleSelectCalendarEvent}
+              />
+            </div>
+          </section>
+
+          {/* サイドバー */}
+          <aside className="home-sidebar">
+            <div className="hidden flex-col gap-2 lg:flex">
+              <button className="add-btn add-btn-lg" onClick={() => openEventModal(selectedDayDate)} type="button">
+                <PlusIcon />
+                予定を追加
+              </button>
+              <button className="search-trigger" onClick={() => setIsSearchOpen(true)} type="button">
+                <SearchIcon />
+                <span className="flex-1 text-left">予定を検索</span>
+                <kbd>/</kbd>
+              </button>
+            </div>
+
+            <section className="side-card" aria-label="選択した日の予定">
+              <div className="flex items-center gap-1">
+                <button className="cal-nav-btn cal-nav-btn-sm" onClick={() => shiftSelectedDay(-1)} aria-label="前の日" type="button">
+                  <svg viewBox="0 0 24 24" aria-hidden="true"><polyline points="15 18 9 12 15 6" /></svg>
+                </button>
+                <div className="min-w-0 flex-1 text-center">
+                  <p className="side-card-title">
+                    {format(selectedDayDate, "M月d日(E)", { locale: ja })}
+                    {isSameDay(selectedDayDate, new Date()) && <span className="today-pill ml-1.5">今日</span>}
+                  </p>
+                  <p className="side-card-sub">
+                    {isJapaneseHoliday(selectedDayDate) ? `${isJapaneseHoliday(selectedDayDate)} · ` : ""}
+                    予定 {selectedDayEvents.length}件
+                  </p>
+                </div>
+                <button className="cal-nav-btn cal-nav-btn-sm" onClick={() => shiftSelectedDay(1)} aria-label="次の日" type="button">
+                  <svg viewBox="0 0 24 24" aria-hidden="true"><polyline points="9 18 15 12 9 6" /></svg>
+                </button>
+              </div>
+              <div className="mt-3 flex flex-col gap-1.5">
+                {selectedDayEvents.length === 0 ? (
+                  <p className="day-panel-empty">この日の予定はありません。</p>
+                ) : (
+                  renderDayEventGroups()
+                )}
+              </div>
+              <div className="mt-3 flex gap-2">
+                <button className="ghost-btn flex-1" onClick={() => openEventModal(selectedDayDate)} type="button">
+                  <PlusIcon />
+                  この日に追加
+                </button>
+                {!isSameDay(selectedDayDate, new Date()) && (
+                  <button className="ghost-btn" onClick={goToday} type="button">今日へ</button>
+                )}
+              </div>
+            </section>
+
+            <section className="side-card" aria-label="表示する予定">
+              <div className="flex items-center justify-between">
+                <p className="side-card-title">表示する予定</p>
+                {calendarFilter !== "all" && (
+                  <button className="text-link" onClick={() => setCalendarFilter("all")} type="button">すべて表示</button>
+                )}
+              </div>
+              <div className="mt-2 flex flex-col gap-1" role="radiogroup" aria-label="表示する予定">
+                {filterOptions.map((option) => (
+                  <button
+                    key={option.value}
+                    role="radio"
+                    aria-checked={calendarFilter === option.value}
+                    className="filter-row"
+                    data-active={calendarFilter === option.value ? "true" : undefined}
+                    onClick={() => setCalendarFilter(option.value)}
+                    type="button"
+                  >
+                    <span className="filter-row-dot" style={{ backgroundColor: filterKindColor(option.value) }} />
+                    <span className="min-w-0 flex-1 truncate">{option.label}</span>
+                    <span className="filter-row-count">{option.description}</span>
+                  </button>
+                ))}
+              </div>
+            </section>
+
+            <section className="side-card" aria-label="色の見方">
+              <p className="side-card-title">色の見方</p>
+              <ul className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1.5">
+                {legendItems.map((item) => (
+                  <li key={item.kind} className="legend-item">
+                    <span
+                      className="legend-swatch"
+                      style={{ backgroundColor: getDisplayStyle(item.kind).background, borderLeftColor: getDisplayStyle(item.kind).border }}
+                    />
+                    {item.label}
+                  </li>
+                ))}
+              </ul>
+              <p className="mt-3 text-[11px] font-semibold leading-relaxed text-[var(--fg-muted)]">
+                ショートカット：<kbd>N</kbd> 追加 ／ <kbd>T</kbd> 今日 ／ <kbd>←</kbd><kbd>→</kbd> 前後へ ／ <kbd>/</kbd> 検索
               </p>
-            </div>
-            <div className="flex shrink-0 gap-2">
-              {calendarFilter !== "all" && (
-                <button className="shrink-0 rounded-full border border-[#cbd5e1] bg-[#f8fafc] px-3 py-2 text-xs font-bold text-[#475569]" onClick={() => setCalendarFilter("all")}>解除</button>
-              )}
-              <button className="shrink-0 rounded-full bg-[#0f766e] px-4 py-2 text-xs font-black text-white shadow-sm" onClick={() => setIsFilterOpen((v) => !v)}>
-                {isFilterOpen ? "閉じる" : "絞り込み"}
-              </button>
-            </div>
-          </div>
-          {isFilterOpen && (
-            <div className="grid grid-flow-col auto-cols-[minmax(138px,1fr)] gap-2 overflow-x-auto pb-1 sm:auto-cols-fr sm:grid-flow-row sm:grid-cols-2 lg:grid-cols-4">
-              {filterOptions.map((option) => (
-                <button
-                  key={option.value}
-                  className={`group flex min-h-[68px] items-center gap-3 rounded-2xl border p-3 text-left transition ${
-                    calendarFilter === option.value ? "border-[#0f766e] bg-[#ecfdf5] shadow-sm" : "border-[#d9e2ef] bg-[#f8fafc] hover:border-[#99f6e4] hover:bg-white"
-                  }`}
-                  onClick={() => setCalendarFilter(option.value)}
-                >
-                  <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl text-sm font-black text-white shadow-sm" style={{ backgroundColor: option.color }}>
-                    {option.value === "all" ? "All" : option.label.slice(0, 1)}
-                  </span>
-                  <span className="min-w-0">
-                    <span className="block truncate text-sm font-black text-[#0f172a]">{option.label}</span>
-                    <span className="mt-0.5 block truncate text-xs font-bold text-[#64748b]">{option.description}</span>
-                  </span>
-                </button>
-              ))}
-            </div>
-          )}
-        </section>
-
-        <section className="rounded-2xl border border-[#d9e2ef] bg-white p-3 shadow-sm">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[#64748b]">Day Events</p>
-              <h2 className="text-lg font-bold text-[#0f172a]">{format(selectedDayDate, "M月d日", { locale: ja })} の予定</h2>
-              <p className="mt-1 text-sm text-[#64748b]">{selectedDayEvents.length}件</p>
-            </div>
-            <div className="flex gap-2">
-              <button className="h-10 rounded-lg border border-[#cbd5e1] px-3 text-sm font-semibold text-[#334155]" onClick={() => setIsDayEventsOpen((v) => !v)}>
-                {isDayEventsOpen ? "閉じる" : "表示"}
-              </button>
-              <button className="h-10 rounded-lg bg-[#0f766e] px-3 text-sm font-semibold text-white" onClick={() => openEventModal(selectedDayDate)}>追加</button>
-            </div>
-          </div>
-          {isDayEventsOpen && (
-            <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-              {selectedDayEvents.map((event) => (
-                <button
-                  key={`${event.id}-${event.start.toISOString()}`}
-                  className="rounded-xl border p-3 text-left transition hover:border-[#0f766e]"
-                  style={{ backgroundColor: getDisplayStyle(event.displayKind).background, borderLeft: `8px solid ${event.categoryColor ?? getDisplayStyle(event.displayKind).border}`, color: getDisplayStyle(event.displayKind).text }}
-                  onClick={() => openDetailEvent(event)}
-                >
-                  <p className="font-semibold text-[#0f172a]">{event.title}</p>
-                  <p className="mt-1 text-sm text-[#64748b]">
-                    {event.allDay ? "終日" : `${format(event.start, "HH:mm")} - ${format(event.end, "HH:mm")}`}
-                    {` / ${getDisplayLabel(event.displayKind)}`}
-                    {event.recurringRule && event.recurringRule !== "none" && " / 繰り返し"}
-                  </p>
-                  <p className="mt-1 text-xs font-semibold text-[#64748b]">
-                    {event.isShared ? `${event.ownerName}さんから共有` : event.sharedWith.length > 0 ? `${event.sharedWith.map((u) => u.username).join("、")}に共有中` : "未共有"}
-                  </p>
-                </button>
-              ))}
-              {selectedDayEvents.length === 0 && <p className="text-sm text-[#64748b]">この日の予定はありません。</p>}
-            </div>
-          )}
-        </section>
-
-        <section className="rounded-2xl border border-[#d9e2ef] bg-white p-2 shadow-sm sm:p-3">
-          <div className="calendar-shell h-[calc(100vh-255px)] min-h-[430px] sm:h-[calc(100vh-205px)] sm:min-h-[560px]">
-            <Calendar<CalendarEvent>
-              key={calendarWeekStart}
-              localizer={calendarLocalizer}
-              events={visibleEvents}
-              startAccessor="start"
-              endAccessor="end"
-              allDayAccessor="allDay"
-              culture="ja"
-              date={calendarDate}
-              view={calendarView}
-              dayLayoutAlgorithm="no-overlap"
-              popup
-              selectable="ignoreEvents"
-              messages={{
-                today: "今日",
-                previous: "前へ",
-                next: "次へ",
-                month: "月",
-                week: "週",
-                day: "日",
-                agenda: "一覧",
-                noEventsInRange: "この期間の予定はまだありません",
-                showMore: (total) => `+${total}件`,
-              }}
-              formats={{
-                monthHeaderFormat: "yyyy年M月",
-                dayHeaderFormat: "M月d日 EEEE",
-                weekdayFormat: "EEE",
-                dayRangeHeaderFormat: ({ start, end }) =>
-                  `${format(start, "yyyy年M月d日", { locale: ja })} - ${format(end, "M月d日", { locale: ja })}`,
-              }}
-              eventPropGetter={(event) => ({
-                className: `${event.displayKind}-event`,
-                style: {
-                  backgroundColor: getDisplayStyle(event.displayKind).background,
-                  borderLeft: `5px solid ${event.categoryColor ?? getDisplayStyle(event.displayKind).border}`,
-                  color: getDisplayStyle(event.displayKind).text,
-                },
-              })}
-              onNavigate={(date) => setCalendarDate(date)}
-              onView={(view) => setCalendarView(view)}
-              longPressThreshold={350}
-              components={{
-                toolbar: CalendarToolbar,
-                month: {
-                  dateHeader: ({ date, label }) => {
-                    const dow = date.getDay();
-                    const holidayName = isJapaneseHoliday(date);
-                    const isHoliday = holidayName !== null;
-                    const color =
-                      isHoliday || dow === 0 ? "#e11d48"
-                      : dow === 6            ? "#2563eb"
-                      :                        undefined;
-                    return (
-                      <button
-                        className="calendar-date-button"
-                        style={color ? { color } : undefined}
-                        type="button"
-                        title={holidayName ?? undefined}
-                        onPointerUp={(event) => {
-                          event.preventDefault();
-                          event.stopPropagation();
-                          openDateForRegistration(date);
-                        }}
-                        onClick={(event) => {
-                          event.preventDefault();
-                          event.stopPropagation();
-                          openDateForRegistration(date);
-                        }}
-                      >
-                        {label}
-                        {isHoliday && (
-                          <span style={{ fontSize: "9px", fontWeight: 700, marginLeft: "2px", display: "none" }} className="sm:inline">
-                            {holidayName}
-                          </span>
-                        )}
-                      </button>
-                    );
-                  },
-                },
-              }}
-              onDrillDown={(date) => {
-                openDateForRegistration(date);
-              }}
-              onShowMore={(shownEvents, date) => {
-                setDayDetail({
-                  date,
-                  events: shownEvents as CalendarEvent[],
-                });
-              }}
-              onSelectSlot={(slotInfo) => {
-                if (slotInfo.action === "select") return;
-                const date = Array.isArray(slotInfo.slots)
-                  ? slotInfo.slots[0]
-                  : slotInfo.start;
-
-                openDateForRegistration(date);
-              }}
-              onSelectEvent={(event) => openDetailEvent(event)}
-            />
-          </div>
-        </section>
-      </div>{/* /.mx-auto PC */}
+            </section>
+          </aside>
+        </div>
+      </div>{/* /PC */}
 
       {/* 予定検索モーダル */}
       {isSearchOpen && (
@@ -2633,7 +2849,7 @@ export default function Home() {
                     key={dateMovedKey}
                     className={`relative rounded-xl px-2 py-0.5 text-center ${dateMovedKey > 0 ? "date-moved-flash" : ""}`}
                   >
-                    <p className="text-[10px] font-semibold uppercase tracking-widest text-[#94a3b8]">Schedule</p>
+                    <p className="text-[11px] font-bold text-[#64748b]">新しい予定</p>
                     {showDateMoved && (
                       <span className="date-moved-badge absolute left-1/2 top-full z-10 mt-1 -translate-x-1/2 whitespace-nowrap rounded-full bg-[#0f766e] px-2.5 py-0.5 text-[11px] font-bold text-white shadow">
                         次の日に移動しました
@@ -2678,7 +2894,7 @@ export default function Home() {
 
             <div className="mb-4 rounded-2xl border border-[#d9e2ef] bg-[#f8fafc] p-3">
               <p className="mb-2 text-xs font-bold text-[#64748b]">
-                よく使う予定から入力
+                よく使う予定からワンタップ入力
               </p>
               <div className="flex gap-2 overflow-x-auto px-1 py-1">
               {patterns.map((pattern) => (
@@ -2692,7 +2908,9 @@ export default function Home() {
               ))}
               {patterns.length === 0 && (
                 <p className="text-sm text-[#64748b]">
-                  よく使う予定を登録すると、ここからすぐ入力できます。
+                  「夜勤」「休み」などを
+                  <button type="button" className="mx-1 font-bold text-[#0f766e] underline" onClick={() => router.push("/patterns")}>よく使う予定</button>
+                  に登録すると、ここからすぐ入力できます。
                 </p>
               )}
               </div>
@@ -2700,9 +2918,13 @@ export default function Home() {
 
             <div className="grid gap-3 sm:grid-cols-2">
               <label className="space-y-1 sm:col-span-2">
-                <span className="text-xs font-semibold text-[#64748b]">タイトル</span>
+                <span className="text-xs font-semibold text-[#64748b]">
+                  タイトル <span className="text-[#e11d48]">*</span>
+                </span>
                 <input
                   className="h-11 w-full rounded-lg border border-[#cbd5e1] px-3 text-sm outline-none transition focus:border-[#0f766e] focus:ring-2 focus:ring-[#99f6e4]"
+                  placeholder="例：打ち合わせ、ごはん、歯医者"
+                  enterKeyHint="done"
                   value={eventForm.title}
                   onChange={(event) =>
                     setEventForm((current) => ({ ...current, title: event.target.value }))
@@ -2781,6 +3003,17 @@ export default function Home() {
                   {isEndOnNextDay(eventForm) ? "終了日を当日に戻す" : "終了日を翌日にする"}
                 </button>
               </label>
+              {!(showMoreFields || eventForm.note || eventForm.imageUrl || eventForm.url) ? (
+                <button
+                  type="button"
+                  className="flex items-center justify-center gap-2 rounded-xl border border-dashed border-[#cbd5e1] py-3 text-sm font-bold text-[#475569] transition hover:border-[#0f766e] hover:bg-[#ecfdf5] hover:text-[#0f766e] sm:col-span-2"
+                  onClick={() => setShowMoreFields(true)}
+                >
+                  <PlusIcon />
+                  メモ・画像・URLを追加
+                </button>
+              ) : (
+              <>
               <label className="space-y-1 sm:col-span-2">
                 <span className="text-xs font-semibold text-[#64748b]">メモ</span>
                 <textarea
@@ -2835,10 +3068,12 @@ export default function Home() {
                   placeholder="https://..."
                 />
               </label>
+              </>
+              )}
             </div>
 
             <div className="mt-5 space-y-2">
-              <p className="text-xs font-semibold text-[#64748b]">共有する相手</p>
+              <p className="text-xs font-semibold text-[#64748b]">共有する相手 <span className="font-normal">（選ばなければ自分だけの予定）</span></p>
               {eventForm.selectedUserIds.length > 0 && (
                 <div className="grid gap-2 sm:grid-cols-2">
                   {[
@@ -2906,14 +3141,24 @@ export default function Home() {
               </div>
             </div>
 
-            <div className="mt-6">
-              <button
-                className="h-11 w-full rounded-lg bg-[#0f766e] px-5 text-sm font-semibold text-white shadow-sm transition hover:bg-[#115e59] disabled:cursor-not-allowed disabled:opacity-50"
-                disabled={!eventForm.title.trim() || ocrBusy}
-                onClick={addEvent}
-              >
-                {ocrBusy ? "画像を処理中…" : "登録する"}
-              </button>
+            <div className="sticky bottom-0 z-10 -mx-4 -mb-4 mt-6 border-t border-[#e2e8f0] bg-white/95 px-4 py-3 backdrop-blur sm:-mx-6 sm:-mb-6 sm:px-6">
+              <div className="flex gap-2">
+                <button
+                  className="h-11 shrink-0 rounded-lg border border-[#cbd5e1] px-4 text-sm font-bold text-[#475569] transition hover:bg-[#f8fafc]"
+                  onClick={() => setIsEventModalOpen(false)}
+                  type="button"
+                >
+                  キャンセル
+                </button>
+                <button
+                  className="h-11 flex-1 rounded-lg bg-[#0f766e] px-5 text-sm font-bold text-white shadow-sm transition hover:bg-[#115e59] disabled:cursor-not-allowed disabled:opacity-50"
+                  disabled={!eventForm.title.trim() || ocrBusy}
+                  onClick={addEvent}
+                  type="button"
+                >
+                  {ocrBusy ? "画像を処理中…" : !eventForm.title.trim() ? "タイトルを入力してください" : "登録する"}
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -2938,8 +3183,9 @@ export default function Home() {
           <div className="max-h-[88vh] w-full max-w-full overflow-y-auto overflow-x-hidden rounded-2xl bg-white p-4 shadow-2xl sm:max-w-lg sm:p-6" onClick={(e) => e.stopPropagation()}>
             <div className="mb-4 border-b border-[#e2e8f0] bg-white pb-4">
               <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[#64748b]">
-                  Schedule Detail
+                <p className="text-xs font-bold text-[#64748b]">
+                  {format(detailEvent.start, "M月d日(E)", { locale: ja })}
+                  {detailEvent.allDay ? " · 終日" : ` · ${format(detailEvent.start, "HH:mm")}〜${format(detailEvent.end, "HH:mm")}`}
                 </p>
                 <h2 className="text-xl font-bold text-[#0f172a]">{detailEvent.title}</h2>
               </div>
@@ -3393,8 +3639,8 @@ export default function Home() {
             </h2>
             <div className="mt-5 grid gap-3 text-sm text-[#475569]">
               <div className="rounded-2xl bg-[#f8fafc] p-3">
-                <p className="font-bold text-[#0f172a]">1. 日付を押して予定登録</p>
-                <p className="mt-1">カレンダーの日付を押すと、その日の登録画面が開きます。</p>
+                <p className="font-bold text-[#0f172a]">1. 日付を押して予定を確認・登録</p>
+                <p className="mt-1">日付を押すとその日の予定が下に出ます。「＋追加」か、同じ日付をもう一度押すと登録画面が開きます。</p>
               </div>
               <div className="rounded-2xl bg-[#f8fafc] p-3">
                 <p className="font-bold text-[#0f172a]">2. よく使う予定で時短</p>
