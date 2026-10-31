@@ -2242,3 +2242,4 @@ h1, h2, h3, .font-display { font-family: var(--font-display), var(--font-body), 
 }
 
 @media (min-width: 640px) { .mobile-nav { display: none; } }
+.link-card-name.is-url { font-size: 12px; font-weight: 600; overflow-wrap: anywhere; color: var(--fg); }

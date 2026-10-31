@@ -179,6 +179,16 @@ const hostOf = (url: string) => {
   }
 };
 
+// 店名が取れないときに表示するURL（https:// を省き、日本語も読める形に）
+const shortUrl = (url: string) => {
+  const raw = normalizeUrl(url).replace(/^https?:\/\//i, "").replace(/\/$/, "");
+  try {
+    return decodeURI(raw);
+  } catch {
+    return raw;
+  }
+};
+
 const faviconOf = (url: string) => {
   const host = hostOf(url);
   return host
@@ -449,8 +459,8 @@ export default function LinksPage() {
       const og = ogMap[normalizeUrl(it.url)];
       return {
         ...it,
-        // 手入力した店名を最優先、無ければOG店名、最後に予定名
-        storeName: (it.placeName || og?.storeName || it.eventTitle).trim(),
+        // 手入力した店名を最優先、無ければOG店名。どちらも無ければ空（表示はURL。予定の件名は使わない）
+        storeName: (it.placeName || og?.storeName || "").trim(),
         // 手動ジャンルを最優先、無ければOG判定。どちらも「大きいジャンル＋細かいジャンル」にそろえる
         ...(() => {
           const g = it.linkGenre
@@ -900,7 +910,7 @@ export default function LinksPage() {
                         {!g.hasOwn && <span className="link-card-shared">共有</span>}
                       </span>
                       <span className="link-card-body">
-                        <span className="link-card-name">{g.storeName}</span>
+                        <span className={`link-card-name ${g.storeName ? "" : "is-url"}`}>{g.storeName || shortUrl(g.url)}</span>
                         <span className="link-card-meta">
                           {[g.subGenre || g.genre, g.city || g.prefecture].filter((v) => v && v !== "未設定").join(" ・ ") || hostOf(g.url)}
                         </span>
@@ -953,7 +963,7 @@ export default function LinksPage() {
                   {detail.subGenre && ` › ${detail.subEmoji} ${detail.subGenre}`}
                 </p>
                 <h3 className="mt-1 break-words text-lg font-black text-[var(--fg-strong)]">
-                  {detail.storeName}
+                  {detail.storeName || shortUrl(detail.url)}
                 </h3>
                 <p className="mt-0.5 truncate text-xs text-[var(--fg-muted)]">{hostOf(detail.url)}</p>
               </div>

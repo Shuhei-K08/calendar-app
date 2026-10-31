@@ -480,9 +480,10 @@ const extractUrlFromClipboard = (clipboardData: DataTransfer): string => {
     const hrefMatch = html.match(/href=["']([^"']+)["']/i);
     if (hrefMatch && /^https?:\/\//i.test(hrefMatch[1])) return hrefMatch[1];
   }
-  // 3. プレーンテキストからURL抽出
+  // 3. プレーンテキストからURL抽出（URLが含まれていなければ空を返し、普通に貼り付けさせる）
   const text = clipboardData.getData("text/plain") || clipboardData.getData("text");
-  return extractUrl(text);
+  const match = text.match(/https?:\/\/\S+/);
+  return match ? match[0].replace(/[.,)>\]]+$/, "") : "";
 };
 
 const normalizeLinkUrl = (url: string) =>
@@ -1515,7 +1516,8 @@ export default function Home() {
       seen.add(key);
       options.push({
         url,
-        label: (row.place_name?.trim() || row.title || linkHostOf(url) || url).trim(),
+        // 店名が取れていなければ、予定の件名ではなくURLを表示する
+        label: (row.place_name?.trim() || url).trim(),
         host: linkHostOf(url),
         isFavorite: row.is_favorite ?? false,
       });
@@ -3549,8 +3551,9 @@ export default function Home() {
                     setEventForm((current) => ({ ...current, url: event.target.value }))
                   }
                   onPaste={(event) => {
-                    event.preventDefault();
                     const extracted = extractUrlFromClipboard(event.clipboardData);
+                    if (!extracted) return; // URLが無ければそのまま貼り付け
+                    event.preventDefault();
                     setEventForm((current) => ({ ...current, url: extracted }));
                   }}
                   placeholder="https://..."
@@ -3861,8 +3864,9 @@ export default function Home() {
                       setEditForm((current) => ({ ...current, url: event.target.value }))
                     }
                     onPaste={(event) => {
-                      event.preventDefault();
                       const extracted = extractUrlFromClipboard(event.clipboardData);
+                      if (!extracted) return; // URLが無ければそのまま貼り付け
+                      event.preventDefault();
                       setEditForm((current) => ({ ...current, url: extracted }));
                     }}
                     placeholder="https://..."
