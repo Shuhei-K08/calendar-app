@@ -1595,53 +1595,184 @@ kbd {
 .copy-btn-title { color: var(--fg-strong); font-size: 13px; font-weight: 800; }
 .copy-btn-sub { color: var(--fg-muted); font-size: 11px; font-weight: 600; }
 
-/* コメント・リアクション */
-.comment-box {
+/* 長さ変更のつまみは、カーソルを乗せたときだけ表示 */
+.calendar-shell .rbc-addons-dnd .rbc-addons-dnd-resize-ew-anchor,
+.calendar-shell .rbc-addons-dnd .rbc-addons-dnd-resize-ns-anchor { opacity: 0; transition: opacity 0.15s; }
+.calendar-shell .rbc-addons-dnd .rbc-event:hover .rbc-addons-dnd-resize-ew-anchor,
+.calendar-shell .rbc-addons-dnd .rbc-event:hover .rbc-addons-dnd-resize-ns-anchor { opacity: 1; }
+
+/* ============================================================
+   ひとこと（SNS風のチャット）
+   ============================================================ */
+.chat-box {
   background: var(--surface-alt);
   border: 1px solid var(--border);
-  border-radius: 14px;
-  padding: 12px;
+  border-radius: 16px;
+  padding: 12px 12px 10px;
 }
-.comment-box-title { color: var(--fg-strong); font-size: 13px; font-weight: 900; }
-.reaction-btn {
-  align-items: center;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 999px;
-  color: var(--fg);
-  display: inline-flex;
-  font-size: 12px;
-  font-weight: 700;
-  gap: 4px;
-  height: 32px;
-  padding: 0 10px;
-  transition: background 0.15s, border-color 0.15s;
-}
-.reaction-btn:hover { border-color: var(--accent); }
-.reaction-btn[data-active="true"] {
-  background: color-mix(in srgb, var(--accent) 12%, var(--surface));
-  border-color: var(--accent);
-  color: var(--accent-strong);
-}
-.reaction-btn:disabled { opacity: 0.6; }
-.reaction-count {
+.chat-head { align-items: center; display: flex; gap: 6px; }
+.chat-title { color: var(--fg-strong); font-size: 14px; font-weight: 900; }
+.chat-count {
   background: var(--accent);
   border-radius: 999px;
   color: #fff;
   font-size: 10px;
   font-weight: 800;
   line-height: 1;
-  padding: 2px 5px;
+  padding: 3px 6px;
 }
-.comment-item {
+.chat-empty { color: var(--fg-muted); font-size: 12px; font-weight: 600; padding: 6px 2px; text-align: center; }
+
+/* リアクション */
+.reaction-bar { align-items: center; display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; position: relative; }
+.reaction-pill {
+  align-items: center;
+  background: var(--surface);
+  border: 1.5px solid var(--border);
+  border-radius: 999px;
+  display: inline-flex;
+  gap: 4px;
+  height: 32px;
+  padding: 0 10px 0 8px;
+  transition: transform 0.12s, border-color 0.15s, background 0.15s;
+}
+.reaction-pill:hover { border-color: var(--border-strong); }
+.reaction-pill:active { transform: scale(0.92); }
+.reaction-pill[data-active="true"] {
+  background: color-mix(in srgb, var(--accent) 12%, var(--surface));
+  border-color: var(--accent);
+}
+.reaction-pill-emoji { font-size: 17px; line-height: 1; }
+.reaction-pill-count { color: var(--fg); font-size: 13px; font-variant-numeric: tabular-nums; font-weight: 800; }
+.reaction-pill[data-active="true"] .reaction-pill-count { color: var(--accent-strong); }
+.reaction-pill[data-active="true"] .reaction-pill-emoji { animation: reaction-pop 0.35s ease; }
+@keyframes reaction-pop {
+  0% { transform: scale(0.6); }
+  60% { transform: scale(1.25); }
+  100% { transform: scale(1); }
+}
+.reaction-add {
+  align-items: center;
+  border: 1.5px dashed var(--border-strong);
+  border-radius: 999px;
+  color: var(--fg-muted);
+  display: inline-flex;
+  font-size: 12px;
+  font-weight: 800;
+  gap: 1px;
+  height: 32px;
+  padding: 0 9px;
+  transition: border-color 0.15s, color 0.15s;
+}
+.reaction-add:hover, .reaction-add[aria-expanded="true"] { border-color: var(--accent); color: var(--accent-strong); }
+.reaction-add svg { fill: none; height: 18px; stroke: currentColor; stroke-linecap: round; stroke-width: 2; width: 18px; }
+.reaction-picker {
+  animation: picker-in 0.15s ease;
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: 10px;
-  padding: 8px 10px;
+  border-radius: 16px;
+  box-shadow: 0 10px 30px rgba(15, 23, 42, 0.16);
+  display: flex;
+  gap: 2px;
+  left: 0;
+  padding: 6px;
+  position: absolute;
+  top: calc(100% + 6px);
+  z-index: 5;
 }
-.comment-item.is-mine { background: color-mix(in srgb, var(--accent) 6%, var(--surface)); }
-/* 長さ変更のつまみは、カーソルを乗せたときだけ表示 */
-.calendar-shell .rbc-addons-dnd .rbc-addons-dnd-resize-ew-anchor,
-.calendar-shell .rbc-addons-dnd .rbc-addons-dnd-resize-ns-anchor { opacity: 0; transition: opacity 0.15s; }
-.calendar-shell .rbc-addons-dnd .rbc-event:hover .rbc-addons-dnd-resize-ew-anchor,
-.calendar-shell .rbc-addons-dnd .rbc-event:hover .rbc-addons-dnd-resize-ns-anchor { opacity: 1; }
+@keyframes picker-in {
+  from { opacity: 0; transform: translateY(-4px) scale(0.97); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+.reaction-picker-btn {
+  align-items: center;
+  border-radius: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 54px;
+  padding: 6px 4px 5px;
+  transition: background 0.12s, transform 0.12s;
+}
+.reaction-picker-btn:hover { background: var(--surface-alt); transform: translateY(-2px); }
+.reaction-picker-btn[data-active="true"] { background: color-mix(in srgb, var(--accent) 12%, var(--surface)); }
+.reaction-picker-label { color: var(--fg-muted); font-size: 10px; font-weight: 700; }
+.reaction-who { color: var(--fg-muted); font-size: 11px; font-weight: 600; margin-top: 6px; }
+
+/* メッセージ */
+.chat-list { display: flex; flex-direction: column; gap: 10px; margin-top: 12px; max-height: 280px; overflow-y: auto; padding: 2px; }
+.chat-row { align-items: flex-start; display: flex; gap: 8px; }
+.chat-row.is-grouped { margin-top: -6px; }
+.chat-row.is-mine { justify-content: flex-end; }
+.chat-avatar {
+  align-items: center;
+  border-radius: 999px;
+  color: #fff;
+  display: inline-flex;
+  flex-shrink: 0;
+  font-size: 13px;
+  font-weight: 800;
+  height: 32px;
+  justify-content: center;
+  width: 32px;
+}
+.chat-col { display: flex; flex-direction: column; max-width: 86%; min-width: 0; }
+.chat-row.is-mine .chat-col { align-items: flex-end; }
+.chat-name { color: var(--fg-muted); font-size: 11px; font-weight: 700; margin: 0 0 2px 4px; }
+.chat-line { align-items: flex-end; display: flex; gap: 6px; }
+.chat-row.is-mine .chat-line { flex-direction: row-reverse; }
+.chat-bubble {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 18px 18px 18px 6px;
+  color: var(--fg-strong);
+  cursor: default;
+  font-size: 14px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+  padding: 8px 13px;
+  text-align: left;
+  white-space: pre-wrap;
+}
+.chat-row.is-grouped .chat-bubble { border-top-left-radius: 6px; }
+.chat-row.is-mine .chat-bubble {
+  background: var(--accent);
+  border-color: transparent;
+  border-radius: 18px 18px 6px 18px;
+  color: #fff;
+  cursor: pointer;
+}
+.chat-row.is-mine.is-grouped .chat-bubble { border-top-right-radius: 6px; }
+.chat-time { color: var(--fg-soft); flex-shrink: 0; font-size: 10px; font-weight: 600; padding-bottom: 2px; white-space: nowrap; }
+.chat-delete { color: #be123c; font-size: 11px; font-weight: 800; margin-top: 4px; padding: 2px 4px; }
+
+/* 入力欄 */
+.chat-input {
+  align-items: center;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  display: flex;
+  gap: 6px;
+  margin-top: 12px;
+  padding: 4px 4px 4px 14px;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+.chat-input:focus-within { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-ring); }
+.chat-input-field { background: transparent; color: var(--fg-strong); flex: 1; font-size: 14px; min-width: 0; outline: none; padding: 6px 0; }
+.chat-input-field::placeholder { color: var(--fg-soft); }
+.chat-send {
+  align-items: center;
+  background: var(--accent);
+  border-radius: 999px;
+  color: #fff;
+  display: inline-flex;
+  flex-shrink: 0;
+  height: 36px;
+  justify-content: center;
+  transition: opacity 0.15s, transform 0.12s;
+  width: 36px;
+}
+.chat-send:active { transform: scale(0.92); }
+.chat-send:disabled { background: var(--border-strong); }
+.chat-send svg { fill: currentColor; height: 16px; margin-left: -1px; width: 16px; }

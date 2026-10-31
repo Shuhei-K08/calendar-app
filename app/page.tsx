@@ -244,6 +244,23 @@ const QUICK_REACTIONS = [
   { emoji: "😢", label: "ざんねん" },
 ];
 
+// チャットの時刻: 今日は「19:05」、昨日は「昨日 19:05」、それ以前は「10/28 19:05」
+const formatChatTime = (iso: string) => {
+  const d = new Date(iso);
+  const today = startOfDay(new Date());
+  if (d >= today) return format(d, "H:mm");
+  if (d >= addDays(today, -1)) return `昨日 ${format(d, "H:mm")}`;
+  return format(d, "M/d H:mm");
+};
+
+// ユーザーごとに固定のアイコン色
+const AVATAR_COLORS = ["#8b5cf6", "#f59e0b", "#0ea5e9", "#ec4899", "#10b981", "#6366f1"];
+const avatarColor = (userId: string) => {
+  let h = 0;
+  for (let i = 0; i < userId.length; i += 1) h = (h * 31 + userId.charCodeAt(i)) >>> 0;
+  return AVATAR_COLORS[h % AVATAR_COLORS.length];
+};
+
 // 週・日表示を開いたときに最初に見せる時刻（朝8時）
 const CALENDAR_SCROLL_TIME = new Date(1970, 0, 1, 8, 0, 0);
 
@@ -887,6 +904,8 @@ export default function Home() {
   const [commentsState, setCommentsState] = useState<"idle" | "loading" | "ready" | "unavailable">("idle");
   const [commentDraft, setCommentDraft] = useState("");
   const [commentSending, setCommentSending] = useState(false);
+  const [reactionPickerOpen, setReactionPickerOpen] = useState(false);
+  const [selectedCommentId, setSelectedCommentId] = useState<string | null>(null);
   // ドラッグで動かした直後の「元に戻す」用
   const [lastMove, setLastMove] = useState<{
     id: string;
@@ -1920,6 +1939,8 @@ export default function Home() {
   const loadComments = async (event: CalendarEvent) => {
     setComments([]);
     setCommentDraft("");
+    setReactionPickerOpen(false);
+    setSelectedCommentId(null);
     const target = commentTargetOf(event);
     if (!target || !isCommentable(event)) {
       setCommentsState("idle");
@@ -3749,95 +3770,181 @@ export default function Home() {
                     共有していない自分の予定です。
                   </div>
                 )}
-                {isCommentable(detailEvent) && (
-                  <section className="comment-box" aria-label="ひとこと・リアクション">
-                    <p className="comment-box-title">ひとこと・リアクション</p>
-                    {commentsState === "unavailable" ? (
-                      <p className="mt-1 text-xs font-semibold text-[#64748b]">
-                        この機能を使うには、Supabase で <code>supabase-event-comments.sql</code> を実行してください。
-                      </p>
-                    ) : (
-                      <>
-                        <div className="mt-2 flex flex-wrap gap-1.5">
-                          {QUICK_REACTIONS.map((r) => {
-                            const reacted = comments.filter((c) => c.reaction === r.emoji);
-                            const mine = reacted.some((c) => c.user_id === currentUserId);
-                            return (
+                {isCommentable(detailEvent) && (() => {
+                  const messages = comments.filter((c) => c.body);
+                  const reactionSummary = QUICK_REACTIONS.map((r) => {
+                    const rows = comments.filter((c) => c.reaction === r.emoji);
+                    return {
+                      ...r,
+                      users: rows.map((c) => c.user_id),
+                      mine: rows.some((c) => c.user_id === currentUserId),
+                    };
+                  }).filter((r) => r.users.length > 0);
+                  const reactors = Array.from(new Set(comments.filter((c) => c.reaction).map((c) => c.user_id)));
+                  return (
+                    <section className="chat-box" aria-label="ひとこと・リアクション">
+                      <div className="chat-head">
+                        <p className="chat-title">ひとこと</p>
+                        {messages.length > 0 && <span className="chat-count">{messages.length}</span>}
+                      </div>
+                      {commentsState === "unavailable" ? (
+                        <p className="chat-empty">
+                          この機能を使うには、Supabase で <code>supabase-event-comments.sql</code> を実行してください。
+                        </p>
+                      ) : (
+                        <>
+                          {/* リアクション: 押されているものだけ表示し、＋から追加 */}
+                          <div className="reaction-bar">
+                            {reactionSummary.map((r) => (
                               <button
                                 key={r.emoji}
                                 type="button"
-                                className="reaction-btn"
-                                data-active={mine ? "true" : undefined}
-                                disabled={commentSending || commentsState === "loading"}
-                                title={reacted.length > 0 ? reacted.map((c) => commenterName(c.user_id, detailEvent)).join("、") : r.label}
+                                className="reaction-pill"
+                                data-active={r.mine ? "true" : undefined}
+                                disabled={commentSending}
+                                title={`${r.label}：${r.users.map((uid) => commenterName(uid, detailEvent)).join("、")}`}
                                 onClick={() => void toggleReaction(detailEvent, r.emoji)}
                               >
-                                <span className="text-base leading-none">{r.emoji}</span>
-                                <span>{r.label}</span>
-                                {reacted.length > 0 && <span className="reaction-count">{reacted.length}</span>}
+                                <span className="reaction-pill-emoji">{r.emoji}</span>
+                                <span className="reaction-pill-count">{r.users.length}</span>
                               </button>
-                            );
-                          })}
-                        </div>
-                        {comments.some((c) => c.reaction) && (
-                          <p className="mt-1.5 text-[11px] font-semibold text-[#64748b]">
-                            {Array.from(new Set(comments.filter((c) => c.reaction).map((c) => c.user_id)))
-                              .map((uid) => `${commenterName(uid, detailEvent)} ${comments.filter((c) => c.reaction && c.user_id === uid).map((c) => c.reaction).join("")}`)
-                              .join("　")}
-                          </p>
-                        )}
-                        <div className="mt-3 flex flex-col gap-2">
-                          {commentsState === "loading" && <p className="text-xs text-[#94a3b8]">読み込み中…</p>}
-                          {comments.filter((c) => c.body).map((c) => {
-                            const mine = c.user_id === currentUserId;
-                            return (
-                              <div key={c.id} className={`comment-item ${mine ? "is-mine" : ""}`}>
-                                <div className="flex items-center gap-2">
-                                  <span className="text-xs font-black text-[#0f172a]">{commenterName(c.user_id, detailEvent)}</span>
-                                  <span className="text-[11px] text-[#94a3b8]">{format(new Date(c.created_at), "M/d HH:mm")}</span>
-                                  {mine && (
+                            ))}
+                            <button
+                              type="button"
+                              className="reaction-add"
+                              aria-label="リアクションを追加"
+                              aria-expanded={reactionPickerOpen}
+                              onClick={() => setReactionPickerOpen((v) => !v)}
+                            >
+                              <svg viewBox="0 0 24 24" aria-hidden="true">
+                                <circle cx="12" cy="12" r="9" />
+                                <path d="M8.5 14.5a4.5 4.5 0 0 0 7 0M9 9.5h.01M15 9.5h.01" />
+                              </svg>
+                              <span>＋</span>
+                            </button>
+                            {reactionPickerOpen && (
+                              <div className="reaction-picker" role="menu">
+                                {QUICK_REACTIONS.map((r) => {
+                                  const mine = comments.some((c) => c.reaction === r.emoji && c.user_id === currentUserId);
+                                  return (
                                     <button
+                                      key={r.emoji}
                                       type="button"
-                                      className="ml-auto text-[11px] font-bold text-[#94a3b8] hover:text-[#be123c]"
-                                      onClick={() => void deleteComment(c.id)}
+                                      role="menuitem"
+                                      className="reaction-picker-btn"
+                                      data-active={mine ? "true" : undefined}
+                                      title={r.label}
+                                      onClick={() => {
+                                        setReactionPickerOpen(false);
+                                        void toggleReaction(detailEvent, r.emoji);
+                                      }}
                                     >
-                                      削除
+                                      <span className="text-2xl leading-none">{r.emoji}</span>
+                                      <span className="reaction-picker-label">{r.label}</span>
                                     </button>
-                                  )}
-                                </div>
-                                <p className="mt-0.5 whitespace-pre-wrap break-words text-sm text-[#334155]">{c.body}</p>
+                                  );
+                                })}
                               </div>
-                            );
-                          })}
-                        </div>
-                        <form
-                          className="mt-2 flex gap-2"
-                          onSubmit={(e) => {
-                            e.preventDefault();
-                            const body = commentDraft.trim();
-                            if (body) void sendComment(detailEvent, { body });
-                          }}
-                        >
-                          <input
-                            className="h-10 min-w-0 flex-1 rounded-lg border border-[#cbd5e1] bg-white px-3 text-sm outline-none focus:border-[#0f766e] focus:ring-2 focus:ring-[#99f6e4]"
-                            value={commentDraft}
-                            maxLength={500}
-                            placeholder="ひとこと送る（例：19時に駅で！）"
-                            onChange={(e) => setCommentDraft(e.target.value)}
-                            enterKeyHint="send"
-                          />
-                          <button
-                            type="submit"
-                            className="h-10 shrink-0 rounded-lg bg-[#0f766e] px-4 text-sm font-bold text-white disabled:opacity-50"
-                            disabled={!commentDraft.trim() || commentSending}
+                            )}
+                          </div>
+                          {reactors.length > 0 && (
+                            <p className="reaction-who">
+                              {reactors.map((uid) => commenterName(uid, detailEvent)).join("、")}がリアクションしました
+                            </p>
+                          )}
+
+                          {/* メッセージ: 相手は左、自分は右の吹き出し */}
+                          <div className="chat-list">
+                            {commentsState === "loading" && <p className="chat-empty">読み込み中…</p>}
+                            {commentsState === "ready" && messages.length === 0 && (
+                              <p className="chat-empty">まだメッセージはありません。ひとこと送ってみましょう</p>
+                            )}
+                            {messages.map((c, i) => {
+                              const mine = c.user_id === currentUserId;
+                              const prev = messages[i - 1];
+                              const grouped =
+                                !!prev &&
+                                prev.user_id === c.user_id &&
+                                new Date(c.created_at).getTime() - new Date(prev.created_at).getTime() < 5 * 60 * 1000;
+                              const name = commenterName(c.user_id, detailEvent);
+                              return (
+                                <div
+                                  key={c.id}
+                                  className={`chat-row ${mine ? "is-mine" : ""} ${grouped ? "is-grouped" : ""}`}
+                                >
+                                  {!mine && (
+                                    <span
+                                      className="chat-avatar"
+                                      style={{ backgroundColor: avatarColor(c.user_id), visibility: grouped ? "hidden" : "visible" }}
+                                      aria-hidden="true"
+                                    >
+                                      {name.slice(0, 1)}
+                                    </span>
+                                  )}
+                                  <div className="chat-col">
+                                    {!mine && !grouped && <span className="chat-name">{name}</span>}
+                                    <div className="chat-line">
+                                      <button
+                                        type="button"
+                                        className="chat-bubble"
+                                        onClick={() => mine && setSelectedCommentId((cur) => (cur === c.id ? null : c.id))}
+                                        aria-label={mine ? "メッセージ（タップで削除メニュー）" : undefined}
+                                        tabIndex={mine ? 0 : -1}
+                                      >
+                                        {c.body}
+                                      </button>
+                                      <span className="chat-time">{formatChatTime(c.created_at)}</span>
+                                    </div>
+                                    {mine && selectedCommentId === c.id && (
+                                      <button
+                                        type="button"
+                                        className="chat-delete"
+                                        onClick={() => {
+                                          setSelectedCommentId(null);
+                                          void deleteComment(c.id);
+                                        }}
+                                      >
+                                        送信を取り消す
+                                      </button>
+                                    )}
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+
+                          <form
+                            className="chat-input"
+                            onSubmit={(e) => {
+                              e.preventDefault();
+                              const body = commentDraft.trim();
+                              if (body) void sendComment(detailEvent, { body });
+                            }}
                           >
-                            送信
-                          </button>
-                        </form>
-                      </>
-                    )}
-                  </section>
-                )}
+                            <input
+                              className="chat-input-field"
+                              value={commentDraft}
+                              maxLength={500}
+                              placeholder="メッセージを送る"
+                              onChange={(e) => setCommentDraft(e.target.value)}
+                              enterKeyHint="send"
+                            />
+                            <button
+                              type="submit"
+                              className="chat-send"
+                              aria-label="送信"
+                              disabled={!commentDraft.trim() || commentSending}
+                            >
+                              <svg viewBox="0 0 24 24" aria-hidden="true">
+                                <path d="M4 12 20 4l-6 16-2.5-6.5L4 12Z" />
+                              </svg>
+                            </button>
+                          </form>
+                        </>
+                      )}
+                    </section>
+                  );
+                })()}
                 {!detailEvent.ownerDeleted && (
                   <div className="grid grid-cols-2 gap-2">
                     <button
