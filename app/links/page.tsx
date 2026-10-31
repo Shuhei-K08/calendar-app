@@ -38,8 +38,8 @@ type LinkItem = {
 
 type OgInfo = {
   storeName: string;
-  genre: string;
-  emoji: string;
+  mainGenre: string; // 大きいジャンル（例: グルメ・飲食）。判定できなければ空
+  subGenre: string; // 細かいジャンル（例: 居酒屋）。無ければ空
   prefecture: string;
   city: string;
 };
@@ -129,7 +129,25 @@ const MAIN_EMOJI: Record<string, string> = {
   "その他": "📌",
 };
 const ALL_GENRE_SET = new Set(Object.keys(GENRE_EMOJI));
+const MAIN_GENRE_SET = new Set(GENRE_GROUPS.map((g) => g.label));
+// 細かいジャンル → 大きいジャンル（例: 居酒屋 → グルメ・飲食）
+const SUB_TO_MAIN: Record<string, string> = Object.fromEntries(
+  GENRE_GROUPS.flatMap((g) => g.options.filter((o) => o.name !== g.label).map((o) => [o.name, g.label])),
+);
 const genreEmoji = (name: string) => GENRE_EMOJI[name] ?? MAIN_EMOJI[name] ?? "🏷️";
+const mainEmoji = (name: string) => MAIN_EMOJI[name] ?? "📌";
+
+// 保存されたジャンル名を「大きいジャンル＋細かいジャンル」に分ける
+// - 大きいジャンル名（例: グルメ・飲食）→ 細かいジャンルなし
+// - 細かいジャンル名（例: 居酒屋）→ 大きいジャンルを補う
+// - 一覧に無い自由入力の名前 → 「その他」の中の細かいジャンル扱い
+const splitGenre = (name: string): { main: string; sub: string } => {
+  const n = name.trim();
+  if (!n) return { main: "", sub: "" };
+  if (MAIN_GENRE_SET.has(n)) return { main: n, sub: "" };
+  if (SUB_TO_MAIN[n]) return { main: SUB_TO_MAIN[n], sub: n };
+  return { main: "その他", sub: n };
+};
 
 // 47都道府県
 const PREFECTURES = [
@@ -183,6 +201,7 @@ export default function LinksPage() {
   const [ogLoading, setOgLoading] = useState(false);
   const [query, setQuery] = useState("");
   const [activeGenre, setActiveGenre] = useState<string>("all");
+  const [activeSubGenre, setActiveSubGenre] = useState<string>("all");
   const [activePrefecture, setActivePrefecture] = useState<string>("all");
   const [favOnly, setFavOnly] = useState(false);
   const [toasts, setToasts] = useState<ToastItem[]>([]);
@@ -337,20 +356,20 @@ export default function LinksPage() {
             const r = await fetch(`/api/og?url=${encodeURIComponent(u)}`);
             if (!r.ok) throw new Error();
             const d = await r.json();
-            const sub = (d.subs ?? [])[0];
-            const main = d.main;
+            const subLabel: string = (d.subs ?? [])[0]?.label ?? "";
+            const mainLabel: string = d.main?.label ?? (subLabel ? SUB_TO_MAIN[subLabel] ?? "" : "");
             ogCache.current[u] = {
               storeName: cleanStoreName(d.title || d.siteName || ""),
-              genre: sub?.label ?? main?.label ?? UNCATEGORIZED,
-              emoji: sub?.emoji ?? main?.emoji ?? "📌",
+              mainGenre: mainLabel,
+              subGenre: subLabel,
               prefecture: d.prefecture ?? "",
               city: d.city ?? "",
             };
           } catch {
             ogCache.current[u] = {
               storeName: "",
-              genre: UNCATEGORIZED,
-              emoji: "📌",
+              mainGenre: "",
+              subGenre: "",
               prefecture: "",
               city: "",
             };
@@ -424,9 +443,19 @@ export default function LinksPage() {
         ...it,
         // 手入力した店名を最優先、無ければOG店名、最後に予定名
         storeName: (it.placeName || og?.storeName || it.eventTitle).trim(),
-        // 手動ジャンルを最優先、無ければOG判定
-        genre: (it.linkGenre || og?.genre || UNCATEGORIZED).trim(),
-        emoji: it.linkGenre ? genreEmoji(it.linkGenre) : og?.emoji ?? "📌",
+        // 手動ジャンルを最優先、無ければOG判定。どちらも「大きいジャンル＋細かいジャンル」にそろえる
+        ...(() => {
+          const g = it.linkGenre
+            ? splitGenre(it.linkGenre)
+            : { main: og?.mainGenre ?? "", sub: og?.subGenre ?? "" };
+          const main = g.main || UNCATEGORIZED;
+          return {
+            genre: main,
+            subGenre: g.sub,
+            emoji: main === UNCATEGORIZED ? "📌" : mainEmoji(main),
+            subEmoji: g.sub ? genreEmoji(g.sub) : "",
+          };
+        })(),
         // 保存済みの県市を優先、無ければOG推定を表示用に使う
         prefecture: it.prefecture || og?.prefecture || "",
         city: it.city || og?.city || "",
@@ -447,8 +476,10 @@ export default function LinksPage() {
     key: string;
     url: string;
     storeName: string;
-    genre: string;
+    genre: string; // 大きいジャンル
+    subGenre: string; // 細かいジャンル（無ければ空）
     emoji: string;
+    subEmoji: string;
     prefecture: string;
     city: string;
     placeName: string;
@@ -479,7 +510,9 @@ export default function LinksPage() {
           url: rep.url,
           storeName: rep.storeName,
           genre: rep.genre,
+          subGenre: rep.subGenre,
           emoji: rep.emoji,
+          subEmoji: rep.subEmoji,
           prefecture: rep.prefecture,
           city: rep.city,
           placeName: rep.placeName,
@@ -531,8 +564,8 @@ export default function LinksPage() {
     setEditName(g.storeName);
     setEditPref(g.prefecture);
     setEditCity(g.city);
-    // 手動 or 自動で割り当て済みのジャンルを初期表示（未設定のときだけ空）
-    setEditGenre(g.genre === UNCATEGORIZED ? "" : g.genre);
+    // 手動 or 自動で割り当て済みのジャンルを初期表示（細かいジャンルがあればそちら、未設定のときだけ空）
+    setEditGenre(g.genre === UNCATEGORIZED ? "" : g.subGenre || g.genre);
     if (g.prefecture) void loadCities(g.prefecture);
   };
 
@@ -637,6 +670,21 @@ export default function LinksPage() {
       });
   }, [urlGroups]);
 
+  // 大きいジャンルを選んでいるときだけ、その中の細かいジャンルで絞り込める
+  const subGenres = useMemo(() => {
+    if (activeGenre === "all") return [];
+    const map = new Map<string, { emoji: string; count: number }>();
+    urlGroups.forEach((g) => {
+      if (g.genre !== activeGenre || !g.subGenre) return;
+      const cur = map.get(g.subGenre);
+      if (cur) cur.count += 1;
+      else map.set(g.subGenre, { emoji: g.subEmoji, count: 1 });
+    });
+    return Array.from(map.entries())
+      .map(([genre, v]) => ({ genre, ...v }))
+      .sort((a, b) => b.count - a.count);
+  }, [urlGroups, activeGenre]);
+
   const prefectures = useMemo(() => {
     const set = new Set<string>();
     urlGroups.forEach((g) => {
@@ -652,12 +700,14 @@ export default function LinksPage() {
     return urlGroups.filter((g) => {
       if (favOnly && !g.isFavorite) return false;
       if (activeGenre !== "all" && g.genre !== activeGenre) return false;
+      if (activeSubGenre !== "all" && g.subGenre !== activeSubGenre) return false;
       if (activePrefecture !== "all" && g.prefecture !== activePrefecture) return false;
       if (!q) return true;
       return (
         g.storeName.toLowerCase().includes(q) ||
         g.url.toLowerCase().includes(q) ||
         g.genre.toLowerCase().includes(q) ||
+        g.subGenre.toLowerCase().includes(q) ||
         g.prefecture.toLowerCase().includes(q) ||
         g.city.toLowerCase().includes(q) ||
         hostOf(g.url).toLowerCase().includes(q) ||
@@ -668,7 +718,7 @@ export default function LinksPage() {
         )
       );
     });
-  }, [urlGroups, query, activeGenre, activePrefecture, favOnly]);
+  }, [urlGroups, query, activeGenre, activeSubGenre, activePrefecture, favOnly]);
 
   const grouped = useMemo(() => {
     const map = new Map<string, { emoji: string; items: LinkGroup[] }>();
@@ -741,6 +791,7 @@ export default function LinksPage() {
                 className={`chip ${activeGenre === "all" && !favOnly ? "chip-active" : ""}`}
                 onClick={() => {
                   setActiveGenre("all");
+                  setActiveSubGenre("all");
                   setFavOnly(false);
                 }}
               >
@@ -750,7 +801,31 @@ export default function LinksPage() {
                 <button
                   key={g.genre}
                   className={`chip ${activeGenre === g.genre ? "chip-active" : ""}`}
-                  onClick={() => setActiveGenre(g.genre)}
+                  onClick={() => {
+                    setActiveGenre(g.genre);
+                    setActiveSubGenre("all");
+                  }}
+                >
+                  {g.emoji} {g.genre}（{g.count}）
+                </button>
+              ))}
+            </div>
+          )}
+
+          {/* 細かいジャンル（大きいジャンルを選んだときだけ） */}
+          {subGenres.length > 0 && (
+            <div className="mt-2 flex flex-wrap items-center gap-2 border-l-2 border-[var(--accent)] pl-3">
+              <button
+                className={`chip ${activeSubGenre === "all" ? "chip-active" : ""}`}
+                onClick={() => setActiveSubGenre("all")}
+              >
+                {activeGenre}すべて
+              </button>
+              {subGenres.map((g) => (
+                <button
+                  key={g.genre}
+                  className={`chip ${activeSubGenre === g.genre ? "chip-active" : ""}`}
+                  onClick={() => setActiveSubGenre(g.genre)}
                 >
                   {g.emoji} {g.genre}（{g.count}）
                 </button>
@@ -824,6 +899,9 @@ export default function LinksPage() {
                       <p className="truncate font-bold text-[var(--fg-strong)]">{g.storeName}</p>
                       <p className="truncate text-xs text-[var(--fg-muted)]">{hostOf(g.url)}</p>
                       <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                        {g.subGenre && (
+                          <span className="badge badge-accent">{g.subEmoji} {g.subGenre}</span>
+                        )}
                         <span className="badge badge-slate">
                           {format(g.latestDate, "yyyy/M/d", { locale: ja })}
                           {g.occurrences.length > 1 && ` 他${g.occurrences.length - 1}件`}
@@ -874,7 +952,10 @@ export default function LinksPage() {
                 )}
               </div>
               <div className="min-w-0 flex-1">
-                <p className="eyebrow">{detail.emoji} {detail.genre}</p>
+                <p className="eyebrow">
+                  {detail.emoji} {detail.genre}
+                  {detail.subGenre && ` › ${detail.subEmoji} ${detail.subGenre}`}
+                </p>
                 <h3 className="mt-1 break-words text-lg font-black text-[var(--fg-strong)]">
                   {detail.storeName}
                 </h3>
@@ -973,11 +1054,17 @@ export default function LinksPage() {
                   >
                     <option value="">未設定</option>
                     {/* 現在のジャンルが候補に無い場合も選べるよう残す */}
-                    {editGenre && !ALL_GENRE_SET.has(editGenre) && (
+                    {editGenre && !ALL_GENRE_SET.has(editGenre) && !MAIN_GENRE_SET.has(editGenre) && (
                       <option value={editGenre}>{genreEmoji(editGenre)} {editGenre}</option>
                     )}
                     {GENRE_GROUPS.map((grp) => (
-                      <optgroup key={grp.label} label={grp.label}>
+                      <optgroup key={grp.label} label={`${mainEmoji(grp.label)} ${grp.label}`}>
+                        {/* 細かく決めない場合は大きいジャンルだけ選べる */}
+                        {grp.label !== "その他" && (
+                          <option value={grp.label}>
+                            {mainEmoji(grp.label)} {grp.label}（全般）
+                          </option>
+                        )}
                         {grp.options.map((o) => (
                           <option key={o.name} value={o.name}>
                             {o.emoji} {o.name}
