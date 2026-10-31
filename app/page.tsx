@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent } from "react";
+import { cloneElement, createContext, isValidElement, useCallback, useContext, useEffect, useMemo, useRef, useState, type ChangeEvent, type ReactElement, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { Calendar, dateFnsLocalizer, Event, View } from "react-big-calendar";
 import { addDays, addMonths, addWeeks, addYears, endOfDay, format, getDay, isSameDay, parse, startOfDay, startOfWeek } from "date-fns";
@@ -203,6 +203,20 @@ const readCommentSeen = (): Record<string, string> => {
     return {};
   }
 };
+
+// まとめて入力中だけ、月表示のマス全体を押せるようにする
+// （予定の帯や日付の上は CSS で押せなくし、マスの背景が押されるようにしている）
+const BulkTapContext = createContext<((date: Date) => void) | null>(null);
+
+function BulkCellWrapper({ value, children }: { value: Date; range?: Date[]; children?: ReactNode }) {
+  const onTap = useContext(BulkTapContext);
+  if (!onTap || !isValidElement(children)) return <>{children}</>;
+  const child = children as ReactElement<{ className?: string; onClick?: () => void }>;
+  return cloneElement(child, {
+    className: `${child.props.className ?? ""} bulk-tap-cell`,
+    onClick: () => onTap(value),
+  });
+}
 
 // タップの間隔判定用（イベントハンドラ内でのみ呼ぶ）
 const currentTimeMs = () => Date.now();
@@ -461,11 +475,6 @@ const isJapaneseHoliday = (date: Date): string | null => {
   return holiday ? holiday.name : null;
 };
 
-const extractUrl = (text: string): string => {
-  const match = text.match(/https?:\/\/\S+/);
-  if (match) return match[0].replace(/[.,)>\]]+$/, "");
-  return text.trim();
-};
 
 const extractUrlFromClipboard = (clipboardData: DataTransfer): string => {
   // 1. text/uri-list (最も直接的)
@@ -3000,6 +3009,7 @@ export default function Home() {
             onTouchStart={handleCalendarTouchStart}
             onTouchEnd={handleCalendarTouchEnd}
           >
+            <BulkTapContext.Provider value={bulkMode ? selectDate : null}>
             <Calendar<CalendarEvent>
               key={calendarWeekStart + "-mobile"}
               localizer={calendarLocalizer}
@@ -3013,7 +3023,7 @@ export default function Home() {
               dayLayoutAlgorithm="no-overlap"
               popup={false}
               doShowMoreDrillDown={false}
-              selectable="ignoreEvents"
+              selectable={bulkMode ? false : "ignoreEvents"}
               messages={calendarMessages}
               formats={calendarFormats}
               eventPropGetter={calendarEventPropGetter}
@@ -3025,6 +3035,7 @@ export default function Home() {
               components={{
                 toolbar: CalendarToolbar,
                 month: { dateHeader: renderDateHeader, event: MonthEventChip },
+                dateCellWrapper: BulkCellWrapper,
                 week: { event: TimeEventBlock },
                 day: { event: TimeEventBlock },
               }}
@@ -3033,6 +3044,7 @@ export default function Home() {
               onSelectSlot={handleSelectSlot}
               onSelectEvent={handleSelectCalendarEvent}
             />
+            </BulkTapContext.Provider>
           </div>
         </div>
 
@@ -3117,6 +3129,7 @@ export default function Home() {
           {/* カレンダー本体 */}
           <section className="calendar-card home-grid-main p-2 sm:p-3">
             <div className="calendar-shell desktop-calendar">
+              <BulkTapContext.Provider value={bulkMode ? selectDate : null}>
               <DnDCalendar
                 key={calendarWeekStart}
                 localizer={calendarLocalizer}
@@ -3130,7 +3143,7 @@ export default function Home() {
                 dayLayoutAlgorithm="no-overlap"
                 popup={false}
                 doShowMoreDrillDown={false}
-                selectable="ignoreEvents"
+                selectable={bulkMode ? false : "ignoreEvents"}
                 messages={calendarMessages}
                 formats={calendarFormats}
                 eventPropGetter={calendarEventPropGetter}
@@ -3142,6 +3155,7 @@ export default function Home() {
                 components={{
                   toolbar: CalendarToolbar,
                   month: { dateHeader: renderDateHeader, event: MonthEventChip },
+                dateCellWrapper: BulkCellWrapper,
                   week: { event: TimeEventBlock },
                   day: { event: TimeEventBlock },
                 }}
@@ -3158,6 +3172,7 @@ export default function Home() {
                 }
                 resizable
               />
+              </BulkTapContext.Provider>
             </div>
           </section>
 

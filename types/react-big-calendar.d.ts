@@ -69,6 +69,7 @@ declare module "react-big-calendar" {
       style?: React.CSSProperties;
     };
     components?: {
+      dateCellWrapper?: React.ComponentType<{ value: Date; range?: Date[]; children?: React.ReactNode }>;
       toolbar?: React.ComponentType<{
         label: string;
         date: Date;

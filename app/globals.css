@@ -2243,3 +2243,10 @@ h1, h2, h3, .font-display { font-family: var(--font-display), var(--font-body), 
 
 @media (min-width: 640px) { .mobile-nav { display: none; } }
 .link-card-name.is-url { font-size: 12px; font-weight: 600; overflow-wrap: anywhere; color: var(--fg); }
+
+/* まとめて入力中: マス全体を押せるように（予定の帯や日付は押せなくして、下のマスに届かせる） */
+.is-bulk .calendar-shell .rbc-month-view .rbc-row-content { pointer-events: none; }
+.is-bulk .calendar-shell .rbc-month-view .rbc-day-bg.bulk-tap-cell { cursor: copy; transition: background 0.12s; }
+.is-bulk .calendar-shell .rbc-month-view .rbc-day-bg.bulk-tap-cell:hover { background: color-mix(in srgb, var(--accent) 8%, transparent); }
+.is-bulk .calendar-shell .rbc-month-view .rbc-day-bg.bulk-tap-cell:active { background: color-mix(in srgb, var(--accent) 18%, transparent); }
+.is-bulk .calendar-shell .rbc-month-view .rbc-day-bg + .rbc-day-bg { border-left: 1px solid #f1efea !important; }
