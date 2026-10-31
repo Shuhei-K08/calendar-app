@@ -731,6 +731,13 @@ export default function Home() {
   const [eventForm, setEventForm] = useState<EventForm>(() => createBlankForm());
   const [editForm, setEditForm] = useState<EventForm>(() => createBlankForm());
   const [isEventModalOpen, setIsEventModalOpen] = useState(false);
+  // よく使う予定の登録前確認
+  const [confirmPattern, setConfirmPattern] = useState<SchedulePattern | null>(null);
+  const [savingPattern, setSavingPattern] = useState(false);
+  // 登録後に翌日へ移動したことを知らせるハイライト
+  const [dateMovedKey, setDateMovedKey] = useState(0);
+  const [showDateMoved, setShowDateMoved] = useState(false);
+  const dateMovedTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [detailEvent, setDetailEvent] = useState<CalendarEvent | null>(null);
   const [isDetailEditing, setIsDetailEditing] = useState(false);
   const [recurringEditScope, setRecurringEditScope] = useState<"single" | "all">("single");
@@ -1462,7 +1469,7 @@ export default function Home() {
     }));
   };
 
-  const applyPatternAndSave = async (pattern: SchedulePattern) => {
+  const buildPatternForm = (pattern: SchedulePattern): EventForm => {
     const baseDate = new Date(eventForm.start);
     const startValue = buildDateTimeLocal(baseDate, pattern.start_time);
     const endBase = new Date(baseDate);
@@ -1483,8 +1490,18 @@ export default function Home() {
           ? (pattern.event_visibility as EventVisibility)
           : eventForm.shareType,
     };
+    return patternForm;
+  };
 
-    await addEventWithForm(patternForm, true);
+  const applyPatternAndSave = async (pattern: SchedulePattern) => {
+    if (savingPattern) return;
+    setSavingPattern(true);
+    try {
+      await addEventWithForm(buildPatternForm(pattern), true);
+    } finally {
+      setSavingPattern(false);
+      setConfirmPattern(null);
+    }
   };
 
   const isEndOnNextDay = (form: EventForm) => {
@@ -1594,13 +1611,22 @@ export default function Home() {
       }
     }
 
-    show("予定を追加しました", "success");
     if (keepOpen) {
-      // パネルを開いたまま翌日へ移動
+      // パネルを開いたまま翌日へ移動し、日付が変わったことを目立たせる
+      const savedDate = new Date(form.start);
       const nextDate = new Date(form.start);
       nextDate.setDate(nextDate.getDate() + 1);
       setEventForm(createBlankForm(nextDate));
+      show(
+        `${format(savedDate, "M月d日(E)", { locale: ja })}に「${form.title.trim()}」を登録しました。次は${format(nextDate, "M月d日(E)", { locale: ja })}です`,
+        "success",
+      );
+      setDateMovedKey((k) => k + 1);
+      setShowDateMoved(true);
+      if (dateMovedTimer.current) clearTimeout(dateMovedTimer.current);
+      dateMovedTimer.current = setTimeout(() => setShowDateMoved(false), 2500);
     } else {
+      show("予定を追加しました", "success");
       setIsEventModalOpen(false);
     }
     await fetchEvents();
@@ -2603,8 +2629,16 @@ export default function Home() {
                     </svg>
                   </button>
 
-                  <div className="text-center px-1">
+                  <div
+                    key={dateMovedKey}
+                    className={`relative rounded-xl px-2 py-0.5 text-center ${dateMovedKey > 0 ? "date-moved-flash" : ""}`}
+                  >
                     <p className="text-[10px] font-semibold uppercase tracking-widest text-[#94a3b8]">Schedule</p>
+                    {showDateMoved && (
+                      <span className="date-moved-badge absolute left-1/2 top-full z-10 mt-1 -translate-x-1/2 whitespace-nowrap rounded-full bg-[#0f766e] px-2.5 py-0.5 text-[11px] font-bold text-white shadow">
+                        次の日に移動しました
+                      </span>
+                    )}
                     <p className="text-base font-black text-[#0f172a] leading-tight">
                       {format(new Date(eventForm.start), "M月d日", { locale: ja })}
                       <span className="ml-1.5 text-sm font-bold text-[#64748b]">
@@ -2651,7 +2685,7 @@ export default function Home() {
                 <button
                   key={pattern.id}
                   className="shrink-0 rounded-full border border-[#cbd5e1] bg-[#f8fafc] px-4 py-2 text-sm font-semibold text-[#334155] transition hover:border-[#0f766e] hover:bg-[#ecfdf5] hover:text-[#0f766e] active:scale-95"
-                  onClick={() => applyPatternAndSave(pattern)}
+                  onClick={() => setConfirmPattern(pattern)}
                 >
                   {pattern.label}
                 </button>
@@ -3435,6 +3469,67 @@ export default function Home() {
           </div>
         </div>
       )}
+
+      {/* よく使う予定の登録確認 */}
+      {confirmPattern && (() => {
+        const f = buildPatternForm(confirmPattern);
+        const start = new Date(f.start);
+        const end = new Date(f.end);
+        const crossesDay = format(start, "yyyy-MM-dd") !== format(end, "yyyy-MM-dd");
+        const categoryName = categories.find((c) => c.id === f.categoryId)?.name ?? "未分類";
+        const shareCount = f.selectedUserIds.length;
+        return (
+          <div className="confirm-overlay" onClick={() => !savingPattern && setConfirmPattern(null)}>
+            <div className="confirm-card" onClick={(e) => e.stopPropagation()}>
+              <p className="text-xs font-bold uppercase tracking-[0.14em] text-[#64748b]">確認</p>
+              <p className="mt-2 text-base font-black text-[#0f172a]">この内容で登録しますか？</p>
+              <dl className="mt-4 space-y-2 rounded-xl border border-[#e2e8f0] bg-[#f8fafc] p-3 text-sm">
+                <div className="flex gap-3">
+                  <dt className="w-14 shrink-0 font-semibold text-[#64748b]">日付</dt>
+                  <dd className="text-lg font-black text-[#0f766e]">
+                    {format(start, "M月d日(E)", { locale: ja })}
+                  </dd>
+                </div>
+                <div className="flex gap-3">
+                  <dt className="w-14 shrink-0 font-semibold text-[#64748b]">予定</dt>
+                  <dd className="font-bold text-[#0f172a]">{f.title}</dd>
+                </div>
+                <div className="flex gap-3">
+                  <dt className="w-14 shrink-0 font-semibold text-[#64748b]">時間</dt>
+                  <dd className="font-bold text-[#0f172a]">
+                    {format(start, "HH:mm")} 〜 {crossesDay ? "翌" : ""}{format(end, "HH:mm")}
+                  </dd>
+                </div>
+                <div className="flex gap-3">
+                  <dt className="w-14 shrink-0 font-semibold text-[#64748b]">分類</dt>
+                  <dd className="font-bold text-[#0f172a]">{categoryName}</dd>
+                </div>
+                <div className="flex gap-3">
+                  <dt className="w-14 shrink-0 font-semibold text-[#64748b]">共有</dt>
+                  <dd className="font-bold text-[#0f172a]">{shareCount > 0 ? `${shareCount}人` : "自分のみ"}</dd>
+                </div>
+              </dl>
+              <p className="mt-2 text-xs text-[#64748b]">登録後は次の日の入力に進みます。</p>
+              <div className="mt-5 grid grid-cols-2 gap-2">
+                <button
+                  className="h-11 rounded-xl border border-[#cbd5e1] font-bold text-[#334155] transition hover:bg-[#f8fafc] disabled:opacity-50"
+                  disabled={savingPattern}
+                  onClick={() => setConfirmPattern(null)}
+                >
+                  キャンセル
+                </button>
+                <button
+                  className="h-11 rounded-xl bg-[#0f766e] font-bold text-white transition hover:bg-[#115e59] disabled:opacity-60"
+                  disabled={savingPattern}
+                  onClick={() => void applyPatternAndSave(confirmPattern)}
+                >
+                  {savingPattern ? "登録中…" : "登録する"}
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Delete confirmation modal */}
       {confirmDeleteEvent && (

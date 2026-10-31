@@ -937,3 +937,18 @@ select.field-input { padding-right: 36px; }
     width: 100%;
   }
 }
+
+/* 予定追加パネル: 登録後に翌日へ移動したことを知らせる */
+.date-moved-flash { animation: date-moved-flash 1.6s ease-out; }
+@keyframes date-moved-flash {
+  0%   { background: #99f6e4; transform: scale(1.12); }
+  25%  { background: #ccfbf1; transform: scale(1); }
+  100% { background: transparent; transform: scale(1); }
+}
+.date-moved-badge { animation: date-moved-badge 2.5s ease forwards; }
+@keyframes date-moved-badge {
+  0%   { opacity: 0; transform: translate(-50%, -4px); }
+  10%  { opacity: 1; transform: translate(-50%, 0); }
+  80%  { opacity: 1; }
+  100% { opacity: 0; }
+}
