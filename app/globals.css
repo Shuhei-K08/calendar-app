@@ -1776,3 +1776,71 @@ kbd {
 .chat-send:active { transform: scale(0.92); }
 .chat-send:disabled { background: var(--border-strong); }
 .chat-send svg { fill: currentColor; height: 16px; margin-left: -1px; width: 16px; }
+
+/* ============================================================
+   新しいひとことの印
+   ============================================================ */
+.unread-dot {
+  background: #f43f5e;
+  border-radius: 999px;
+  box-shadow: 0 0 0 1.5px var(--surface);
+  display: inline-block;
+  flex-shrink: 0;
+  height: 7px;
+  margin-left: auto;
+  width: 7px;
+}
+.month-chip .unread-dot { align-self: center; margin-left: auto; }
+.unread-dot-inline { margin: 0 5px 1px 0; vertical-align: middle; }
+@media (max-width: 639px) {
+  .month-chip .unread-dot { height: 6px; width: 6px; }
+}
+
+/* ============================================================
+   よく使う予定の連続登録
+   ============================================================ */
+.bulk-bar {
+  background: color-mix(in srgb, var(--accent) 7%, var(--surface));
+  border: 1.5px solid var(--accent);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+  flex-shrink: 0;
+  padding: 10px 12px;
+}
+.bulk-bar-head { align-items: center; display: flex; gap: 10px; }
+.bulk-bar-title { color: var(--accent-strong); font-size: 14px; font-weight: 900; }
+.bulk-bar-hint { color: var(--fg-muted); font-size: 12px; font-weight: 700; margin-top: 1px; }
+.bulk-done {
+  background: var(--accent);
+  border-radius: 999px;
+  color: #fff;
+  flex-shrink: 0;
+  font-size: 13px;
+  font-weight: 800;
+  height: 34px;
+  padding: 0 16px;
+}
+.bulk-chips { display: flex; gap: 6px; margin-top: 8px; overflow-x: auto; padding-bottom: 2px; scrollbar-width: none; }
+.bulk-chips::-webkit-scrollbar { display: none; }
+.bulk-chip {
+  align-items: flex-start;
+  background: var(--surface);
+  border: 1.5px solid var(--border);
+  border-radius: 12px;
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+  padding: 5px 12px 6px;
+  transition: border-color 0.15s, background 0.15s;
+}
+.bulk-chip[data-active="true"] { background: var(--accent); border-color: var(--accent); }
+.bulk-chip-label { color: var(--fg-strong); font-size: 13px; font-weight: 900; }
+.bulk-chip-time { color: var(--fg-muted); font-size: 10.5px; font-variant-numeric: tabular-nums; font-weight: 700; }
+.bulk-chip[data-active="true"] .bulk-chip-label,
+.bulk-chip[data-active="true"] .bulk-chip-time { color: #fff; }
+/* モード中はマスを押せることが分かるように */
+.is-bulk .calendar-shell .rbc-day-bg { cursor: copy; }
+.is-bulk .calendar-shell .rbc-month-view { box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 35%, transparent); }
+.home-grid.is-bulk .desktop-calendar { height: calc(100vh - 250px); }
+.bulk-bar-hint.is-ok { color: var(--accent-strong); }
+.bulk-bar-hint.is-warn { color: #b45309; }

@@ -187,6 +187,19 @@ function CalendarToolbar({
   );
 }
 
+// ひとことの既読管理（この端末で最後に開いた時刻を予定ごとに保存）
+const COMMENT_SEEN_KEY = "sharecal_comment_seen";
+const commentKeyOf = (event: { id?: string; recurringId?: string }) =>
+  event.recurringId ? `r:${event.recurringId}` : event.id ? `e:${event.id}` : "";
+const readCommentSeen = (): Record<string, string> => {
+  if (typeof window === "undefined") return {};
+  try {
+    return JSON.parse(window.localStorage.getItem(COMMENT_SEEN_KEY) ?? "{}") as Record<string, string>;
+  } catch {
+    return {};
+  }
+};
+
 // タップの間隔判定用（イベントハンドラ内でのみ呼ぶ）
 const currentTimeMs = () => Date.now();
 
@@ -197,6 +210,7 @@ function MonthEventChip({ event }: { event: CalendarEvent; title: string }) {
     <span className="month-chip">
       {showTime && <span className="month-chip-time">{format(event.start, "H:mm")}</span>}
       <span className="month-chip-title">{event.title}</span>
+      {event.hasUnread && <span className="unread-dot" aria-label="新しいひとことがあります" />}
     </span>
   );
 }
@@ -210,7 +224,10 @@ function TimeEventBlock({ event }: { event: CalendarEvent; title: string }) {
       : "";
   return (
     <span className="time-block">
-      <span className="time-block-title">{event.title}</span>
+      <span className="time-block-title">
+        {event.hasUnread && <span className="unread-dot unread-dot-inline" aria-label="新しいひとことがあります" />}
+        {event.title}
+      </span>
       {!event.allDay && (
         <span className="time-block-meta">
           {format(event.start, "H:mm")}〜{format(event.end, "H:mm")}
@@ -338,6 +355,7 @@ type CalendarEvent = Event & {
   recurringRule?: RecurrenceRule;
   visibility: EventVisibility;
   displayKind: EventDisplayKind;
+  hasUnread?: boolean; // 相手から未読のひとこと・スタンプがある
 };
 
 type DbEvent = {
@@ -916,6 +934,12 @@ export default function Home() {
   } | null>(null);
   const lastMoveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [copyingEvent, setCopyingEvent] = useState(false);
+  // 相手からのひとこと・スタンプの最新時刻（予定ごと）と、この端末で最後に見た時刻
+  const [commentActivity, setCommentActivity] = useState<Record<string, string>>({});
+  const [commentSeen, setCommentSeen] = useState<Record<string, string>>(() => readCommentSeen());
+  // よく使う予定の連続登録モード
+  const [bulkMode, setBulkMode] = useState(false);
+  const [bulkPatternId, setBulkPatternId] = useState<string | null>(null);
 
   const fetchConnections = useCallback(async (userId: string) => {
     const { data: acceptedConnections, error } = await supabase
@@ -1309,6 +1333,29 @@ export default function Home() {
     );
   }, [notifyNewSharedEvents]);
 
+  // 相手が付けたひとこと・スタンプの「予定ごとの最新時刻」を取得（直近60日分）
+  const fetchCommentActivity = useCallback(async () => {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) return;
+    const since = new Date(Date.now() - 60 * 24 * 60 * 60 * 1000).toISOString();
+    const { data, error } = await supabase
+      .from("event_comments")
+      .select("event_id, recurring_event_id, created_at")
+      .neq("user_id", user.id)
+      .gte("created_at", since)
+      .order("created_at", { ascending: false })
+      .limit(500);
+    if (error || !data) return; // テーブル未作成などは静かに無視
+    const latest: Record<string, string> = {};
+    for (const row of data as { event_id: string | null; recurring_event_id: string | null; created_at: string }[]) {
+      const key = row.recurring_event_id ? `r:${row.recurring_event_id}` : row.event_id ? `e:${row.event_id}` : "";
+      if (key && (!latest[key] || latest[key] < row.created_at)) latest[key] = row.created_at;
+    }
+    setCommentActivity(latest);
+  }, []);
+
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setShareDraftIds(detailEvent?.sharedWith.map((user) => user.id) ?? []);
@@ -1429,6 +1476,7 @@ export default function Home() {
         fetchPatterns(user.id),
         fetchCategories(user.id),
         fetchEvents(),
+        fetchCommentActivity(),
       ]);
 
       setConnections(acceptedUsers);
@@ -1443,10 +1491,11 @@ export default function Home() {
     void checkUser();
     const intervalId = window.setInterval(() => {
       void fetchEvents();
+      void fetchCommentActivity();
     }, 30000);
 
     return () => window.clearInterval(intervalId);
-  }, [fetchCategories, fetchConnections, fetchEvents, fetchPatterns, router]);
+  }, [fetchCategories, fetchCommentActivity, fetchConnections, fetchEvents, fetchPatterns, router]);
 
   const requestNotificationPermission = async () => {
     if (typeof window === "undefined" || !("Notification" in window)) {
@@ -1768,7 +1817,7 @@ export default function Home() {
       if (dateMovedTimer.current) clearTimeout(dateMovedTimer.current);
       dateMovedTimer.current = setTimeout(() => setShowDateMoved(false), 2500);
     } else {
-      show(successMessage, "success");
+      if (successMessage) show(successMessage, "success");
       setIsEventModalOpen(false);
     }
     await fetchEvents();
@@ -1959,6 +2008,26 @@ export default function Home() {
     }
     setComments((data ?? []) as EventComment[]);
     setCommentsState("ready");
+    markCommentsSeen(event);
+  };
+
+  // 詳細を開いた（＝読んだ）ので、この予定の💬印を消す
+  const markCommentsSeen = (event: CalendarEvent) => {
+    const key = commentKeyOf(event);
+    if (!key) return;
+    // 端末の時計がずれていても印が残らないよう、届いている最新の時刻以上を記録する
+    const nowIso = new Date().toISOString();
+    const latest = commentActivity[key];
+    const seenAt = latest && latest > nowIso ? latest : nowIso;
+    setCommentSeen((current) => {
+      const next = { ...current, [key]: seenAt };
+      try {
+        window.localStorage.setItem(COMMENT_SEEN_KEY, JSON.stringify(next));
+      } catch {
+        // 保存できなくても表示には影響しない
+      }
+      return next;
+    });
   };
 
   const commenterName = (userId: string, event: CalendarEvent) => {
@@ -2376,7 +2445,16 @@ export default function Home() {
     return items;
   }, [calendarFilter]);
 
-  const visibleEvents = filterEvents(events);
+  const visibleEvents = useMemo(
+    () =>
+      filterEvents(events).map((event) => {
+        const key = commentKeyOf(event);
+        const latest = key ? commentActivity[key] : undefined;
+        const hasUnread = !!latest && (!commentSeen[key] || commentSeen[key] < latest);
+        return hasUnread === !!event.hasUnread ? event : { ...event, hasUnread };
+      }),
+    [events, filterEvents, commentActivity, commentSeen],
+  );
 
   // 予定検索: タイトル・メモ・分類・共有相手をあいまい一致で検索
   const searchResults = useMemo(() => {
@@ -2511,6 +2589,65 @@ export default function Home() {
     };
   }, [loading]);
 
+  // ── よく使う予定の連続登録 ───────────────────────────────
+  const bulkPattern = patterns.find((p) => p.id === bulkPatternId) ?? null;
+  const bulkInflightRef = useRef<Set<string>>(new Set());
+  // まとめて入力中の結果はトーストではなくバーの中に出す（完了ボタンが隠れないように）
+  const [bulkStatus, setBulkStatus] = useState<{ text: string; ok: boolean } | null>(null);
+
+  const startBulkMode = () => {
+    setBulkMode(true);
+    setBulkStatus(null);
+    setBulkPatternId((current) => current ?? patterns[0]?.id ?? null);
+    setCalendarView("month");
+  };
+
+  const stopBulkMode = () => setBulkMode(false);
+
+  const buildPatternFormForDate = (pattern: SchedulePattern, date: Date): EventForm => {
+    const endBase = new Date(date);
+    if (pattern.next_day_end) endBase.setDate(endBase.getDate() + 1);
+    return {
+      ...createBlankForm(date),
+      title: pattern.title,
+      start: buildDateTimeLocal(date, pattern.start_time),
+      end: buildDateTimeLocal(endBase, pattern.end_time),
+      categoryId: pattern.category_id ?? "",
+      selectedUserIds: pattern.share_user_ids ?? [],
+      shareType:
+        pattern.event_visibility && pattern.event_visibility !== "private"
+          ? (pattern.event_visibility as EventVisibility)
+          : "together",
+    };
+  };
+
+  // 連続登録モード中に日付をタップ: 選んでいる予定をその日に登録
+  const registerPatternOn = async (date: Date) => {
+    if (!bulkPattern) {
+      show("先に登録する予定を選んでください", "info");
+      return;
+    }
+    const label = format(date, "M/d(E)", { locale: ja });
+    // 登録中に同じ日をもう一度押しても二重登録しない
+    const inflightKey = `${bulkPattern.id}:${format(date, "yyyy-MM-dd")}`;
+    if (bulkInflightRef.current.has(inflightKey)) return;
+    const exists = events.some(
+      (e) => e.canDelete && e.title === bulkPattern.title && isSameDay(e.start, date),
+    );
+    if (exists) {
+      setBulkStatus({ text: `${label}にはすでに「${bulkPattern.title}」があります`, ok: false });
+      return;
+    }
+    setDayDetail({ date, events: [] });
+    bulkInflightRef.current.add(inflightKey);
+    try {
+      const ok = await addEventWithForm(buildPatternFormForDate(bulkPattern, date), false, "");
+      if (ok) setBulkStatus({ text: `${label}に「${bulkPattern.title}」を登録しました`, ok: true });
+    } finally {
+      bulkInflightRef.current.delete(inflightKey);
+    }
+  };
+
   // 日付タップ: 1回目はその日を選んで予定一覧を表示、選択中の日をもう一度タップすると追加画面
   const lastDateTapRef = useRef<{ key: string; at: number } | null>(null);
   const selectDate = (date: Date) => {
@@ -2519,8 +2656,15 @@ export default function Home() {
     const last = lastDateTapRef.current;
     // pointerup と click が連続して届くので二重発火は無視する。
     // 選択でパネルの高さが変わると、後から届く click が別の日付に当たることがあるため、日付が違っても短時間なら無視
-    if (last && now - last.at < (last.key === key ? 450 : 350)) return;
+    // まとめて入力中は、日付ボタンとマスの両方から届く遅れたタップも同じ1回として扱う
+    const sameKeyWindow = bulkMode ? 1500 : 450;
+    if (last && now - last.at < (last.key === key ? sameKeyWindow : 350)) return;
     lastDateTapRef.current = { key, at: now };
+
+    if (bulkMode) {
+      void registerPatternOn(date);
+      return;
+    }
 
     if (dayDetail && isSameDay(dayDetail.date, date)) {
       openEventModal(date);
@@ -2675,6 +2819,7 @@ export default function Home() {
       }
       if (e.key === "Escape") {
         if (isEventModalOpen) { setIsEventModalOpen(false); return; }
+        if (bulkMode) { setBulkMode(false); return; }
         if (detailEvent) { setDetailEvent(null); return; }
         if (dayDetail) { setDayDetail(null); return; }
         if (showTutorial) { setShowTutorial(false); return; }
@@ -2703,7 +2848,7 @@ export default function Home() {
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, [calendarDate, calendarView, isEventModalOpen, isSearchOpen, detailEvent, dayDetail, showTutorial]);
+  }, [calendarDate, calendarView, isEventModalOpen, isSearchOpen, detailEvent, dayDetail, showTutorial, bulkMode]);
 
   // 終日の予定と時間の決まった予定を分けて表示する
   const renderDayEventGroups = () => {
@@ -2742,7 +2887,10 @@ export default function Home() {
       >
         <span className="day-event-bar" style={{ backgroundColor: event.categoryColor ?? style.border }} />
         <span className="min-w-0 flex-1">
-          <span className="day-event-title">{event.title}</span>
+          <span className="day-event-title">
+            {event.hasUnread && <span className="unread-dot unread-dot-inline" aria-label="新しいひとことがあります" />}
+            {event.title}
+          </span>
           <span className="day-event-meta">
             {time}
             {who && ` · ${who}`}
@@ -2752,6 +2900,52 @@ export default function Home() {
       </button>
     );
   };
+
+  const renderBulkBar = () => (
+    <div className="bulk-bar" role="region" aria-label="まとめて入力">
+      <div className="bulk-bar-head">
+        <div className="min-w-0 flex-1">
+          <p className="bulk-bar-title">まとめて入力</p>
+          <p className={`bulk-bar-hint ${bulkStatus ? (bulkStatus.ok ? "is-ok" : "is-warn") : ""}`} aria-live="polite">
+            {bulkStatus
+              ? `${bulkStatus.ok ? "✓ " : ""}${bulkStatus.text}`
+              : patterns.length === 0
+              ? "よく使う予定がまだありません"
+              : bulkPattern
+                ? `日付をタップすると「${bulkPattern.label}」を登録します`
+                : "登録する予定を選んでください"}
+          </p>
+        </div>
+        <button className="bulk-done" onClick={stopBulkMode} type="button">完了</button>
+      </div>
+      {patterns.length === 0 ? (
+        <button className="text-link mt-2" onClick={() => router.push("/patterns")} type="button">
+          よく使う予定を登録する →
+        </button>
+      ) : (
+        <div className="bulk-chips">
+          {patterns.map((p) => (
+            <button
+              key={p.id}
+              type="button"
+              className="bulk-chip"
+              data-active={bulkPatternId === p.id ? "true" : undefined}
+              aria-pressed={bulkPatternId === p.id}
+              onClick={() => {
+                setBulkPatternId(p.id);
+                setBulkStatus(null);
+              }}
+            >
+              <span className="bulk-chip-label">{p.label}</span>
+              <span className="bulk-chip-time">
+                {p.start_time.slice(0, 5)}〜{p.next_day_end ? "翌" : ""}{p.end_time.slice(0, 5)}
+              </span>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
 
   if (loading) {
     return <LoadingScreen />;
@@ -2778,8 +2972,10 @@ export default function Home() {
           </div>
         )}
 
+        {bulkMode && renderBulkBar()}
+
         {/* 検索 + 絞り込み（モバイル） */}
-        <div className="flex items-center gap-2">
+        <div className={`flex items-center gap-2 ${bulkMode ? "hidden" : ""}`}>
           <button className="icon-btn" onClick={() => setIsSearchOpen(true)} aria-label="予定を検索" type="button">
             <SearchIcon />
           </button>
@@ -2802,7 +2998,7 @@ export default function Home() {
         </div>
 
         {/* カレンダー（モバイル） */}
-        <div className="calendar-section-mobile calendar-card" ref={mobileCalendarRef}>
+        <div className={`calendar-section-mobile calendar-card ${bulkMode ? "is-bulk" : ""}`} ref={mobileCalendarRef}>
           <div
             className="calendar-shell h-full"
             onTouchStart={handleCalendarTouchStart}
@@ -2845,7 +3041,7 @@ export default function Home() {
         </div>
 
         {/* 選択した日の予定（モバイル） */}
-        <section className="day-panel" aria-label="選択した日の予定">
+        <section className={`day-panel ${bulkMode ? "hidden" : ""}`} aria-label="選択した日の予定">
           <div className="day-panel-head">
             <button
               className="day-panel-toggle"
@@ -2857,6 +3053,9 @@ export default function Home() {
               {isSameDay(selectedDayDate, new Date()) && <span className="today-pill">今日</span>}
               <span className="day-panel-count">{selectedDayEvents.length}件</span>
               <svg className={`day-panel-chevron ${isDayEventsOpen ? "is-open" : ""}`} viewBox="0 0 24 24" aria-hidden="true"><polyline points="6 15 12 9 18 15" /></svg>
+            </button>
+            <button className="ghost-btn" onClick={startBulkMode} type="button">
+              まとめて
             </button>
             <button className="add-btn" onClick={() => openEventModal(selectedDayDate)} type="button">
               <PlusIcon />
@@ -2881,7 +3080,10 @@ export default function Home() {
           <div className="xl:hidden"><ShareCalLogo compact /></div>
           <div className="hidden xl:block"><ShareCalLogo /></div>
           <div className="flex flex-wrap items-center justify-end gap-2">
-            <div className="lg:hidden">
+            <div className="flex items-center gap-2 lg:hidden">
+              <button className="ghost-btn" onClick={bulkMode ? stopBulkMode : startBulkMode} type="button">
+                {bulkMode ? "終了" : "まとめて入力"}
+              </button>
               <button className="icon-btn" onClick={() => setIsSearchOpen(true)} aria-label="予定を検索" type="button">
                 <SearchIcon />
               </button>
@@ -2913,7 +3115,9 @@ export default function Home() {
           </div>
         )}
 
-        <div className="home-grid">
+        {bulkMode && renderBulkBar()}
+
+        <div className={`home-grid ${bulkMode ? "is-bulk" : ""}`}>
           {/* カレンダー本体 */}
           <section className="calendar-card home-grid-main p-2 sm:p-3">
             <div className="calendar-shell desktop-calendar">
@@ -2967,6 +3171,9 @@ export default function Home() {
               <button className="add-btn add-btn-lg" onClick={() => openEventModal(selectedDayDate)} type="button">
                 <PlusIcon />
                 予定を追加
+              </button>
+              <button className="ghost-btn h-10" onClick={bulkMode ? stopBulkMode : startBulkMode} type="button">
+                {bulkMode ? "まとめて入力を終了" : "よく使う予定をまとめて入力"}
               </button>
               <button className="search-trigger" onClick={() => setIsSearchOpen(true)} type="button">
                 <SearchIcon />
