@@ -252,8 +252,7 @@ export default function ConnectPage() {
             <div className="flex items-center gap-3">
               <ShareCalLogo compact />
               <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[#64748b]">Connect</p>
-                <h1 className="mt-1 text-2xl font-bold text-[#0f172a]">つながる</h1>
+                <h1 className="text-2xl font-black text-[#1b2421]">ふたり</h1>
               </div>
             </div>
             <DesktopNavigation />
@@ -261,18 +260,17 @@ export default function ConnectPage() {
         </header>
 
         {/* My Share Code */}
-        <section className="rounded-2xl border border-[#d9e2ef] bg-white p-5 shadow-sm">
-          <p className="text-xs font-bold uppercase tracking-[0.14em] text-[#64748b]">Your ID</p>
-          <h2 className="mt-1 text-sm font-bold text-[#0f172a]">あなたの共有ID</h2>
-          <p className="mt-1 text-xs text-[#64748b]">このIDを相手に教えると、つながり申請を受け取れます。</p>
+        <section className="rounded-2xl border border-[#e2dfd8] bg-white p-5 shadow-sm">
+          <h2 className="mt-1 text-sm font-bold text-[#1b2421]">あなたの共有ID</h2>
+          <p className="mt-1 text-xs text-[#66706c]">このIDを相手に教えると、つながり申請を受け取れます。</p>
           <div className="mt-3 flex items-center gap-2">
-            <div className="flex-1 rounded-xl border border-[#d9e2ef] bg-[#f8fafc] px-4 py-3">
-              <p className="text-xl font-black tracking-[0.16em] text-[#0f172a]">
-                {shareCode || <span className="text-[#94a3b8]">読み込み中</span>}
+            <div className="flex-1 rounded-xl border border-[#e2dfd8] bg-[#f7f6f2] px-4 py-3">
+              <p className="text-xl font-black tracking-[0.16em] text-[#1b2421]">
+                {shareCode || <span className="text-[#8e958f]">読み込み中</span>}
               </p>
             </div>
             <button
-              className="flex h-12 items-center gap-2 rounded-xl bg-[#0f766e] px-4 text-sm font-bold text-white transition hover:bg-[#115e59] disabled:opacity-50"
+              className="flex h-12 items-center gap-2 rounded-xl bg-[#0f7a66] px-4 text-sm font-bold text-white transition hover:bg-[#0b5e4f] disabled:opacity-50"
               disabled={!shareCode}
               onClick={copyShareCode}
             >
@@ -286,13 +284,12 @@ export default function ConnectPage() {
         </section>
 
         {/* Send Request */}
-        <section className="rounded-2xl border border-[#d9e2ef] bg-white p-5 shadow-sm">
-          <p className="text-xs font-bold uppercase tracking-[0.14em] text-[#64748b]">Add</p>
-          <h2 className="mt-1 text-sm font-bold text-[#0f172a]">相手の共有IDで申請</h2>
-          <p className="mt-1 text-xs text-[#64748b]">相手から教えてもらった共有IDを入力してつながり申請を送ります。</p>
+        <section className="rounded-2xl border border-[#e2dfd8] bg-white p-5 shadow-sm">
+          <h2 className="mt-1 text-sm font-bold text-[#1b2421]">相手の共有IDで申請</h2>
+          <p className="mt-1 text-xs text-[#66706c]">相手から教えてもらった共有IDを入力してつながり申請を送ります。</p>
           <div className="mt-3 flex gap-2">
             <input
-              className="h-12 flex-1 rounded-xl border border-[#cbd5e1] bg-[#f8fafc] px-4 text-sm font-bold uppercase tracking-[0.1em] outline-none transition placeholder:normal-case placeholder:tracking-normal focus:border-[#0f766e] focus:bg-white focus:ring-4 focus:ring-[#99f6e4]/50"
+              className="h-12 flex-1 rounded-xl border border-[#dad7cf] bg-[#f7f6f2] px-4 text-sm font-bold uppercase tracking-[0.1em] outline-none transition placeholder:normal-case placeholder:tracking-normal focus:border-[#0f7a66] focus:bg-white focus:ring-4 focus:ring-[#bfe3d8]/50"
               placeholder="共有IDを入力"
               value={code}
               onChange={(e) => setCode(e.target.value.toUpperCase())}
@@ -300,7 +297,7 @@ export default function ConnectPage() {
               maxLength={12}
             />
             <button
-              className="flex h-12 items-center gap-2 rounded-xl bg-[#0f766e] px-5 text-sm font-bold text-white transition hover:bg-[#115e59] disabled:opacity-50"
+              className="flex h-12 items-center gap-2 rounded-xl bg-[#0f7a66] px-5 text-sm font-bold text-white transition hover:bg-[#0b5e4f] disabled:opacity-50"
               onClick={sendRequest}
               disabled={!code.trim() || sendingRequest}
             >
@@ -312,26 +309,25 @@ export default function ConnectPage() {
         </section>
 
         {/* Connected Users */}
-        <section className="rounded-2xl border border-[#d9e2ef] bg-white p-5 shadow-sm">
+        <section className="rounded-2xl border border-[#e2dfd8] bg-white p-5 shadow-sm">
           <div className="mb-4">
-            <p className="text-xs font-bold uppercase tracking-[0.14em] text-[#64748b]">Connected</p>
-            <h2 className="mt-1 text-sm font-bold text-[#0f172a]">つながっているユーザー</h2>
-            <p className="mt-1 text-xs text-[#64748b]">
+            <h2 className="mt-1 text-sm font-bold text-[#1b2421]">つながっているユーザー</h2>
+            <p className="mt-1 text-xs text-[#66706c]">
               ここに表示されている相手に予定を共有できます。解除すると新しく共有できなくなります。
             </p>
           </div>
 
           <div className="grid gap-3 sm:grid-cols-2">
             {connectedUsers.map((cu) => (
-              <div key={cu.connection_id} className="rounded-2xl border border-[#d9e2ef] bg-[#f8fafc] p-4">
+              <div key={cu.connection_id} className="rounded-2xl border border-[#e2dfd8] bg-[#f7f6f2] p-4">
                 <div className="flex items-center justify-between gap-3">
                   <div className="flex items-center gap-3">
-                    <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#0f766e] text-sm font-black text-white">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#0f7a66] text-sm font-black text-white">
                       {cu.username.slice(0, 1)}
                     </div>
                     <div>
-                      <p className="font-bold text-[#0f172a]">{cu.username}</p>
-                      <p className="text-xs text-[#64748b]">つながり済み</p>
+                      <p className="font-bold text-[#1b2421]">{cu.username}</p>
+                      <p className="text-xs text-[#66706c]">つながり済み</p>
                     </div>
                   </div>
                   {confirm?.type === "disconnect" && confirm.user.connection_id === cu.connection_id ? (
@@ -343,7 +339,7 @@ export default function ConnectPage() {
                         解除
                       </button>
                       <button
-                        className="h-8 rounded-lg border border-[#cbd5e1] px-3 text-xs font-bold text-[#475569]"
+                        className="h-8 rounded-lg border border-[#dad7cf] px-3 text-xs font-bold text-[#4d5753]"
                         onClick={() => setConfirm(null)}
                       >
                         キャンセル
@@ -364,7 +360,7 @@ export default function ConnectPage() {
               </div>
             ))}
             {connectedUsers.length === 0 && (
-              <p className="rounded-2xl border border-dashed border-[#cbd5e1] bg-[#f8fafc] p-5 text-sm text-[#64748b] sm:col-span-2">
+              <p className="rounded-2xl border border-dashed border-[#dad7cf] bg-[#f7f6f2] p-5 text-sm text-[#66706c] sm:col-span-2">
                 まだつながっているユーザーはいません。<br />
                 共有IDで申請するか、届いた申請を承認してください。
               </p>
@@ -373,11 +369,10 @@ export default function ConnectPage() {
         </section>
 
         {/* Incoming Requests */}
-        <section className="rounded-2xl border border-[#d9e2ef] bg-white p-5 shadow-sm">
+        <section className="rounded-2xl border border-[#e2dfd8] bg-white p-5 shadow-sm">
           <div className="mb-4 flex items-start gap-3">
             <div className="flex-1">
-              <p className="text-xs font-bold uppercase tracking-[0.14em] text-[#64748b]">Requests</p>
-              <h2 className="mt-1 flex items-center gap-2 text-sm font-bold text-[#0f172a]">
+              <h2 className="mt-1 flex items-center gap-2 text-sm font-bold text-[#1b2421]">
                 届いた申請
                 {requests.length > 0 && (
                   <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-[#ef4444] px-1.5 text-xs font-black text-white">
@@ -385,7 +380,7 @@ export default function ConnectPage() {
                   </span>
                 )}
               </h2>
-              <p className="mt-1 text-xs text-[#64748b]">
+              <p className="mt-1 text-xs text-[#66706c]">
                 承認すると予定登録・編集時に共有相手として選べます。
               </p>
             </div>
@@ -400,13 +395,13 @@ export default function ConnectPage() {
                       {req.requester_name.slice(0, 1)}
                     </div>
                     <div>
-                      <p className="font-bold text-[#0f172a]">{req.requester_name}</p>
+                      <p className="font-bold text-[#1b2421]">{req.requester_name}</p>
                       <p className="text-xs text-[#0369a1]">つながり申請</p>
                     </div>
                   </div>
                   <div className="flex gap-2">
                     <button
-                      className="h-9 rounded-lg bg-[#0f766e] px-4 text-sm font-bold text-white disabled:opacity-50"
+                      className="h-9 rounded-lg bg-[#0f7a66] px-4 text-sm font-bold text-white disabled:opacity-50"
                       disabled={approvingId === req.id}
                       onClick={() => approve(req)}
                     >
@@ -423,7 +418,7 @@ export default function ConnectPage() {
                           却下
                         </button>
                         <button
-                          className="h-9 rounded-lg border border-[#cbd5e1] px-3 text-xs font-bold text-[#475569]"
+                          className="h-9 rounded-lg border border-[#dad7cf] px-3 text-xs font-bold text-[#4d5753]"
                           onClick={() => setConfirm(null)}
                         >
                           戻る
@@ -442,7 +437,7 @@ export default function ConnectPage() {
               </div>
             ))}
             {requests.length === 0 && (
-              <p className="rounded-2xl border border-dashed border-[#cbd5e1] bg-[#f8fafc] p-5 text-sm text-[#64748b]">
+              <p className="rounded-2xl border border-dashed border-[#dad7cf] bg-[#f7f6f2] p-5 text-sm text-[#66706c]">
                 届いている申請はありません。
               </p>
             )}

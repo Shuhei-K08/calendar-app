@@ -137,6 +137,14 @@ const SUB_TO_MAIN: Record<string, string> = Object.fromEntries(
 const genreEmoji = (name: string) => GENRE_EMOJI[name] ?? MAIN_EMOJI[name] ?? "🏷️";
 const mainEmoji = (name: string) => MAIN_EMOJI[name] ?? "📌";
 
+// カードの上部の色（大きいジャンルごと）
+const GENRE_TILE: Record<string, string> = {
+  "グルメ・飲食": "#fde8d7", "旅行・宿泊": "#dcebfa", "アウトドア": "#e3efd9", "スポーツ": "#dcebfa",
+  "フィットネス": "#e3efd9", "ショッピング": "#ece6fb", "エンタメ": "#f9e0ec", "美容": "#f9e0ec",
+  "医療・クリニック": "#ddf0ea",
+};
+const genreTile = (main: string) => GENRE_TILE[main] ?? "#ebe8e1";
+
 // 保存されたジャンル名を「大きいジャンル＋細かいジャンル」に分ける
 // - 大きいジャンル名（例: グルメ・飲食）→ 細かいジャンルなし
 // - 細かいジャンル名（例: 居酒屋）→ 大きいジャンルを補う
@@ -747,7 +755,6 @@ export default function LinksPage() {
           <div className="flex items-center gap-3">
             <ShareCalLogo compact />
             <div>
-              <p className="eyebrow">Saved Links</p>
               <h1 className="mt-1 text-2xl font-black text-[var(--fg-strong)]">リンク集</h1>
             </div>
           </div>
@@ -879,52 +886,41 @@ export default function LinksPage() {
                 <h2 className="text-base font-black text-[var(--fg-strong)]">{genre}</h2>
                 <span className="badge badge-slate">{group.items.length}</span>
               </div>
-              <div className="grid gap-3 sm:grid-cols-2">
+              <div className="grid grid-cols-2 gap-3 lg:grid-cols-3">
                 {group.items.map((g) => (
                   <div key={g.key} className="relative min-w-0">
-                  <button
-                    type="button"
-                    onClick={() => openDetail(g)}
-                    className="group flex w-full gap-3 rounded-xl border border-[var(--border)] bg-[var(--surface-alt)] p-3 pr-10 text-left transition hover:border-[var(--accent)]"
-                  >
-                    <div className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-white">
-                      {faviconOf(g.url) ? (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img src={faviconOf(g.url)} alt="" className="h-6 w-6" />
-                      ) : (
-                        <span className="text-lg">🔗</span>
-                      )}
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate font-bold text-[var(--fg-strong)]">{g.storeName}</p>
-                      <p className="truncate text-xs text-[var(--fg-muted)]">{hostOf(g.url)}</p>
-                      <div className="mt-2 flex flex-wrap items-center gap-1.5">
-                        {g.subGenre && (
-                          <span className="badge badge-accent">{g.subEmoji} {g.subGenre}</span>
+                    <button type="button" onClick={() => openDetail(g)} className="link-card">
+                      <span className="link-card-thumb" style={{ backgroundColor: genreTile(g.genre) }}>
+                        {faviconOf(g.url) ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img src={faviconOf(g.url)} alt="" className="h-8 w-8 rounded-lg bg-white p-1" />
+                        ) : (
+                          <span className="text-2xl" aria-hidden="true">{g.emoji}</span>
                         )}
-                        <span className="badge badge-slate">
-                          {format(g.latestDate, "yyyy/M/d", { locale: ja })}
-                          {g.occurrences.length > 1 && ` 他${g.occurrences.length - 1}件`}
+                        {!g.hasOwn && <span className="link-card-shared">共有</span>}
+                      </span>
+                      <span className="link-card-body">
+                        <span className="link-card-name">{g.storeName}</span>
+                        <span className="link-card-meta">
+                          {[g.subGenre || g.genre, g.city || g.prefecture].filter((v) => v && v !== "未設定").join(" ・ ") || hostOf(g.url)}
                         </span>
-                        {(g.prefecture || g.city) && (
-                          <span className="badge badge-accent">
-                            📍 {[g.prefecture, g.city].filter(Boolean).join(" ")}
-                          </span>
-                        )}
-                        {!g.hasOwn && (
-                          <span className="badge badge-slate">👥 共有</span>
-                        )}
-                      </div>
-                    </div>
-                  </button>
+                        <span className="link-card-date">
+                          {g.occurrences.length > 1 ? `${g.occurrences.length}回 ・ 最近 ` : ""}
+                          {format(g.latestDate, "M/d", { locale: ja })}
+                        </span>
+                      </span>
+                    </button>
                     {g.hasOwn && (
                       <button
                         type="button"
                         aria-label={g.isFavorite ? "お気に入りを解除" : "お気に入りに追加"}
+                        aria-pressed={g.isFavorite}
                         onClick={() => void toggleFavorite(g)}
-                        className="absolute right-2 top-2 text-lg leading-none transition hover:scale-110"
+                        className="link-card-star"
                       >
-                        {g.isFavorite ? "⭐" : "☆"}
+                        <svg viewBox="0 0 24 24" className="h-4 w-4" aria-hidden="true" fill={g.isFavorite ? "#e8a317" : "none"} stroke={g.isFavorite ? "#e8a317" : "#8e958f"} strokeWidth="2" strokeLinejoin="round">
+                          <path d="m12 3 2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1-4.4-4.3 6.1-.9L12 3Z" />
+                        </svg>
                       </button>
                     )}
                   </div>

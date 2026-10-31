@@ -9,7 +9,7 @@ import withDragAndDrop, { type EventInteractionArgs } from "react-big-calendar/l
 import "react-big-calendar/lib/css/react-big-calendar.css";
 import "react-big-calendar/lib/addons/dragAndDrop/styles.css";
 import { supabase } from "@/lib/supabase";
-import { DesktopNavigation, MobileNavigation, ShareCalLogo } from "@/app/components/AppNavigation";
+import { DesktopNavigation, MobileNavigation, OPEN_ADD_EVENT, ShareCalLogo } from "@/app/components/AppNavigation";
 import * as HolidayJp from "@holiday-jp/holiday_jp";
 
 const locales = { ja };
@@ -86,12 +86,6 @@ const getEventsOnDate = (events: CalendarEvent[], date: Date) => {
     });
 };
 
-const DESIGN_THEMES = {
-  clean: { background: "#f5f7fb", accent: "#0f766e" },
-  mint: { background: "#f0fdfa", accent: "#0d9488" },
-  sky: { background: "#eef6ff", accent: "#2563eb" },
-  rose: { background: "#fff7f7", accent: "#e11d48" },
-};
 
 // ── Toast ──────────────────────────────────────────────────────────────────
 type ToastType = "success" | "error" | "info";
@@ -121,6 +115,7 @@ function ToastStack({ toasts }: { toasts: ToastItem[] }) {
 // ── Custom Calendar Toolbar ────────────────────────────────────────────────
 function CalendarToolbar({
   label,
+  date,
   view,
   onNavigate,
   onView,
@@ -152,7 +147,16 @@ function CalendarToolbar({
         >
           <svg viewBox="0 0 24 24" aria-hidden="true"><polyline points="15 18 9 12 15 6" /></svg>
         </button>
-        <h2 className="cal-toolbar-label" aria-live="polite">{label}</h2>
+        <h2 className="cal-toolbar-label" aria-live="polite">
+          {view === "month" ? (
+            <>
+              <span className="cal-toolbar-month">{format(date, "M月")}</span>
+              <span className="cal-toolbar-year">{format(date, "yyyy")}</span>
+            </>
+          ) : (
+            label
+          )}
+        </h2>
         <button
           className="cal-nav-btn"
           onClick={() => onNavigate("NEXT")}
@@ -300,7 +304,7 @@ const LoadingScreen = () => (
       {/* カレンダーアイコン + リング */}
       <div className="relative flex h-20 w-20 items-center justify-center">
         <span className="loading-ring" aria-hidden="true" />
-        <svg viewBox="0 0 40 40" className="h-10 w-10 text-[#0f766e]" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <svg viewBox="0 0 40 40" className="h-10 w-10 text-[#0f7a66]" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
           <rect x="4" y="7" width="32" height="28" rx="4" />
           <line x1="4" y1="15" x2="36" y2="15" />
           <line x1="13" y1="4" x2="13" y2="11" />
@@ -313,8 +317,8 @@ const LoadingScreen = () => (
 
       {/* テキスト */}
       <div className="text-center">
-        <p className="text-xl font-black tracking-tight text-[#0f172a]">ShareCal</p>
-        <p className="mt-1 text-sm font-semibold text-[#64748b]">予定を読み込んでいます</p>
+        <p className="text-xl font-black tracking-tight text-[#1b2421]">ShareCal</p>
+        <p className="mt-1 text-sm font-semibold text-[#66706c]">予定を読み込んでいます</p>
       </div>
 
       {/* ドットインジケーター */}
@@ -604,7 +608,7 @@ function EventImageField({
 
   return (
     <div className="space-y-2">
-      <span className="text-xs font-semibold text-[#64748b]">画像</span>
+      <span className="text-xs font-semibold text-[#66706c]">画像</span>
       <input
         ref={inputRef}
         type="file"
@@ -614,20 +618,20 @@ function EventImageField({
       />
       {imageUrl ? (
         <div className="space-y-2">
-          <div className="flex items-center gap-3 rounded-lg border border-[#cbd5e1] p-2">
+          <div className="flex items-center gap-3 rounded-xl border border-[#e2dfd8] bg-[#f7f6f2] p-2">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src={imageUrl} alt="添付画像" className="h-16 w-16 shrink-0 rounded-md object-cover" />
             <div className="flex flex-wrap gap-2">
               <button
                 type="button"
-                className="rounded-lg border border-[#cbd5e1] px-3 py-1.5 text-xs font-bold text-[#334155]"
+                className="rounded-xl border border-[#e2dfd8] bg-[#f7f6f2] px-3 py-1.5 text-xs font-bold text-[#3a4440]"
                 onClick={() => setShowOriginal(true)}
               >
                 元画像を表示
               </button>
               <button
                 type="button"
-                className="rounded-lg border border-[#cbd5e1] px-3 py-1.5 text-xs font-bold text-[#334155] disabled:opacity-60"
+                className="rounded-xl border border-[#e2dfd8] bg-[#f7f6f2] px-3 py-1.5 text-xs font-bold text-[#3a4440] disabled:opacity-60"
                 onClick={() => inputRef.current?.click()}
                 disabled={uploading || ocrRunning}
               >
@@ -645,7 +649,7 @@ function EventImageField({
           </div>
           <button
             type="button"
-            className="flex w-full items-center justify-center gap-2 rounded-lg bg-[#0f766e] px-3 py-2 text-xs font-bold text-white disabled:opacity-70"
+            className="flex w-full items-center justify-center gap-2 rounded-lg bg-[#0f7a66] px-3 py-2 text-xs font-bold text-white disabled:opacity-70"
             onClick={runOcr}
             disabled={ocrRunning}
           >
@@ -665,7 +669,7 @@ function EventImageField({
       ) : (
         <button
           type="button"
-          className="w-full rounded-lg border border-dashed border-[#cbd5e1] px-3 py-3 text-xs font-bold text-[#334155] disabled:opacity-60"
+          className="w-full rounded-lg border border-dashed border-[#dad7cf] px-3 py-3 text-xs font-bold text-[#3a4440] disabled:opacity-60"
           onClick={() => inputRef.current?.click()}
           disabled={uploading}
         >
@@ -723,43 +727,19 @@ const getDisplayKind = (
   return "together";
 };
 
-const getDisplayLabel = (kind: EventDisplayKind) => {
-  if (kind === "own") return "自分の予定";
-  if (kind === "partner") return "自分の予定を相手に共有";
-  if (kind === "incoming") return "相手から共有された予定";
-  return "私たちの予定";
-};
 
+// 予定の色: わたし（自分・自分が共有した予定）＝緑、相手から＝オレンジ、ふたり＝紫
 const getDisplayStyle = (kind: EventDisplayKind) => {
   if (kind === "incoming") {
-    return {
-      background: "var(--incoming-event-bg)",
-      text: "#5b21b6",
-      border: "#8b5cf6",
-    };
+    return { background: "var(--incoming-event-bg)", text: "#9a3412", border: "#c2410c" };
   }
-
-  if (kind === "partner") {
-    return {
-      background: "var(--partner-event-bg)",
-      text: "#075985",
-      border: "#38bdf8",
-    };
-  }
-
   if (kind === "together") {
-    return {
-      background: "var(--shared-event-bg)",
-      text: "#92400e",
-      border: "#f59e0b",
-    };
+    return { background: "var(--shared-event-bg)", text: "#5b21b6", border: "#6d3fd8" };
   }
-
-  return {
-    background: "var(--own-event-bg)",
-    text: "#075985",
-    border: "var(--uncategorized-event)",
-  };
+  if (kind === "partner") {
+    return { background: "var(--partner-event-bg)", text: "#0b5e4f", border: "#0f7a66" };
+  }
+  return { background: "var(--own-event-bg)", text: "#0b5e4f", border: "var(--uncategorized-event)" };
 };
 
 const addByRecurrence = (date: Date, rule: RecurrenceRule) => {
@@ -1414,41 +1394,6 @@ export default function Home() {
   }, []);
 
   useEffect(() => {
-    const savedSettings = window.localStorage.getItem("calendar_settings");
-    if (savedSettings) {
-      const settings = JSON.parse(savedSettings);
-      const theme =
-        DESIGN_THEMES[settings.designTheme as keyof typeof DESIGN_THEMES] ??
-        DESIGN_THEMES.clean;
-      const isDarkMode = document.documentElement.getAttribute("data-theme") === "dark";
-      if (!isDarkMode) {
-        document.documentElement.style.setProperty("--app-bg", theme.background);
-        document.documentElement.style.setProperty("--background", theme.background);
-      }
-      document.documentElement.style.setProperty("--app-accent", theme.accent);
-      document.documentElement.style.setProperty("--accent", theme.accent);
-      document.documentElement.style.setProperty(
-        "--own-event-bg",
-        settings.ownEventBackground ?? settings.ownEvent ?? "#e0f2fe",
-      );
-      document.documentElement.style.setProperty(
-        "--shared-event-bg",
-        settings.sharedEventBackground ?? settings.sharedEvent ?? "#fef3c7",
-      );
-      document.documentElement.style.setProperty(
-        "--partner-event-bg",
-        settings.partnerEventBackground ?? settings.ownEventBackground ?? "#e0f2fe",
-      );
-      document.documentElement.style.setProperty(
-        "--incoming-event-bg",
-        settings.incomingEventBackground ?? "#ede9fe",
-      );
-      document.documentElement.style.setProperty(
-        "--uncategorized-event",
-        settings.unclassifiedEvent ?? settings.ownEvent ?? "#22c8d6",
-      );
-    }
-
     const checkUser = async () => {
       const {
         data: { user },
@@ -1514,6 +1459,11 @@ export default function Home() {
     setOcrBusy(false);
     setIsEventModalOpen(true);
   };
+  const openAddRef = useRef<() => void>(() => {});
+  useEffect(() => {
+    openAddRef.current = () => openEventModal(dayDetail?.date ?? new Date());
+  });
+
 
   const fetchLinkOptions = useCallback(async () => {
     const {
@@ -2030,6 +1980,9 @@ export default function Home() {
     });
   };
 
+  // 相手のアイコン色: 相手が1人ならオレンジ（予定の色と同じ）、複数ならそれぞれ別の色
+  const partnerColor = (userId: string) => (connections.length <= 1 ? "#c2410c" : avatarColor(userId));
+
   const commenterName = (userId: string, event: CalendarEvent) => {
     if (userId === currentUserId) return "自分";
     const connected = connections.find((c) => c.id === userId);
@@ -2543,29 +2496,44 @@ export default function Home() {
       value: "all" as CalendarFilter,
       label: "すべて",
       description: `${format(calendarDate, "M月", { locale: ja })} ${getFilterCount("all")}件`,
-      color: "#0f766e",
+      color: "#0f7a66",
     },
     {
       value: "own" as CalendarFilter,
-      label: "自分だけ",
+      label: "わたし",
       description: `${format(calendarDate, "M月", { locale: ja })} ${getFilterCount("own")}件`,
-      color: "#38bdf8",
+      color: "#0f7a66",
     },
     ...connections.flatMap((connection) => [
       {
         value: `person:${connection.id}` as CalendarFilter,
         label: connection.username,
         description: `相手の予定 ${getFilterCount(`person:${connection.id}`)}件`,
-        color: "#8b5cf6",
+        color: "#c2410c",
       },
       {
         value: `together:${connection.id}` as CalendarFilter,
-        label: `${connection.username}さんと`,
+        label: connections.length === 1 ? "ふたり" : `${connection.username}とふたり`,
         description: `私たちの予定 ${getFilterCount(`together:${connection.id}`)}件`,
-        color: "#f59e0b",
+        color: "#6d3fd8",
       },
     ]),
   ];
+
+  // 下のメニュー・左のメニューの「＋」から予定追加を開く
+  useEffect(() => {
+    const handler = () => openAddRef.current();
+    window.addEventListener(OPEN_ADD_EVENT, handler);
+    return () => window.removeEventListener(OPEN_ADD_EVENT, handler);
+  }, []);
+  useEffect(() => {
+    if (loading) return;
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("new") === "1") {
+      window.history.replaceState(null, "", window.location.pathname);
+      openAddRef.current();
+    }
+  }, [loading]);
 
   // 月表示の「何件まで表示するか」はウィンドウのリサイズ時にしか再計算されないため、
   // 下の予定パネルの開閉などでカレンダーの高さが変わったらリサイズを通知して数え直させる
@@ -2731,11 +2699,12 @@ export default function Home() {
     showMore: (total: number) => `他${total}件`,
   };
 
+  // 予定の帯: 色はだれの予定か（わたし／相手／ふたり）。分類がある予定だけ左に分類の色を細く出す
   const calendarEventPropGetter = (event: CalendarEvent) => ({
     className: `${event.displayKind}-event`,
     style: {
       backgroundColor: getDisplayStyle(event.displayKind).background,
-      borderLeft: `4px solid ${event.categoryColor ?? getDisplayStyle(event.displayKind).border}`,
+      borderLeft: event.categoryColor ? `3px solid ${event.categoryColor}` : "0",
       color: getDisplayStyle(event.displayKind).text,
     },
   });
@@ -2796,17 +2765,16 @@ export default function Home() {
   };
 
   const legendItems: { kind: EventDisplayKind; label: string }[] = [
-    { kind: "own", label: "自分" },
-    { kind: "partner", label: "自分→相手に共有" },
-    { kind: "incoming", label: "相手から共有" },
-    { kind: "together", label: "私たちの予定" },
+    { kind: "own", label: "わたし" },
+    { kind: "incoming", label: "相手の予定" },
+    { kind: "together", label: "ふたりの予定" },
   ];
 
   const filterKindColor = (value: CalendarFilter) =>
-    value === "all" ? "var(--accent)"
-    : value === "own" ? "#38bdf8"
-    : value.startsWith("person:") ? "#8b5cf6"
-    : "#f59e0b";
+    value === "all" ? "var(--fg)"
+    : value === "own" ? "#0f7a66"
+    : value.startsWith("person:") ? "#c2410c"
+    : "#6d3fd8";
 
   // ── Keyboard shortcuts: T=today, N=new, /=filter focus, Esc=close ──
   useEffect(() => {
@@ -2867,39 +2835,39 @@ export default function Home() {
   const renderDayEventRow = (event: CalendarEvent) => {
     const style = getDisplayStyle(event.displayKind);
     const multiDay = !isSameDay(event.start, event.end);
-    const time = event.allDay
-      ? "終日"
-      : multiDay
-        ? `${format(event.start, "M/d HH:mm")}〜${format(event.end, "M/d HH:mm")}`
-        : `${format(event.start, "HH:mm")}〜${format(event.end, "HH:mm")}`;
+    const timeLabel = event.allDay ? "終日" : format(event.start, "H:mm");
+    const until = event.allDay
+      ? multiDay ? `〜${format(event.end, "M/d")}` : ""
+      : multiDay ? `〜${format(event.end, "M/d H:mm")}` : `〜${format(event.end, "H:mm")}`;
     const who = event.isShared
-      ? `${event.ownerName}さんから`
-      : event.sharedWith.length > 0
-        ? `${event.sharedWith.map((u) => u.username).join("、")}と共有`
-        : event.categoryName || "";
+      ? event.displayKind === "together" ? "ふたり" : `${event.ownerName}さん`
+      : event.displayKind === "together" ? "ふたり"
+      : event.sharedWith.length > 0 ? `${event.sharedWith.map((u) => u.username).join("、")}に共有`
+      : "わたし";
     return (
       <button
         key={`${event.id}-${event.start.toISOString()}`}
         className="day-event-row"
-        style={{ backgroundColor: style.background }}
         onClick={() => openDetailEvent(event)}
         type="button"
       >
-        <span className="day-event-bar" style={{ backgroundColor: event.categoryColor ?? style.border }} />
+        <span className="day-event-time">{timeLabel}</span>
+        <span className="day-event-bar" style={{ backgroundColor: style.border === "var(--uncategorized-event)" ? "#0f7a66" : style.border }} />
         <span className="min-w-0 flex-1">
           <span className="day-event-title">
             {event.hasUnread && <span className="unread-dot unread-dot-inline" aria-label="新しいひとことがあります" />}
             {event.title}
           </span>
           <span className="day-event-meta">
-            {time}
-            {who && ` · ${who}`}
-            {event.recurringRule && event.recurringRule !== "none" && " · 繰り返し"}
+            {[until, who, event.categoryName && event.categoryName !== "未分類" ? event.categoryName : "", event.recurringRule && event.recurringRule !== "none" ? "繰り返し" : ""]
+              .filter(Boolean)
+              .join(" ・ ")}
           </span>
         </span>
       </button>
     );
   };
+
 
   const renderBulkBar = () => (
     <div className="bulk-bar" role="region" aria-label="まとめて入力">
@@ -3076,7 +3044,7 @@ export default function Home() {
 
       {/* ========== PC レイアウト（sm以上） ========== */}
       <div className="mx-auto hidden w-full max-w-[1400px] flex-col gap-4 sm:flex">
-        <header className="page-header glass-card flex items-center justify-between gap-3 p-3">
+        <header className="page-header home-header glass-card flex items-center justify-between gap-3 p-3">
           <div className="xl:hidden"><ShareCalLogo compact /></div>
           <div className="hidden xl:block"><ShareCalLogo /></div>
           <div className="flex flex-wrap items-center justify-end gap-2">
@@ -3168,10 +3136,6 @@ export default function Home() {
           {/* サイドバー */}
           <aside className="home-sidebar">
             <div className="hidden flex-col gap-2 lg:flex">
-              <button className="add-btn add-btn-lg" onClick={() => openEventModal(selectedDayDate)} type="button">
-                <PlusIcon />
-                予定を追加
-              </button>
               <button className="ghost-btn h-10" onClick={bulkMode ? stopBulkMode : startBulkMode} type="button">
                 {bulkMode ? "まとめて入力を終了" : "よく使う予定をまとめて入力"}
               </button>
@@ -3269,14 +3233,14 @@ export default function Home() {
       {/* 予定検索モーダル */}
       {isSearchOpen && (
         <div
-          className="fixed inset-0 z-[60] flex items-start justify-center bg-[#0f172a]/40 p-3 pt-[8vh]"
+          className="fixed inset-0 z-[60] flex items-start justify-center bg-[#1b2421]/40 p-3 pt-[8vh]"
           onClick={() => { setIsSearchOpen(false); setSearchQuery(""); }}
         >
           <div
-            className="flex max-h-[80vh] w-full max-w-lg flex-col overflow-hidden rounded-2xl border border-[#d9e2ef] bg-white shadow-2xl"
+            className="flex max-h-[80vh] w-full max-w-lg flex-col overflow-hidden rounded-2xl border border-[#e2dfd8] bg-white shadow-2xl"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="flex items-center gap-2 border-b border-[#e2e8f0] p-3">
+            <div className="flex items-center gap-2 border-b border-[#ece9e2] p-3">
               <span className="text-lg">🔍</span>
               <input
                 autoFocus
@@ -3284,10 +3248,10 @@ export default function Home() {
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="予定を検索（タイトル・メモ・分類）"
-                className="min-w-0 flex-1 bg-transparent text-base font-semibold text-[#0f172a] placeholder:text-[#94a3b8] focus:outline-none"
+                className="min-w-0 flex-1 bg-transparent text-base font-semibold text-[#1b2421] placeholder:text-[#8e958f] focus:outline-none"
               />
               <button
-                className="shrink-0 rounded-lg border border-[#cbd5e1] bg-[#f8fafc] px-3 py-1.5 text-xs font-bold text-[#475569]"
+                className="shrink-0 rounded-xl border border-[#e2dfd8] bg-[#f7f6f2] bg-[#f7f6f2] px-3 py-1.5 text-xs font-bold text-[#4d5753]"
                 onClick={() => { setIsSearchOpen(false); setSearchQuery(""); }}
                 type="button"
               >
@@ -3296,15 +3260,15 @@ export default function Home() {
             </div>
             <div className="flex-1 overflow-y-auto p-2">
               {searchQuery.trim() === "" ? (
-                <p className="px-3 py-6 text-center text-sm text-[#94a3b8]">キーワードを入力してください</p>
+                <p className="px-3 py-6 text-center text-sm text-[#8e958f]">キーワードを入力してください</p>
               ) : searchResults.length === 0 ? (
-                <p className="px-3 py-6 text-center text-sm text-[#94a3b8]">「{searchQuery}」に一致する予定はありません</p>
+                <p className="px-3 py-6 text-center text-sm text-[#8e958f]">「{searchQuery}」に一致する予定はありません</p>
               ) : (
                 <ul className="flex flex-col gap-1">
                   {searchResults.map((event) => (
                     <li key={`${event.id}-${event.start.toISOString()}`}>
                       <button
-                        className="flex w-full items-center gap-3 rounded-xl border border-transparent p-2.5 text-left transition hover:border-[#0f766e] hover:bg-[#ecfdf5]"
+                        className="flex w-full items-center gap-3 rounded-xl border border-transparent p-2.5 text-left transition hover:border-[#0f7a66] hover:bg-[#e1f1ec]"
                         onClick={() => openSearchResult(event)}
                         type="button"
                       >
@@ -3313,8 +3277,8 @@ export default function Home() {
                           style={{ backgroundColor: event.categoryColor ?? getDisplayStyle(event.displayKind).border }}
                         />
                         <span className="min-w-0 flex-1">
-                          <span className="block truncate text-sm font-bold text-[#0f172a]">{event.title}</span>
-                          <span className="mt-0.5 block truncate text-xs font-semibold text-[#64748b]">
+                          <span className="block truncate text-sm font-bold text-[#1b2421]">{event.title}</span>
+                          <span className="mt-0.5 block truncate text-xs font-semibold text-[#66706c]">
                             {format(event.start, "yyyy/M/d(E)", { locale: ja })}
                             {event.allDay ? " 終日" : ` ${format(event.start, "HH:mm")}`}
                             {event.categoryName ? ` ・ ${event.categoryName}` : ""}
@@ -3333,103 +3297,95 @@ export default function Home() {
 
       {isEventModalOpen && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-[#0f172a]/40 p-4"
+          className="add-sheet-overlay fixed inset-0 z-50 flex items-center justify-center bg-[#1b2421]/45 p-4"
           onClick={() => setIsEventModalOpen(false)}
         >
           <div
-            className="max-h-[88vh] w-full max-w-2xl overflow-y-auto overflow-x-hidden rounded-2xl bg-white p-4 shadow-2xl sm:p-6"
+            className="add-sheet max-h-[88vh] w-full max-w-2xl overflow-y-auto overflow-x-hidden rounded-2xl bg-white p-5 pt-3 shadow-2xl sm:p-7"
             onClick={(e) => e.stopPropagation()}
           >
+            <span className="add-sheet-handle" aria-hidden="true" />
             {/* ── ヘッダー ── */}
-            <div className="mb-3 pb-3 border-b border-[#e2e8f0]">
-              <div className="flex items-center justify-between">
-                {/* 前日・日付・翌日ナビ */}
-                <div className="flex items-center gap-1">
-                  <button
-                    className="flex h-8 w-8 items-center justify-center rounded-full text-[#64748b] transition hover:bg-[#f1f5f9] active:scale-90"
-                    aria-label="前の日"
-                    onClick={() => shiftFormDays(-1)}
-                  >
-                    <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                      <polyline points="15 18 9 12 15 6" />
-                    </svg>
-                  </button>
-
-                  <div
-                    key={dateMovedKey}
-                    className={`relative rounded-xl px-2 py-0.5 text-center ${dateMovedKey > 0 ? "date-moved-flash" : ""}`}
-                  >
-                    <p className="text-[11px] font-bold text-[#64748b]">新しい予定</p>
-                    {showDateMoved && (
-                      <span className="date-moved-badge absolute left-1/2 top-full z-10 mt-1 -translate-x-1/2 whitespace-nowrap rounded-full bg-[#0f766e] px-2.5 py-0.5 text-[11px] font-bold text-white shadow">
-                        次の日に移動しました
-                      </span>
-                    )}
-                    <p className="text-base font-black text-[#0f172a] leading-tight">
-                      {format(new Date(eventForm.start), "M月d日", { locale: ja })}
-                      <span className="ml-1.5 text-sm font-bold text-[#64748b]">
-                        ({format(new Date(eventForm.start), "E", { locale: ja })})
-                      </span>
-                    </p>
-                  </div>
-
-                  <button
-                    className="flex h-8 w-8 items-center justify-center rounded-full text-[#64748b] transition hover:bg-[#f1f5f9] active:scale-90"
-                    aria-label="次の日"
-                    onClick={() => shiftFormDays(+1)}
-                  >
-                    <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                      <polyline points="9 18 15 12 9 6" />
-                    </svg>
-                  </button>
-                </div>
-
-                {/* 閉じるボタン */}
+            <div className="mb-5 flex items-center gap-2">
+              <h2 className="add-sheet-title">新しい予定</h2>
+              <div
+                key={dateMovedKey}
+                className={`relative ml-auto flex items-center gap-0.5 rounded-full bg-[#f3f1ec] p-0.5 ${dateMovedKey > 0 ? "date-moved-flash" : ""}`}
+              >
                 <button
-                  className="flex h-8 w-8 items-center justify-center rounded-full text-[#94a3b8] transition hover:bg-[#f1f5f9] hover:text-[#64748b]"
-                  onClick={() => setIsEventModalOpen(false)}
-                  aria-label="閉じる"
+                  className="flex h-9 w-9 items-center justify-center rounded-full text-[#1b2421] transition hover:bg-white active:scale-90"
+                  aria-label="前の日"
+                  onClick={() => shiftFormDays(-1)}
+                  type="button"
                 >
-                  <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
-                    <line x1="18" y1="6" x2="6" y2="18" />
-                    <line x1="6" y1="6" x2="18" y2="18" />
+                  <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                    <polyline points="15 18 9 12 15 6" />
                   </svg>
                 </button>
+                <span className="px-1 text-sm font-bold text-[#1b2421]">
+                  {format(new Date(eventForm.start), "M/d（E）", { locale: ja })}
+                </span>
+                <button
+                  className="flex h-9 w-9 items-center justify-center rounded-full text-[#1b2421] transition hover:bg-white active:scale-90"
+                  aria-label="次の日"
+                  onClick={() => shiftFormDays(+1)}
+                  type="button"
+                >
+                  <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                    <polyline points="9 18 15 12 9 6" />
+                  </svg>
+                </button>
+                {showDateMoved && (
+                  <span className="date-moved-badge absolute left-1/2 top-full z-10 mt-1 -translate-x-1/2 whitespace-nowrap rounded-full bg-[#0f7a66] px-2.5 py-0.5 text-[11px] font-bold text-white shadow">
+                    次の日に移動しました
+                  </span>
+                )}
               </div>
+              <button
+                className="hidden h-9 w-9 items-center justify-center rounded-full text-[#66706c] transition hover:bg-[#f3f1ec] sm:flex"
+                onClick={() => setIsEventModalOpen(false)}
+                aria-label="閉じる"
+                type="button"
+              >
+                <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" aria-hidden="true">
+                  <line x1="18" y1="6" x2="6" y2="18" />
+                  <line x1="6" y1="6" x2="18" y2="18" />
+                </svg>
+              </button>
             </div>
 
-            <div className="mb-4 rounded-2xl border border-[#d9e2ef] bg-[#f8fafc] p-3">
-              <p className="mb-2 text-xs font-bold text-[#64748b]">
-                よく使う予定からワンタップ入力
-              </p>
-              <div className="flex gap-2 overflow-x-auto px-1 py-1">
+            <div className="mb-5">
+              <p className="field-label mb-2">よく使う予定（タップで入力）</p>
+              <div className="flex gap-2 overflow-x-auto pb-1">
               {patterns.map((pattern) => (
                 <button
                   key={pattern.id}
-                  className="shrink-0 rounded-full border border-[#cbd5e1] bg-[#f8fafc] px-4 py-2 text-sm font-semibold text-[#334155] transition hover:border-[#0f766e] hover:bg-[#ecfdf5] hover:text-[#0f766e] active:scale-95"
+                  className="pattern-card"
                   onClick={() => setConfirmPattern(pattern)}
+                  type="button"
                 >
-                  {pattern.label}
+                  <span className="pattern-card-label">{pattern.label}</span>
+                  <span className="pattern-card-time">
+                    {pattern.start_time.slice(0, 5)}〜{pattern.next_day_end ? "翌" : ""}{pattern.end_time.slice(0, 5)}
+                  </span>
                 </button>
               ))}
               {patterns.length === 0 && (
-                <p className="text-sm text-[#64748b]">
+                <p className="text-sm text-[#66706c]">
                   「夜勤」「休み」などを
-                  <button type="button" className="mx-1 font-bold text-[#0f766e] underline" onClick={() => router.push("/patterns")}>よく使う予定</button>
+                  <button type="button" className="mx-1 font-bold text-[#0f7a66] underline" onClick={() => router.push("/patterns")}>よく使う予定</button>
                   に登録すると、ここからすぐ入力できます。
                 </p>
               )}
               </div>
             </div>
 
-            <div className="grid gap-3 sm:grid-cols-2">
-              <label className="space-y-1 sm:col-span-2">
-                <span className="text-xs font-semibold text-[#64748b]">
-                  タイトル <span className="text-[#e11d48]">*</span>
-                </span>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <label className="space-y-1.5 sm:col-span-2">
+                <span className="field-label">タイトル</span>
                 <input
-                  className="h-11 w-full rounded-lg border border-[#cbd5e1] px-3 text-sm outline-none transition focus:border-[#0f766e] focus:ring-2 focus:ring-[#99f6e4]"
-                  placeholder="例：打ち合わせ、ごはん、歯医者"
+                  className="add-title-input w-full outline-none transition"
+                  placeholder="例：ごはん、歯医者、打ち合わせ"
                   enterKeyHint="done"
                   value={eventForm.title}
                   onChange={(event) =>
@@ -3437,10 +3393,10 @@ export default function Home() {
                   }
                 />
               </label>
-              <div className="flex items-center justify-between gap-3 rounded-2xl border border-[#d9e2ef] bg-[#f8fafc] px-3 py-3 sm:col-span-2">
+              <div className="flex items-center justify-between gap-3 rounded-2xl border border-[#e2dfd8] bg-[#f7f6f2] px-3 py-3 sm:col-span-2">
                 <div>
-                  <p className="text-sm font-bold text-[#0f172a]">終日の予定</p>
-                  <p className="mt-1 text-xs text-[#64748b]">時間を指定しない予定として登録します。</p>
+                  <p className="text-sm font-bold text-[#1b2421]">終日の予定</p>
+                  <p className="mt-1 text-xs text-[#66706c]">時間を指定しない予定として登録します。</p>
                 </div>
                 <label className="relative inline-flex cursor-pointer items-center">
                   <input
@@ -3451,14 +3407,14 @@ export default function Home() {
                       setEventForm((current) => ({ ...current, allDay: event.target.checked }))
                     }
                   />
-                  <span className="h-7 w-12 rounded-full bg-[#cbd5e1] transition peer-checked:bg-[#0f766e]" />
+                  <span className="h-7 w-12 rounded-full bg-[#dad7cf] transition peer-checked:bg-[#0f7a66]" />
                   <span className="absolute left-1 h-5 w-5 rounded-full bg-white shadow transition peer-checked:translate-x-5" />
                 </label>
               </div>
               <label className="space-y-1 sm:col-span-2">
-                <span className="text-xs font-semibold text-[#64748b]">分類</span>
+                <span className="text-xs font-semibold text-[#66706c]">分類</span>
                 <select
-                  className="h-11 w-full rounded-lg border border-[#cbd5e1] px-3 text-sm outline-none transition focus:border-[#0f766e] focus:ring-2 focus:ring-[#99f6e4]"
+                  className="h-11 w-full rounded-xl border border-[#e2dfd8] bg-[#f7f6f2] px-3 text-sm outline-none transition focus:border-[#0f7a66] focus:ring-2 focus:ring-[#bfe3d8]"
                   value={eventForm.categoryId}
                   onChange={(event) =>
                     setEventForm((current) => ({ ...current, categoryId: event.target.value }))
@@ -3473,9 +3429,9 @@ export default function Home() {
                 </select>
               </label>
               <label className="space-y-1">
-                <span className="text-xs font-semibold text-[#64748b]">開始</span>
+                <span className="text-xs font-semibold text-[#66706c]">開始</span>
                 <input
-                  className="h-11 w-full rounded-lg border border-[#cbd5e1] px-3 text-sm outline-none transition focus:border-[#0f766e] focus:ring-2 focus:ring-[#99f6e4]"
+                  className="h-11 w-full rounded-xl border border-[#e2dfd8] bg-[#f7f6f2] px-3 text-sm outline-none transition focus:border-[#0f7a66] focus:ring-2 focus:ring-[#bfe3d8]"
                   type="datetime-local"
                   value={eventForm.start}
                   onChange={(event) => {
@@ -3492,9 +3448,9 @@ export default function Home() {
                 />
               </label>
               <label className="space-y-1">
-                <span className="text-xs font-semibold text-[#64748b]">終了</span>
+                <span className="text-xs font-semibold text-[#66706c]">終了</span>
                 <input
-                  className="h-11 w-full rounded-lg border border-[#cbd5e1] px-3 text-sm outline-none transition focus:border-[#0f766e] focus:ring-2 focus:ring-[#99f6e4]"
+                  className="h-11 w-full rounded-xl border border-[#e2dfd8] bg-[#f7f6f2] px-3 text-sm outline-none transition focus:border-[#0f7a66] focus:ring-2 focus:ring-[#bfe3d8]"
                   type="datetime-local"
                   value={eventForm.end}
                   onChange={(event) =>
@@ -3502,7 +3458,7 @@ export default function Home() {
                   }
                 />
                 <button
-                  className="mt-2 rounded-lg border border-[#cbd5e1] px-3 py-2 text-xs font-bold text-[#334155]"
+                  className="mt-2 rounded-xl border border-[#e2dfd8] bg-[#f7f6f2] px-3 py-2 text-xs font-bold text-[#3a4440]"
                   type="button"
                   onClick={() => toggleEndNextDay("new")}
                 >
@@ -3512,7 +3468,7 @@ export default function Home() {
               {!(showMoreFields || eventForm.note || eventForm.imageUrl || eventForm.url) ? (
                 <button
                   type="button"
-                  className="flex items-center justify-center gap-2 rounded-xl border border-dashed border-[#cbd5e1] py-3 text-sm font-bold text-[#475569] transition hover:border-[#0f766e] hover:bg-[#ecfdf5] hover:text-[#0f766e] sm:col-span-2"
+                  className="flex items-center justify-center gap-2 rounded-xl border border-dashed border-[#dad7cf] py-3 text-sm font-bold text-[#4d5753] transition hover:border-[#0f7a66] hover:bg-[#e1f1ec] hover:text-[#0f7a66] sm:col-span-2"
                   onClick={() => setShowMoreFields(true)}
                 >
                   <PlusIcon />
@@ -3521,9 +3477,9 @@ export default function Home() {
               ) : (
               <>
               <label className="space-y-1 sm:col-span-2">
-                <span className="text-xs font-semibold text-[#64748b]">メモ</span>
+                <span className="text-xs font-semibold text-[#66706c]">メモ</span>
                 <textarea
-                  className="min-h-24 w-full rounded-lg border border-[#cbd5e1] p-3 text-sm outline-none transition focus:border-[#0f766e] focus:ring-2 focus:ring-[#99f6e4]"
+                  className="min-h-24 w-full rounded-xl border border-[#e2dfd8] bg-[#f7f6f2] p-3 text-sm outline-none transition focus:border-[#0f7a66] focus:ring-2 focus:ring-[#bfe3d8]"
                   value={eventForm.note}
                   onChange={(event) =>
                     setEventForm((current) => ({ ...current, note: event.target.value }))
@@ -3549,10 +3505,10 @@ export default function Home() {
               </div>
               <label className="space-y-1 sm:col-span-2">
                 <div className="flex items-center justify-between gap-2">
-                  <span className="text-xs font-semibold text-[#64748b]">URL（お店・予約ページなど）</span>
+                  <span className="text-xs font-semibold text-[#66706c]">URL（お店・予約ページなど）</span>
                   <button
                     type="button"
-                    className="rounded-lg border border-[#cbd5e1] px-2.5 py-1 text-xs font-bold text-[#0f766e]"
+                    className="rounded-xl border border-[#e2dfd8] bg-[#f7f6f2] px-2.5 py-1 text-xs font-bold text-[#0f7a66]"
                     onClick={() => openLinkPicker("new")}
                   >
                     🔗 リンク集から選択
@@ -3561,7 +3517,7 @@ export default function Home() {
                 <input
                   type="text"
                   inputMode="url"
-                  className="w-full rounded-lg border border-[#cbd5e1] p-3 text-sm outline-none transition focus:border-[#0f766e] focus:ring-2 focus:ring-[#99f6e4]"
+                  className="w-full rounded-xl border border-[#e2dfd8] bg-[#f7f6f2] p-3 text-sm outline-none transition focus:border-[#0f7a66] focus:ring-2 focus:ring-[#bfe3d8]"
                   value={eventForm.url}
                   onChange={(event) =>
                     setEventForm((current) => ({ ...current, url: event.target.value }))
@@ -3578,8 +3534,44 @@ export default function Home() {
               )}
             </div>
 
+            {connections.length === 1 ? (() => {
+              // 相手が1人のとき: 「わたしだけ／相手に共有／ふたりの予定」から選ぶだけ
+              const partner = connections[0];
+              const who = eventForm.selectedUserIds.length === 0 ? "me" : eventForm.shareType === "partner" ? "partner" : "together";
+              const pick = (value: "me" | "partner" | "together") =>
+                setEventForm((current) => ({
+                  ...current,
+                  selectedUserIds: value === "me" ? [] : [partner.id],
+                  shareType: value === "partner" ? "partner" : "together",
+                }));
+              return (
+                <div className="mt-5 space-y-2">
+                  <p className="field-label">だれの予定？</p>
+                  <div className="who-segment" role="radiogroup" aria-label="だれの予定">
+                    {([
+                      { value: "me", label: "わたしだけ" },
+                      { value: "partner", label: `${partner.username}に共有` },
+                      { value: "together", label: "ふたりの予定" },
+                    ] as const).map((option) => (
+                      <button
+                        key={option.value}
+                        type="button"
+                        role="radio"
+                        aria-checked={who === option.value}
+                        className="who-segment-btn"
+                        data-kind={option.value}
+                        data-active={who === option.value ? "true" : undefined}
+                        onClick={() => pick(option.value)}
+                      >
+                        {option.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              );
+            })() : (
             <div className="mt-5 space-y-2">
-              <p className="text-xs font-semibold text-[#64748b]">共有する相手 <span className="font-normal">（選ばなければ自分だけの予定）</span></p>
+              <p className="text-xs font-semibold text-[#66706c]">共有する相手 <span className="font-normal">（選ばなければ自分だけの予定）</span></p>
               {eventForm.selectedUserIds.length > 0 && (
                 <div className="grid gap-2 sm:grid-cols-2">
                   {[
@@ -3590,8 +3582,8 @@ export default function Home() {
                       key={option.value}
                       className={`cursor-pointer rounded-2xl border p-3 transition ${
                         eventForm.shareType === option.value
-                          ? "border-[#0f766e] bg-[#ecfdf5]"
-                          : "border-[#d9e2ef] bg-[#f8fafc]"
+                          ? "border-[#0f7a66] bg-[#e1f1ec]"
+                          : "border-[#e2dfd8] bg-[#f7f6f2]"
                       }`}
                     >
                       <input
@@ -3607,8 +3599,8 @@ export default function Home() {
                           }))
                         }
                       />
-                      <span className="block text-sm font-black text-[#0f172a]">{option.title}</span>
-                      <span className="mt-1 block text-xs font-semibold text-[#64748b]">{option.desc}</span>
+                      <span className="block text-sm font-black text-[#1b2421]">{option.title}</span>
+                      <span className="mt-1 block text-xs font-semibold text-[#66706c]">{option.desc}</span>
                     </label>
                   ))}
                 </div>
@@ -3619,12 +3611,12 @@ export default function Home() {
                     key={connection.id}
                     className={`flex cursor-pointer items-center gap-2 rounded-full border px-3 py-2 text-sm transition ${
                       eventForm.selectedUserIds.includes(connection.id)
-                        ? "border-[#0f766e] bg-[#ecfdf5] text-[#0f766e]"
-                        : "border-[#cbd5e1] bg-white text-[#334155] hover:border-[#94a3b8]"
+                        ? "border-[#0f7a66] bg-[#e1f1ec] text-[#0f7a66]"
+                        : "border-[#dad7cf] bg-white text-[#3a4440] hover:border-[#8e958f]"
                     }`}
                   >
                     <input
-                      className="h-4 w-4 accent-[#0f766e]"
+                      className="h-4 w-4 accent-[#0f7a66]"
                       type="checkbox"
                       checked={eventForm.selectedUserIds.includes(connection.id)}
                       onChange={(event) => {
@@ -3640,24 +3632,25 @@ export default function Home() {
                   </label>
                 ))}
                 {connections.length === 0 && (
-                  <p className="text-sm text-[#64748b]">
-                    共有相手はいません。先に「つながる」から申請してください。
+                  <p className="text-sm text-[#66706c]">
+                    共有相手はいません。先に「ふたり」から申請してください。
                   </p>
                 )}
               </div>
             </div>
+            )}
 
-            <div className="sticky bottom-0 z-10 -mx-4 -mb-4 mt-6 border-t border-[#e2e8f0] bg-white/95 px-4 py-3 backdrop-blur sm:-mx-6 sm:-mb-6 sm:px-6">
+            <div className="sticky -bottom-5 z-10 -mx-5 -mb-5 mt-6 border-t border-[#ece9e2] bg-white/95 px-5 py-3 pb-[max(12px,env(safe-area-inset-bottom))] backdrop-blur sm:-bottom-7 sm:-mx-7 sm:-mb-7 sm:px-7">
               <div className="flex gap-2">
                 <button
-                  className="h-11 shrink-0 rounded-lg border border-[#cbd5e1] px-4 text-sm font-bold text-[#475569] transition hover:bg-[#f8fafc]"
+                  className="h-11 shrink-0 rounded-xl border border-[#e2dfd8] bg-[#f7f6f2] px-4 text-sm font-bold text-[#4d5753] transition hover:bg-[#f7f6f2]"
                   onClick={() => setIsEventModalOpen(false)}
                   type="button"
                 >
                   キャンセル
                 </button>
                 <button
-                  className="h-11 flex-1 rounded-lg bg-[#0f766e] px-5 text-sm font-bold text-white shadow-sm transition hover:bg-[#115e59] disabled:cursor-not-allowed disabled:opacity-50"
+                  className="h-12 flex-1 rounded-2xl bg-[#0f7a66] px-5 text-base font-bold text-white shadow-sm transition hover:bg-[#0b5e4f] disabled:cursor-not-allowed disabled:opacity-50"
                   disabled={!eventForm.title.trim() || ocrBusy}
                   onClick={addEvent}
                   type="button"
@@ -3671,7 +3664,7 @@ export default function Home() {
       )}
 
       {detailEvent && (
-        <div className="fixed inset-0 z-50 flex items-start overflow-hidden bg-[#0f172a]/40 p-3 pt-4 sm:items-center sm:justify-center" onClick={() => { setDetailEvent(null); setIsDetailEditing(false); setDetailImageOpen(false); }}>
+        <div className="fixed inset-0 z-50 flex items-start overflow-hidden bg-[#1b2421]/40 p-3 pt-4 sm:items-center sm:justify-center" onClick={() => { setDetailEvent(null); setIsDetailEditing(false); setDetailImageOpen(false); }}>
           {detailImageOpen && detailEvent.imageUrl && (
             <div
               className="fixed inset-0 z-[70] flex items-center justify-center bg-black/70 p-4"
@@ -3686,33 +3679,48 @@ export default function Home() {
               />
             </div>
           )}
-          <div className="max-h-[88vh] w-full max-w-full overflow-y-auto overflow-x-hidden rounded-2xl bg-white p-4 shadow-2xl sm:max-w-lg sm:p-6" onClick={(e) => e.stopPropagation()}>
-            <div className="mb-4 border-b border-[#e2e8f0] bg-white pb-4">
-              <div>
-                <p className="text-xs font-bold text-[#64748b]">
-                  {format(detailEvent.start, "M月d日(E)", { locale: ja })}
-                  {detailEvent.allDay ? " · 終日" : ` · ${format(detailEvent.start, "HH:mm")}〜${format(detailEvent.end, "HH:mm")}`}
-                </p>
-                <h2 className="text-xl font-bold text-[#0f172a]">{detailEvent.title}</h2>
-              </div>
+          <div className="detail-sheet max-h-[88vh] w-full max-w-full overflow-y-auto overflow-x-hidden rounded-[28px] p-4 shadow-2xl sm:max-w-lg sm:p-6" onClick={(e) => e.stopPropagation()}>
+            <div className="mb-3 flex items-center gap-2">
+              <span className="flex-1 text-sm font-bold text-[#66706c]">
+                {isDetailEditing ? "予定を編集" : format(detailEvent.start, "M月d日（E）", { locale: ja })}
+              </span>
+              {detailEvent.canDelete && !isDetailEditing && (
+                <button
+                  type="button"
+                  className="h-9 rounded-full border border-[#dad7cf] bg-white px-4 text-sm font-bold text-[#1b2421]"
+                  onClick={() => setIsDetailEditing(true)}
+                >
+                  編集
+                </button>
+              )}
+              <button
+                type="button"
+                aria-label="閉じる"
+                className="flex h-10 w-10 items-center justify-center rounded-full text-[#4d5753] hover:bg-white"
+                onClick={() => { setDetailEvent(null); setIsDetailEditing(false); setDetailImageOpen(false); }}
+              >
+                <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" aria-hidden="true">
+                  <path d="M18 6 6 18M6 6l12 12" />
+                </svg>
+              </button>
             </div>
 
             {detailEvent.canDelete && isDetailEditing ? (
               <div className="grid gap-3 text-sm sm:grid-cols-2">
                 <label className="space-y-1 sm:col-span-2">
-                  <span className="text-xs font-semibold text-[#64748b]">タイトル</span>
+                  <span className="text-xs font-semibold text-[#66706c]">タイトル</span>
                   <input
-                    className="h-11 w-full rounded-lg border border-[#cbd5e1] px-3 outline-none transition focus:border-[#0f766e] focus:ring-2 focus:ring-[#99f6e4]"
+                    className="h-11 w-full rounded-xl border border-[#e2dfd8] bg-[#f7f6f2] px-3 outline-none transition focus:border-[#0f7a66] focus:ring-2 focus:ring-[#bfe3d8]"
                     value={editForm.title}
                     onChange={(event) =>
                       setEditForm((current) => ({ ...current, title: event.target.value }))
                     }
                   />
                 </label>
-                <div className="flex items-center justify-between gap-3 rounded-2xl border border-[#d9e2ef] bg-[#f8fafc] px-3 py-3 sm:col-span-2">
+                <div className="flex items-center justify-between gap-3 rounded-2xl border border-[#e2dfd8] bg-[#f7f6f2] px-3 py-3 sm:col-span-2">
                   <div>
-                    <p className="text-sm font-bold text-[#0f172a]">終日の予定</p>
-                    <p className="mt-1 text-xs text-[#64748b]">時間を指定しない予定として保存します。</p>
+                    <p className="text-sm font-bold text-[#1b2421]">終日の予定</p>
+                    <p className="mt-1 text-xs text-[#66706c]">時間を指定しない予定として保存します。</p>
                   </div>
                   <label className="relative inline-flex cursor-pointer items-center">
                     <input
@@ -3723,14 +3731,14 @@ export default function Home() {
                         setEditForm((current) => ({ ...current, allDay: event.target.checked }))
                       }
                     />
-                    <span className="h-7 w-12 rounded-full bg-[#cbd5e1] transition peer-checked:bg-[#0f766e]" />
+                    <span className="h-7 w-12 rounded-full bg-[#dad7cf] transition peer-checked:bg-[#0f7a66]" />
                     <span className="absolute left-1 h-5 w-5 rounded-full bg-white shadow transition peer-checked:translate-x-5" />
                   </label>
                 </div>
                 <label className="space-y-1 sm:col-span-2">
-                  <span className="text-xs font-semibold text-[#64748b]">分類</span>
+                  <span className="text-xs font-semibold text-[#66706c]">分類</span>
                   <select
-                    className="h-11 w-full rounded-lg border border-[#cbd5e1] px-3 outline-none transition focus:border-[#0f766e] focus:ring-2 focus:ring-[#99f6e4]"
+                    className="h-11 w-full rounded-xl border border-[#e2dfd8] bg-[#f7f6f2] px-3 outline-none transition focus:border-[#0f7a66] focus:ring-2 focus:ring-[#bfe3d8]"
                     value={editForm.categoryId}
                     onChange={(event) =>
                       setEditForm((current) => ({ ...current, categoryId: event.target.value }))
@@ -3745,9 +3753,9 @@ export default function Home() {
                   </select>
                 </label>
                 <label className="space-y-1">
-                  <span className="text-xs font-semibold text-[#64748b]">開始</span>
+                  <span className="text-xs font-semibold text-[#66706c]">開始</span>
                   <input
-                    className="h-11 w-full rounded-lg border border-[#cbd5e1] px-3 outline-none transition focus:border-[#0f766e] focus:ring-2 focus:ring-[#99f6e4]"
+                    className="h-11 w-full rounded-xl border border-[#e2dfd8] bg-[#f7f6f2] px-3 outline-none transition focus:border-[#0f7a66] focus:ring-2 focus:ring-[#bfe3d8]"
                     type="datetime-local"
                     value={editForm.start}
                     onChange={(event) => {
@@ -3764,9 +3772,9 @@ export default function Home() {
                   />
                 </label>
                 <label className="space-y-1">
-                  <span className="text-xs font-semibold text-[#64748b]">終了</span>
+                  <span className="text-xs font-semibold text-[#66706c]">終了</span>
                   <input
-                    className="h-11 w-full rounded-lg border border-[#cbd5e1] px-3 outline-none transition focus:border-[#0f766e] focus:ring-2 focus:ring-[#99f6e4]"
+                    className="h-11 w-full rounded-xl border border-[#e2dfd8] bg-[#f7f6f2] px-3 outline-none transition focus:border-[#0f7a66] focus:ring-2 focus:ring-[#bfe3d8]"
                     type="datetime-local"
                     value={editForm.end}
                     onChange={(event) =>
@@ -3774,7 +3782,7 @@ export default function Home() {
                     }
                   />
                   <button
-                    className="mt-2 rounded-lg border border-[#cbd5e1] px-3 py-2 text-xs font-bold text-[#334155]"
+                    className="mt-2 rounded-xl border border-[#e2dfd8] bg-[#f7f6f2] px-3 py-2 text-xs font-bold text-[#3a4440]"
                     type="button"
                     onClick={() => toggleEndNextDay("edit")}
                   >
@@ -3782,9 +3790,9 @@ export default function Home() {
                   </button>
                 </label>
                 <label className="space-y-1 sm:col-span-2">
-                  <span className="text-xs font-semibold text-[#64748b]">メモ</span>
+                  <span className="text-xs font-semibold text-[#66706c]">メモ</span>
                   <textarea
-                    className="min-h-24 w-full rounded-lg border border-[#cbd5e1] p-3 outline-none transition focus:border-[#0f766e] focus:ring-2 focus:ring-[#99f6e4]"
+                    className="min-h-24 w-full rounded-xl border border-[#e2dfd8] bg-[#f7f6f2] p-3 outline-none transition focus:border-[#0f7a66] focus:ring-2 focus:ring-[#bfe3d8]"
                     value={editForm.note}
                     onChange={(event) =>
                       setEditForm((current) => ({ ...current, note: event.target.value }))
@@ -3809,10 +3817,10 @@ export default function Home() {
                 </div>
                 <label className="space-y-1 sm:col-span-2">
                   <div className="flex items-center justify-between gap-2">
-                    <span className="text-xs font-semibold text-[#64748b]">URL（お店・予約ページなど）</span>
+                    <span className="text-xs font-semibold text-[#66706c]">URL（お店・予約ページなど）</span>
                     <button
                       type="button"
-                      className="rounded-lg border border-[#cbd5e1] px-2.5 py-1 text-xs font-bold text-[#0f766e]"
+                      className="rounded-xl border border-[#e2dfd8] bg-[#f7f6f2] px-2.5 py-1 text-xs font-bold text-[#0f7a66]"
                       onClick={() => openLinkPicker("edit")}
                     >
                       🔗 リンク集から選択
@@ -3821,7 +3829,7 @@ export default function Home() {
                   <input
                     type="text"
                     inputMode="url"
-                    className="w-full rounded-lg border border-[#cbd5e1] p-3 text-sm outline-none transition focus:border-[#0f766e] focus:ring-2 focus:ring-[#99f6e4]"
+                    className="w-full rounded-xl border border-[#e2dfd8] bg-[#f7f6f2] p-3 text-sm outline-none transition focus:border-[#0f7a66] focus:ring-2 focus:ring-[#bfe3d8]"
                     value={editForm.url}
                     onChange={(event) =>
                       setEditForm((current) => ({ ...current, url: event.target.value }))
@@ -3837,50 +3845,62 @@ export default function Home() {
               </div>
             ) : (
               <div className="space-y-4 text-sm">
-                <div
-                  className="rounded-xl border-l-8 p-3"
-                  style={{
-                    backgroundColor: getDisplayStyle(detailEvent.displayKind).background,
-                    borderLeftColor:
-                      detailEvent.categoryColor ?? getDisplayStyle(detailEvent.displayKind).border,
-                    color: getDisplayStyle(detailEvent.displayKind).text,
-                  }}
-                >
-                  <p className="text-xs font-black uppercase tracking-[0.14em] opacity-80">
-                    Preview
-                  </p>
-                  <p className="mt-1 text-lg font-black text-[#0f172a]">{detailEvent.title}</p>
-                  <p className="mt-1 font-bold">{getDisplayLabel(detailEvent.displayKind)}</p>
-                </div>
-                <div className="rounded-xl bg-[#f8fafc] p-3">
-                  <p className="text-xs font-semibold text-[#64748b]">時間</p>
-                  <p className="mt-1 font-semibold text-[#0f172a]">
-                    {detailEvent.allDay
-                      ? "終日"
-                      : `${format(detailEvent.start, "M月d日 HH:mm", { locale: ja })} - ${format(detailEvent.end, "M月d日 HH:mm", { locale: ja })}`}
-                  </p>
-                </div>
-                <div className="rounded-xl bg-[#f8fafc] p-3">
-                  <p className="text-xs font-semibold text-[#64748b]">分類</p>
-                  <p className="mt-1 font-semibold text-[#0f172a]">{detailEvent.categoryName}</p>
-                </div>
-                {(detailEvent.prefecture || detailEvent.city) && (
-                  <div className="rounded-xl bg-[#f8fafc] p-3">
-                    <p className="text-xs font-semibold text-[#64748b]">場所</p>
-                    <p className="mt-1 font-semibold text-[#0f172a]">
-                      {[detailEvent.prefecture, detailEvent.city].filter(Boolean).join(" ")}
-                    </p>
-                  </div>
-                )}
-                <div className="rounded-xl bg-[#f8fafc] p-3">
-                  <p className="text-xs font-semibold text-[#64748b]">メモ</p>
-                  <p className="mt-1 whitespace-pre-wrap text-[#334155]">
-                    {detailEvent.note || "メモはありません。"}
-                  </p>
-                </div>
+                {(() => {
+                  const ds = getDisplayStyle(detailEvent.displayKind);
+                  const kindLabel =
+                    detailEvent.displayKind === "together" ? "ふたりの予定"
+                    : detailEvent.displayKind === "incoming" ? `${detailEvent.ownerName}さんの予定`
+                    : detailEvent.displayKind === "partner" ? `${detailEvent.sharedWith.map((u) => u.username).join("、")}に共有`
+                    : "わたしの予定";
+                  const people = detailEvent.isShared
+                    ? [{ id: detailEvent.ownerId, name: detailEvent.ownerName }]
+                    : detailEvent.sharedWith.map((u) => ({ id: u.id, name: u.username }));
+                  return (
+                    <>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="detail-kind-pill" style={{ backgroundColor: ds.background, color: ds.text }}>{kindLabel}</span>
+                        {detailEvent.categoryName && detailEvent.categoryName !== "未分類" && (
+                          <span className="detail-kind-pill flex items-center gap-1.5 bg-white text-[#4d5753]">
+                            <span className="h-2 w-2 rounded-full" style={{ backgroundColor: detailEvent.categoryColor ?? "#8e958f" }} />
+                            {detailEvent.categoryName}
+                          </span>
+                        )}
+                        {people.length > 0 && (
+                          <span className="ml-auto flex">
+                            <span className="avatar" style={{ backgroundColor: "#0f7a66" }} title="わたし">わ</span>
+                            {people.map((p) => (
+                              <span key={p.id} className="avatar" style={{ backgroundColor: partnerColor(p.id) }} title={p.name}>
+                                {p.name.slice(0, 1)}
+                              </span>
+                            ))}
+                          </span>
+                        )}
+                      </div>
+                      <h2 className="detail-title">{detailEvent.title}</h2>
+                      <p className="detail-row">
+                        <svg viewBox="0 0 24 24" className="h-[18px] w-[18px]" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></svg>
+                        {detailEvent.allDay
+                          ? isSameDay(detailEvent.start, detailEvent.end) ? "終日" : `終日（〜${format(detailEvent.end, "M月d日", { locale: ja })}）`
+                          : isSameDay(detailEvent.start, detailEvent.end)
+                            ? `${format(detailEvent.start, "H:mm")} 〜 ${format(detailEvent.end, "H:mm")}`
+                            : `${format(detailEvent.start, "M/d H:mm")} 〜 ${format(detailEvent.end, "M/d H:mm")}`}
+                        {detailEvent.recurringRule && detailEvent.recurringRule !== "none" && (
+                          <span className="rounded-full bg-white px-2 py-0.5 text-[11px] font-bold text-[#66706c]">繰り返し</span>
+                        )}
+                      </p>
+                      {(detailEvent.prefecture || detailEvent.city) && (
+                        <p className="detail-row">
+                          <svg viewBox="0 0 24 24" className="h-[18px] w-[18px]" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M12 21s-7-6.2-7-11.5A7 7 0 0 1 19 9.5C19 14.8 12 21 12 21Z" /><circle cx="12" cy="9.5" r="2.5" /></svg>
+                          {[detailEvent.prefecture, detailEvent.city].filter(Boolean).join(" ")}
+                        </p>
+                      )}
+                      {detailEvent.note && <div className="detail-note">{detailEvent.note}</div>}
+                    </>
+                  );
+                })()}
                 {detailEvent.imageUrl && (
-                  <div className="rounded-xl bg-[#f8fafc] p-3">
-                    <p className="text-xs font-semibold text-[#64748b]">画像</p>
+                  <div className="rounded-xl bg-[#f7f6f2] p-3">
+                    <p className="text-xs font-semibold text-[#66706c]">画像</p>
                     <div className="mt-2 flex items-center gap-3">
                       <button
                         type="button"
@@ -3897,7 +3917,7 @@ export default function Home() {
                       </button>
                       <button
                         type="button"
-                        className="rounded-lg border border-[#cbd5e1] px-3 py-1.5 text-xs font-bold text-[#334155]"
+                        className="rounded-xl border border-[#e2dfd8] bg-[#f7f6f2] px-3 py-1.5 text-xs font-bold text-[#3a4440]"
                         onClick={() => setDetailImageOpen(true)}
                       >
                         元画像を表示
@@ -3914,10 +3934,10 @@ export default function Home() {
                     href={normalizedUrl}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="block rounded-xl border border-[#e2e8f0] bg-[#f8fafc] p-3 transition hover:border-[#0f766e] hover:bg-[#ecfdf5]"
+                    className="block rounded-xl border border-[#ece9e2] bg-[#f7f6f2] p-3 transition hover:border-[#0f7a66] hover:bg-[#e1f1ec]"
                   >
                     {ogLoading && (
-                      <div className="flex items-center gap-2 text-xs text-[#94a3b8]">
+                      <div className="flex items-center gap-2 text-xs text-[#8e958f]">
                         <svg className="h-3.5 w-3.5 animate-spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10" strokeOpacity="0.3"/><path d="M12 2a10 10 0 0 1 10 10"/></svg>
                         読み込み中…
                       </div>
@@ -3928,31 +3948,31 @@ export default function Home() {
                           {(ogData.main || (ogData.subs?.length ?? 0) > 0) && (
                             <div className="mb-1 flex flex-wrap items-center gap-1">
                               {ogData.main && (
-                                <span className="inline-flex items-center gap-1 rounded-full bg-[#0f766e] px-2 py-0.5 text-[10px] font-bold text-white">
+                                <span className="inline-flex items-center gap-1 rounded-full bg-[#0f7a66] px-2 py-0.5 text-[10px] font-bold text-white">
                                   {ogData.main.emoji} {ogData.main.label}
                                 </span>
                               )}
                               {(ogData.subs ?? []).map((s) => (
-                                <span key={s.label} className="inline-flex items-center gap-1 rounded-full bg-[#ecfdf5] px-2 py-0.5 text-[10px] font-semibold text-[#0f766e]">
+                                <span key={s.label} className="inline-flex items-center gap-1 rounded-full bg-[#e1f1ec] px-2 py-0.5 text-[10px] font-semibold text-[#0f7a66]">
                                   {s.emoji} {s.label}
                                 </span>
                               ))}
                             </div>
                           )}
-                          <p className="truncate text-sm font-bold text-[#0f172a]">{ogData.title}</p>
+                          <p className="truncate text-sm font-bold text-[#1b2421]">{ogData.title}</p>
                           {ogData.description && (
-                            <p className="mt-0.5 line-clamp-2 text-xs text-[#64748b]">{ogData.description}</p>
+                            <p className="mt-0.5 line-clamp-2 text-xs text-[#66706c]">{ogData.description}</p>
                           )}
-                          <p className="mt-1 truncate text-[10px] text-[#94a3b8]">{detailEvent.url}</p>
+                          <p className="mt-1 truncate text-[10px] text-[#8e958f]">{detailEvent.url}</p>
                         </div>
-                        <svg viewBox="0 0 24 24" className="h-4 w-4 shrink-0 text-[#0f766e]" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <svg viewBox="0 0 24 24" className="h-4 w-4 shrink-0 text-[#0f7a66]" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                           <path d="M15 3h6v6M10 14 21 3M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>
                         </svg>
                       </div>
                     ) : !ogLoading && (
                       <div className="flex items-center justify-between gap-2">
-                        <p className="truncate text-sm font-semibold text-[#0f766e]">{detailEvent.url}</p>
-                        <svg viewBox="0 0 24 24" className="h-4 w-4 shrink-0 text-[#0f766e]" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <p className="truncate text-sm font-semibold text-[#0f7a66]">{detailEvent.url}</p>
+                        <svg viewBox="0 0 24 24" className="h-4 w-4 shrink-0 text-[#0f7a66]" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                           <path d="M15 3h6v6M10 14 21 3M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>
                         </svg>
                       </div>
@@ -3960,21 +3980,24 @@ export default function Home() {
                   </a>
                   );
                 })()}
-                {detailEvent.isShared ? (
-                  <div className="rounded-xl bg-[#fffbeb] p-3 text-[#92400e]">
-                    {detailEvent.ownerDeleted
-                      ? "削除されたアカウントから共有"
-                      : detailEvent.displayKind === "together"
-                      ? `${detailEvent.ownerName}さんとの共有の予定`
-                      : `${detailEvent.ownerName}さんから共有された予定`}
-                  </div>
-                ) : detailEvent.sharedWith.length > 0 ? (
-                  <div className="rounded-xl bg-[#ecfdf5] p-3 text-[#0f766e]">
-                    {`${detailEvent.sharedWith.map((user) => user.username).join("、")}に共有中`}
-                  </div>
-                ) : (
-                  <div className="rounded-xl bg-[#f8fafc] p-3 text-[#475569]">
-                    共有していない自分の予定です。
+                {detailEvent.ownerDeleted && (
+                  <div className="rounded-2xl bg-[#fffbeb] p-3 text-[#92400e]">削除されたアカウントから共有された予定です</div>
+                )}
+                {!detailEvent.ownerDeleted && (
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      className="copy-btn"
+                      disabled={copyingEvent}
+                      onClick={() => void copyEventToNextWeek(detailEvent)}
+                    >
+                      <span className="copy-btn-title">{copyingEvent ? "コピー中…" : "来週も同じ"}</span>
+                      <span className="copy-btn-sub">{format(addDays(detailEvent.start, 7), "M/d(E)", { locale: ja })}に登録</span>
+                    </button>
+                    <button type="button" className="copy-btn" onClick={() => openCopyEditor(detailEvent)}>
+                      <span className="copy-btn-title">複製して編集</span>
+                      <span className="copy-btn-sub">日付・時間を変えて登録</span>
+                    </button>
                   </div>
                 )}
                 {isCommentable(detailEvent) && (() => {
@@ -4082,7 +4105,7 @@ export default function Home() {
                                   {!mine && (
                                     <span
                                       className="chat-avatar"
-                                      style={{ backgroundColor: avatarColor(c.user_id), visibility: grouped ? "hidden" : "visible" }}
+                                      style={{ backgroundColor: partnerColor(c.user_id), visibility: grouped ? "hidden" : "visible" }}
                                       aria-hidden="true"
                                     >
                                       {name.slice(0, 1)}
@@ -4152,40 +4175,14 @@ export default function Home() {
                     </section>
                   );
                 })()}
-                {!detailEvent.ownerDeleted && (
-                  <div className="grid grid-cols-2 gap-2">
-                    <button
-                      type="button"
-                      className="copy-btn"
-                      disabled={copyingEvent}
-                      onClick={() => void copyEventToNextWeek(detailEvent)}
-                    >
-                      <span className="copy-btn-title">{copyingEvent ? "コピー中…" : "来週も同じ"}</span>
-                      <span className="copy-btn-sub">{format(addDays(detailEvent.start, 7), "M/d(E)", { locale: ja })}に登録</span>
-                    </button>
-                    <button type="button" className="copy-btn" onClick={() => openCopyEditor(detailEvent)}>
-                      <span className="copy-btn-title">複製して編集</span>
-                      <span className="copy-btn-sub">日付・時間を変えて登録</span>
-                    </button>
-                  </div>
-                )}
                 {(detailEvent.canDelete || detailEvent.ownerDeleted) && (
-                  <div className="grid gap-2 sm:grid-cols-2">
-                    {detailEvent.canDelete && (
-                    <button
-                      className="h-11 rounded-lg bg-[#0f766e] px-5 text-sm font-semibold text-white shadow-sm transition hover:bg-[#115e59]"
-                      onClick={() => setIsDetailEditing(true)}
-                    >
-                      編集する
-                    </button>
-                    )}
-                    <button
-                      className="h-11 rounded-lg border border-[#fecdd3] px-5 text-sm font-semibold text-[#be123c]"
-                      onClick={() => deleteEvent(detailEvent)}
-                    >
-                      {detailEvent.ownerDeleted ? "表示から削除" : "削除する"}
-                    </button>
-                  </div>
+                  <button
+                    type="button"
+                    className="mx-auto block h-10 rounded-full px-4 text-sm font-bold text-[#be123c] hover:bg-[#fff1f2]"
+                    onClick={() => deleteEvent(detailEvent)}
+                  >
+                    {detailEvent.ownerDeleted ? "表示から削除" : "この予定を削除"}
+                  </button>
                 )}
               </div>
             )}
@@ -4193,8 +4190,8 @@ export default function Home() {
             {detailEvent.canDelete && isDetailEditing && (
               <div className="mt-6 space-y-4">
                 {detailEvent.recurringId && (
-                  <div className="rounded-xl bg-[#f8fafc] p-3">
-                    <p className="text-xs font-bold text-[#64748b]">編集する範囲</p>
+                  <div className="rounded-xl bg-[#f7f6f2] p-3">
+                    <p className="text-xs font-bold text-[#66706c]">編集する範囲</p>
                     <div className="mt-2 grid grid-cols-2 gap-2">
                       {[
                         { value: "single" as const, label: "この日だけ" },
@@ -4206,15 +4203,15 @@ export default function Home() {
                           onClick={() => setRecurringEditScope(option.value)}
                           className={`h-10 rounded-lg border text-sm font-bold transition ${
                             recurringEditScope === option.value
-                              ? "border-[#0f766e] bg-[#0f766e] text-white"
-                              : "border-[#d9e2ef] bg-white text-[#475569]"
+                              ? "border-[#0f7a66] bg-[#0f7a66] text-white"
+                              : "border-[#e2dfd8] bg-white text-[#4d5753]"
                           }`}
                         >
                           {option.label}
                         </button>
                       ))}
                     </div>
-                    <p className="mt-2 text-xs text-[#64748b]">
+                    <p className="mt-2 text-xs text-[#66706c]">
                       {recurringEditScope === "single"
                         ? "この日の予定だけを変更します（時間・URLなども変更でき、他の回はそのままです）。"
                         : "変更内容が繰り返し予定のすべての回に反映されます。"}
@@ -4222,7 +4219,7 @@ export default function Home() {
                   </div>
                 )}
                 <div>
-                  <p className="mb-2 text-xs font-semibold text-[#64748b]">共有先を変更</p>
+                  <p className="mb-2 text-xs font-semibold text-[#66706c]">共有先を変更</p>
                   {shareDraftIds.length > 0 && (
                     <div className="mb-3 grid gap-2 sm:grid-cols-2">
                       {[
@@ -4233,8 +4230,8 @@ export default function Home() {
                           key={option.value}
                           className={`cursor-pointer rounded-2xl border p-3 transition ${
                             editForm.shareType === option.value
-                              ? "border-[#0f766e] bg-[#ecfdf5]"
-                              : "border-[#d9e2ef] bg-[#f8fafc]"
+                              ? "border-[#0f7a66] bg-[#e1f1ec]"
+                              : "border-[#e2dfd8] bg-[#f7f6f2]"
                           }`}
                         >
                           <input
@@ -4250,8 +4247,8 @@ export default function Home() {
                               }))
                             }
                           />
-                          <span className="block text-sm font-black text-[#0f172a]">{option.title}</span>
-                          <span className="mt-1 block text-xs font-semibold text-[#64748b]">{option.desc}</span>
+                          <span className="block text-sm font-black text-[#1b2421]">{option.title}</span>
+                          <span className="mt-1 block text-xs font-semibold text-[#66706c]">{option.desc}</span>
                         </label>
                       ))}
                     </div>
@@ -4262,12 +4259,12 @@ export default function Home() {
                         key={connection.id}
                         className={`flex cursor-pointer items-center gap-2 rounded-full border px-3 py-2 text-sm ${
                           shareDraftIds.includes(connection.id)
-                            ? "border-[#0f766e] bg-[#ecfdf5] text-[#0f766e]"
-                            : "border-[#cbd5e1] text-[#334155]"
+                            ? "border-[#0f7a66] bg-[#e1f1ec] text-[#0f7a66]"
+                            : "border-[#dad7cf] text-[#3a4440]"
                         }`}
                       >
                         <input
-                          className="h-4 w-4 accent-[#0f766e]"
+                          className="h-4 w-4 accent-[#0f7a66]"
                           type="checkbox"
                           checked={shareDraftIds.includes(connection.id)}
                           onChange={(event) => {
@@ -4282,13 +4279,13 @@ export default function Home() {
                       </label>
                     ))}
                     {connections.length === 0 && (
-                      <p className="text-sm text-[#64748b]">共有できる相手がいません。</p>
+                      <p className="text-sm text-[#66706c]">共有できる相手がいません。</p>
                     )}
                   </div>
                 </div>
 
                 <button
-                  className="h-11 w-full rounded-lg bg-[#0f766e] px-5 text-sm font-semibold text-white shadow-sm transition hover:bg-[#115e59] disabled:cursor-not-allowed disabled:opacity-50"
+                  className="h-11 w-full rounded-lg bg-[#0f7a66] px-5 text-sm font-semibold text-white shadow-sm transition hover:bg-[#0b5e4f] disabled:cursor-not-allowed disabled:opacity-50"
                   onClick={updateEvent}
                   disabled={ocrBusy}
                 >
@@ -4303,54 +4300,51 @@ export default function Home() {
                 </button>
               </div>
             )}
-            <button
-              className="mt-5 h-11 w-full rounded-lg border border-[#cbd5e1] px-5 text-sm font-semibold text-[#334155]"
-              onClick={() => {
-                if (isDetailEditing) {
-                  setIsDetailEditing(false);
-                  return;
-                }
-                setDetailEvent(null);
-              }}
-            >
-              {isDetailEditing ? "プレビューに戻る" : "閉じる"}
-            </button>
+            {isDetailEditing && (
+              <button
+                className="mt-5 h-11 w-full rounded-2xl border border-[#e2dfd8] bg-white px-5 text-sm font-bold text-[#3a4440]"
+                onClick={() => setIsDetailEditing(false)}
+                type="button"
+              >
+                編集をやめる
+              </button>
+            )}
           </div>
         </div>
       )}
       {sharedNotification && (
-        <div className="fixed right-4 top-4 z-[60] max-w-sm rounded-2xl border border-[#bae6fd] bg-white p-4 text-[#172033] shadow-2xl">
+        <div className="fixed right-4 top-4 z-[60] max-w-sm rounded-2xl border border-[#bae6fd] bg-white p-4 text-[#1b2421] shadow-2xl">
           <p className="text-sm font-black text-[#075985]">予定が共有されました</p>
-          <p className="mt-1 text-sm text-[#475569]">
+          <p className="mt-1 text-sm text-[#4d5753]">
             {sharedNotification.ownerName}さんから「{sharedNotification.title}」
           </p>
         </div>
       )}
       {showTutorial && (
-        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-[#0f172a]/45 p-4">
+        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-[#1b2421]/45 p-4">
           <div className="w-full max-w-lg rounded-3xl bg-white p-5 shadow-2xl sm:p-6">
-            <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#64748b]">
+            <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#66706c]">
               Quick Tutorial
             </p>
-            <h2 className="mt-2 text-2xl font-black text-[#0f172a]">
+            <h2 className="mt-2 text-2xl font-black text-[#1b2421]">
               最初にここだけ覚えれば大丈夫
             </h2>
-            <div className="mt-5 grid gap-3 text-sm text-[#475569]">
-              <div className="rounded-2xl bg-[#f8fafc] p-3">
-                <p className="font-bold text-[#0f172a]">1. 日付を押して予定を確認・登録</p>
+            <div className="mt-5 grid gap-3 text-sm text-[#4d5753]">
+              <div className="rounded-2xl bg-[#f7f6f2] p-3">
+                <p className="font-bold text-[#1b2421]">1. 日付を押して予定を確認・登録</p>
                 <p className="mt-1">日付を押すとその日の予定が下に出ます。「＋追加」か、同じ日付をもう一度押すと登録画面が開きます。</p>
               </div>
-              <div className="rounded-2xl bg-[#f8fafc] p-3">
-                <p className="font-bold text-[#0f172a]">2. よく使う予定で時短</p>
+              <div className="rounded-2xl bg-[#f7f6f2] p-3">
+                <p className="font-bold text-[#1b2421]">2. よく使う予定で時短</p>
                 <p className="mt-1">夜勤や休みはよく使う予定にしておくと、ワンタップで入力できます。</p>
               </div>
-              <div className="rounded-2xl bg-[#f8fafc] p-3">
-                <p className="font-bold text-[#0f172a]">3. 必要な予定だけ共有</p>
+              <div className="rounded-2xl bg-[#f7f6f2] p-3">
+                <p className="font-bold text-[#1b2421]">3. 必要な予定だけ共有</p>
                 <p className="mt-1">登録時や編集時に、共有する相手を選べます。</p>
               </div>
             </div>
             <button
-              className="mt-5 h-11 w-full rounded-xl bg-[#0f766e] px-4 font-bold text-white"
+              className="mt-5 h-11 w-full rounded-xl bg-[#0f7a66] px-4 font-bold text-white"
               onClick={() => {
                 window.localStorage.setItem("calendar_tutorial_seen", "true");
                 setShowTutorial(false);
@@ -4365,7 +4359,7 @@ export default function Home() {
       {/* リンク集から選択 */}
       {linkPickerTarget && (
         <div
-          className="fixed inset-0 z-[65] flex items-end justify-center bg-[#0f172a]/40 p-3 sm:items-center"
+          className="fixed inset-0 z-[65] flex items-end justify-center bg-[#1b2421]/40 p-3 sm:items-center"
           onClick={() => setLinkPickerTarget(null)}
         >
           <div
@@ -4373,22 +4367,22 @@ export default function Home() {
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between">
-              <p className="text-base font-black text-[#0f172a]">リンク集から選択</p>
-              <button className="text-[#94a3b8]" onClick={() => setLinkPickerTarget(null)}>
+              <p className="text-base font-black text-[#1b2421]">リンク集から選択</p>
+              <button className="text-[#8e958f]" onClick={() => setLinkPickerTarget(null)}>
                 ✕
               </button>
             </div>
             <input
-              className="mt-3 w-full rounded-lg border border-[#cbd5e1] p-2.5 text-sm outline-none focus:border-[#0f766e]"
+              className="mt-3 w-full rounded-xl border border-[#e2dfd8] bg-[#f7f6f2] p-2.5 text-sm outline-none focus:border-[#0f7a66]"
               placeholder="店名・URLで検索"
               value={linkPickerQuery}
               onChange={(e) => setLinkPickerQuery(e.target.value)}
             />
             <div className="mt-3 max-h-[50vh] space-y-1.5 overflow-y-auto">
               {!linkOptionsLoaded ? (
-                <p className="p-4 text-center text-sm text-[#94a3b8]">読み込み中…</p>
+                <p className="p-4 text-center text-sm text-[#8e958f]">読み込み中…</p>
               ) : filteredLinkOptions.length === 0 ? (
-                <p className="p-4 text-center text-sm text-[#94a3b8]">
+                <p className="p-4 text-center text-sm text-[#8e958f]">
                   {linkOptions.length === 0
                     ? "URL付きの予定がまだありません。"
                     : "一致するリンクがありません。"}
@@ -4399,12 +4393,12 @@ export default function Home() {
                     key={opt.url}
                     type="button"
                     onClick={() => chooseLink(opt.url)}
-                    className="flex w-full items-center gap-2 rounded-lg border border-[#e2e8f0] p-2.5 text-left transition hover:border-[#0f766e] hover:bg-[#ecfdf5]"
+                    className="flex w-full items-center gap-2 rounded-lg border border-[#ece9e2] p-2.5 text-left transition hover:border-[#0f7a66] hover:bg-[#e1f1ec]"
                   >
                     <span className="text-base">{opt.isFavorite ? "⭐" : "🔗"}</span>
                     <span className="min-w-0 flex-1">
-                      <span className="block truncate text-sm font-bold text-[#0f172a]">{opt.label}</span>
-                      <span className="block truncate text-xs text-[#94a3b8]">{opt.host || opt.url}</span>
+                      <span className="block truncate text-sm font-bold text-[#1b2421]">{opt.label}</span>
+                      <span className="block truncate text-xs text-[#8e958f]">{opt.host || opt.url}</span>
                     </span>
                   </button>
                 ))
@@ -4425,45 +4419,45 @@ export default function Home() {
         return (
           <div className="confirm-overlay" onClick={() => !savingPattern && setConfirmPattern(null)}>
             <div className="confirm-card" onClick={(e) => e.stopPropagation()}>
-              <p className="text-xs font-bold uppercase tracking-[0.14em] text-[#64748b]">確認</p>
-              <p className="mt-2 text-base font-black text-[#0f172a]">この内容で登録しますか？</p>
-              <dl className="mt-4 space-y-2 rounded-xl border border-[#e2e8f0] bg-[#f8fafc] p-3 text-sm">
+              <p className="text-xs font-bold uppercase tracking-[0.14em] text-[#66706c]">確認</p>
+              <p className="mt-2 text-base font-black text-[#1b2421]">この内容で登録しますか？</p>
+              <dl className="mt-4 space-y-2 rounded-xl border border-[#ece9e2] bg-[#f7f6f2] p-3 text-sm">
                 <div className="flex gap-3">
-                  <dt className="w-14 shrink-0 font-semibold text-[#64748b]">日付</dt>
-                  <dd className="text-lg font-black text-[#0f766e]">
+                  <dt className="w-14 shrink-0 font-semibold text-[#66706c]">日付</dt>
+                  <dd className="text-lg font-black text-[#0f7a66]">
                     {format(start, "M月d日(E)", { locale: ja })}
                   </dd>
                 </div>
                 <div className="flex gap-3">
-                  <dt className="w-14 shrink-0 font-semibold text-[#64748b]">予定</dt>
-                  <dd className="font-bold text-[#0f172a]">{f.title}</dd>
+                  <dt className="w-14 shrink-0 font-semibold text-[#66706c]">予定</dt>
+                  <dd className="font-bold text-[#1b2421]">{f.title}</dd>
                 </div>
                 <div className="flex gap-3">
-                  <dt className="w-14 shrink-0 font-semibold text-[#64748b]">時間</dt>
-                  <dd className="font-bold text-[#0f172a]">
+                  <dt className="w-14 shrink-0 font-semibold text-[#66706c]">時間</dt>
+                  <dd className="font-bold text-[#1b2421]">
                     {format(start, "HH:mm")} 〜 {crossesDay ? "翌" : ""}{format(end, "HH:mm")}
                   </dd>
                 </div>
                 <div className="flex gap-3">
-                  <dt className="w-14 shrink-0 font-semibold text-[#64748b]">分類</dt>
-                  <dd className="font-bold text-[#0f172a]">{categoryName}</dd>
+                  <dt className="w-14 shrink-0 font-semibold text-[#66706c]">分類</dt>
+                  <dd className="font-bold text-[#1b2421]">{categoryName}</dd>
                 </div>
                 <div className="flex gap-3">
-                  <dt className="w-14 shrink-0 font-semibold text-[#64748b]">共有</dt>
-                  <dd className="font-bold text-[#0f172a]">{shareCount > 0 ? `${shareCount}人` : "自分のみ"}</dd>
+                  <dt className="w-14 shrink-0 font-semibold text-[#66706c]">共有</dt>
+                  <dd className="font-bold text-[#1b2421]">{shareCount > 0 ? `${shareCount}人` : "自分のみ"}</dd>
                 </div>
               </dl>
-              <p className="mt-2 text-xs text-[#64748b]">登録後は次の日の入力に進みます。</p>
+              <p className="mt-2 text-xs text-[#66706c]">登録後は次の日の入力に進みます。</p>
               <div className="mt-5 grid grid-cols-2 gap-2">
                 <button
-                  className="h-11 rounded-xl border border-[#cbd5e1] font-bold text-[#334155] transition hover:bg-[#f8fafc] disabled:opacity-50"
+                  className="h-11 rounded-xl border border-[#dad7cf] font-bold text-[#3a4440] transition hover:bg-[#f7f6f2] disabled:opacity-50"
                   disabled={savingPattern}
                   onClick={() => setConfirmPattern(null)}
                 >
                   キャンセル
                 </button>
                 <button
-                  className="h-11 rounded-xl bg-[#0f766e] font-bold text-white transition hover:bg-[#115e59] disabled:opacity-60"
+                  className="h-11 rounded-xl bg-[#0f7a66] font-bold text-white transition hover:bg-[#0b5e4f] disabled:opacity-60"
                   disabled={savingPattern}
                   onClick={() => void applyPatternAndSave(confirmPattern)}
                 >
@@ -4479,20 +4473,20 @@ export default function Home() {
       {confirmDeleteEvent && (
         <div className="confirm-overlay" onClick={() => setConfirmDeleteEvent(null)}>
           <div className="confirm-card" onClick={(e) => e.stopPropagation()}>
-            <p className="text-xs font-bold uppercase tracking-[0.14em] text-[#64748b]">確認</p>
-            <p className="mt-2 text-base font-black text-[#0f172a]">
+            <p className="text-xs font-bold uppercase tracking-[0.14em] text-[#66706c]">確認</p>
+            <p className="mt-2 text-base font-black text-[#1b2421]">
               {confirmDeleteEvent.recurringId
                 ? `「${confirmDeleteEvent.title}」の${format(confirmDeleteEvent.start, "M月d日", { locale: ja })}の予定を削除しますか？`
                 : `「${confirmDeleteEvent.title}」を削除しますか？`}
             </p>
             {confirmDeleteEvent.recurringId && (
-              <p className="mt-1 text-sm text-[#64748b]">
+              <p className="mt-1 text-sm text-[#66706c]">
                 この日のみ削除します（繰り返し予定は残ります）。すべて削除する場合は 設定 → 繰り返し予定 から行ってください。
               </p>
             )}
             <div className="mt-5 grid grid-cols-2 gap-2">
               <button
-                className="h-11 rounded-xl border border-[#cbd5e1] font-bold text-[#334155] transition hover:bg-[#f8fafc]"
+                className="h-11 rounded-xl border border-[#dad7cf] font-bold text-[#3a4440] transition hover:bg-[#f7f6f2]"
                 onClick={() => setConfirmDeleteEvent(null)}
               >
                 キャンセル

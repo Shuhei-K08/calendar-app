@@ -2,37 +2,27 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 
 export function ShareCalLogo({ compact = false }: { compact?: boolean }) {
   return (
     <div className="sharecal-logo" aria-label="ShareCal">
-      <svg className="sharecal-logo-mark" viewBox="0 0 48 48" aria-hidden="true">
-        <rect x="7" y="10" width="27" height="29" rx="8" />
-        <rect x="14" y="7" width="27" height="29" rx="8" />
-        <path d="M20 16h15M20 22h9M20 29h12" />
-        <path d="M13 20h4M13 27h4" />
-      </svg>
-      {!compact && (
-        <span className="sharecal-logo-text">
-          <span>ShareCal</span>
-          <small>shared calendar</small>
-        </span>
-      )}
+      <span className="sharecal-logo-mark" aria-hidden="true">
+        <svg viewBox="0 0 24 24">
+          <rect x="3.5" y="5" width="17" height="15" rx="3" />
+          <path d="M8 3v4M16 3v4M3.5 10h17" />
+        </svg>
+      </span>
+      {!compact && <span className="sharecal-logo-text">ShareCal</span>}
     </div>
   );
 }
 
 const CalendarIcon = () => (
   <svg className="nav-svg" viewBox="0 0 24 24" aria-hidden="true">
-    <path d="M7 3v3M17 3v3M4 9h16M6 5h12a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2Z" />
-  </svg>
-);
-
-const PatternIcon = () => (
-  <svg className="nav-svg" viewBox="0 0 24 24" aria-hidden="true">
-    <path d="M5 5h6v6H5V5ZM13 5h6v6h-6V5ZM5 13h6v6H5v-6ZM13 13h6v6h-6v-6Z" />
+    <rect x="3.5" y="5" width="17" height="15" rx="3" />
+    <path d="M8 3v4M16 3v4M3.5 10h17" />
   </svg>
 );
 
@@ -42,16 +32,23 @@ const LinksIcon = () => (
   </svg>
 );
 
-const ConnectIcon = () => (
+const PeopleIcon = () => (
   <svg className="nav-svg" viewBox="0 0 24 24" aria-hidden="true">
-    <path d="M9 12a4 4 0 1 1 6 3.46M7 17a4 4 0 0 1 4-4h2M16 17l2 2 4-5M4 19a5 5 0 0 1 5-5" />
+    <circle cx="9" cy="8" r="3.5" />
+    <path d="M2.5 20a6.5 6.5 0 0 1 13 0M16 4.5a3.5 3.5 0 0 1 0 7M18 14.5a6.5 6.5 0 0 1 3.5 5.5" />
   </svg>
 );
 
 const SettingsIcon = () => (
   <svg className="nav-svg" viewBox="0 0 24 24" aria-hidden="true">
-    <path d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z" />
-    <path d="M19 13.5v-3l-2.05-.5a7.8 7.8 0 0 0-.68-1.64l1.1-1.8-2.12-2.12-1.8 1.1A7.8 7.8 0 0 0 11.8 4.9L11.3 3h-3l-.5 1.9a7.8 7.8 0 0 0-1.64.68l-1.8-1.1-2.12 2.12 1.1 1.8A7.8 7.8 0 0 0 2.7 10L1 10.5v3l1.7.5a7.8 7.8 0 0 0 .68 1.64l-1.1 1.8 2.12 2.12 1.8-1.1a7.8 7.8 0 0 0 1.64.68l.5 1.86h3l.5-1.86a7.8 7.8 0 0 0 1.64-.68l1.8 1.1 2.12-2.12-1.1-1.8a7.8 7.8 0 0 0 .68-1.64l2.02-.5Z" />
+    <circle cx="12" cy="12" r="3" />
+    <path d="M12 2.5v3M12 18.5v3M4.6 4.6l2.1 2.1M17.3 17.3l2.1 2.1M2.5 12h3M18.5 12h3M4.6 19.4l2.1-2.1M17.3 6.7l2.1-2.1" />
+  </svg>
+);
+
+const PatternIcon = () => (
+  <svg className="nav-svg" viewBox="0 0 24 24" aria-hidden="true">
+    <path d="M5 5h6v6H5V5ZM13 5h6v6h-6V5ZM5 13h6v6H5v-6ZM13 13h6v6h-6v-6Z" />
   </svg>
 );
 
@@ -62,33 +59,33 @@ const AdminIcon = () => (
   </svg>
 );
 
-const items = [
-  { href: "/", label: "予定", desktopLabel: "カレンダー", icon: <CalendarIcon /> },
-  { href: "/patterns", label: "よく使う", desktopLabel: "よく使う予定", icon: <PatternIcon /> },
-  { href: "/links", label: "リンク", desktopLabel: "リンク集", icon: <LinksIcon /> },
-  { href: "/connect", label: "共有", desktopLabel: "つながる", icon: <ConnectIcon /> },
-  { href: "/settings", label: "設定", desktopLabel: "設定", icon: <SettingsIcon /> },
-];
+const PlusIcon = () => (
+  <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round">
+    <path d="M12 5v14M5 12h14" />
+  </svg>
+);
 
-const adminItem = {
-  href: "/admin",
-  label: "管理",
-  desktopLabel: "管理",
-  icon: <AdminIcon />,
-};
+// メインのメニューは4つだけ（よく使う予定は追加画面・設定から、管理は設定から）
+const items = [
+  { href: "/", label: "カレンダー", icon: <CalendarIcon /> },
+  { href: "/links", label: "リンク", icon: <LinksIcon /> },
+  { href: "/connect", label: "ふたり", icon: <PeopleIcon /> },
+  { href: "/settings", label: "設定", icon: <SettingsIcon /> },
+];
 
 const ADMIN_CACHE_KEY = "sharecal_is_admin";
 
+// 予定追加イベント: カレンダー画面ならその場で追加画面を開き、他の画面ならカレンダーへ移動して開く
+export const OPEN_ADD_EVENT = "sharecal:add";
+
 function useNavigationMeta() {
   const [pendingCount, setPendingCount] = useState(0);
-  // ページ遷移で一瞬消えないよう localStorage からキャッシュを即読み
-  const [isAdmin, setIsAdmin] = useState<boolean>(() => {
-    if (typeof window === "undefined") return false;
-    return window.localStorage.getItem(ADMIN_CACHE_KEY) === "1";
-  });
+  const [isAdmin, setIsAdmin] = useState(false);
 
   useEffect(() => {
     const fetchMeta = async () => {
+      // 前回の結果を先に反映（サーバー描画と食い違わないよう、表示後に読む）
+      setIsAdmin(window.localStorage.getItem(ADMIN_CACHE_KEY) === "1");
       const {
         data: { user },
       } = await supabase.auth.getUser();
@@ -118,62 +115,112 @@ function useNavigationMeta() {
   return { pendingCount, isAdmin };
 }
 
+function useAddAction() {
+  const pathname = usePathname();
+  const router = useRouter();
+  return () => {
+    if (pathname === "/") {
+      window.dispatchEvent(new window.Event(OPEN_ADD_EVENT));
+      return;
+    }
+    router.push("/?new=1");
+  };
+}
+
+const isActivePath = (pathname: string, href: string) => {
+  if (href === "/") return pathname === "/";
+  return pathname.startsWith(href);
+};
+
 export function DesktopNavigation() {
   const { pendingCount, isAdmin } = useNavigationMeta();
   const pathname = usePathname();
-  const navItems = isAdmin ? [...items, adminItem] : items;
-
-  const isActive = (href: string) => {
-    if (href === "/") return pathname === "/";
-    return pathname.startsWith(href);
-  };
+  const openAdd = useAddAction();
 
   return (
-    <nav className="hidden gap-2 sm:flex sm:flex-wrap sm:items-center">
-      {navItems.map((item) => (
-        <Link
-          key={item.href}
-          className="top-nav-link"
-          href={item.href}
-          aria-label={item.desktopLabel}
-          data-active={isActive(item.href) ? "true" : undefined}
-        >
-          {item.href === "/connect" && pendingCount > 0 && <span className="nav-badge" />}
-          {item.icon}
-          <span>{item.desktopLabel}</span>
+    <>
+      {/* タブレット幅: ヘッダー内の横並びメニュー */}
+      <nav className="top-nav" aria-label="メニュー">
+        {items.map((item) => (
+          <Link
+            key={item.href}
+            className="top-nav-link"
+            href={item.href}
+            data-active={isActivePath(pathname, item.href) ? "true" : undefined}
+          >
+            {item.href === "/connect" && pendingCount > 0 && <span className="nav-badge" />}
+            {item.icon}
+            <span>{item.label}</span>
+          </Link>
+        ))}
+      </nav>
+
+      {/* PC: 左に固定のサイドメニュー */}
+      <aside className="side-nav" aria-label="メニュー">
+        <Link href="/" className="side-nav-brand">
+          <ShareCalLogo />
         </Link>
-      ))}
-    </nav>
+        <nav className="side-nav-links">
+          {items.map((item) => (
+            <Link
+              key={item.href}
+              className="side-nav-link"
+              href={item.href}
+              data-active={isActivePath(pathname, item.href) ? "true" : undefined}
+            >
+              {item.icon}
+              <span>{item.label}</span>
+              {item.href === "/connect" && pendingCount > 0 && <span className="side-nav-badge">申請</span>}
+            </Link>
+          ))}
+        </nav>
+        <button type="button" className="side-nav-add" onClick={openAdd}>
+          <PlusIcon />
+          予定を追加
+        </button>
+        <div className="side-nav-sub">
+          <Link className="side-nav-sublink" href="/patterns" data-active={isActivePath(pathname, "/patterns") ? "true" : undefined}>
+            <PatternIcon />
+            よく使う予定
+          </Link>
+          {isAdmin && (
+            <Link className="side-nav-sublink" href="/admin" data-active={isActivePath(pathname, "/admin") ? "true" : undefined}>
+              <AdminIcon />
+              管理
+            </Link>
+          )}
+        </div>
+      </aside>
+    </>
   );
 }
 
 export function MobileNavigation() {
-  const { pendingCount, isAdmin } = useNavigationMeta();
+  const { pendingCount } = useNavigationMeta();
   const pathname = usePathname();
-  const navItems = isAdmin ? [...items, adminItem] : items;
+  const openAdd = useAddAction();
+  const [left, right] = [items.slice(0, 2), items.slice(2)];
 
-  const isActive = (href: string) => {
-    if (href === "/") return pathname === "/";
-    return pathname.startsWith(href);
-  };
+  const renderItem = (item: (typeof items)[number]) => (
+    <Link
+      key={item.href}
+      className="mobile-nav-link"
+      href={item.href}
+      data-active={isActivePath(pathname, item.href) ? "true" : undefined}
+    >
+      {item.href === "/connect" && pendingCount > 0 && <span className="nav-badge mobile" />}
+      {item.icon}
+      <span>{item.label}</span>
+    </Link>
+  );
 
   return (
-    <nav
-      className={`fixed inset-x-3 bottom-3 z-40 grid ${isAdmin ? "grid-cols-6" : "grid-cols-5"} rounded-2xl border border-[var(--border)] bg-[var(--surface-glass-strong)] p-2 text-center text-[10px] font-semibold text-[var(--fg-muted)] shadow-xl backdrop-blur sm:hidden`}
-    >
-      {navItems.map((item) => (
-        <Link
-          key={item.href}
-          className="mobile-nav-link"
-          href={item.href}
-          aria-label={item.desktopLabel}
-          data-active={isActive(item.href) ? "true" : undefined}
-        >
-          {item.href === "/connect" && pendingCount > 0 && <span className="nav-badge mobile" />}
-          {item.icon}
-          <span>{item.label}</span>
-        </Link>
-      ))}
+    <nav className="mobile-nav sm:hidden" aria-label="メニュー">
+      {left.map(renderItem)}
+      <button type="button" className="mobile-nav-add" onClick={openAdd} aria-label="予定を追加">
+        <PlusIcon />
+      </button>
+      {right.map(renderItem)}
     </nav>
   );
 }

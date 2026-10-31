@@ -1,10 +1,22 @@
 import type { Metadata, Viewport } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Geist_Mono, Noto_Sans_JP, Zen_Maru_Gothic } from "next/font/google";
+import ThemeApplier from "@/app/components/ThemeApplier";
 import "./globals.css";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
-  subsets: ["latin"],
+// 本文: 読みやすいゴシック
+const notoSansJp = Noto_Sans_JP({
+  variable: "--font-body",
+  weight: ["400", "500", "700"],
+  preload: false,
+  display: "swap",
+});
+
+// 見出し・数字: 丸みのあるゴシック
+const zenMaru = Zen_Maru_Gothic({
+  variable: "--font-display",
+  weight: ["500", "700", "900"],
+  preload: false,
+  display: "swap",
 });
 
 const geistMono = Geist_Mono({
@@ -33,7 +45,7 @@ export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   maximumScale: 1,
-  themeColor: "#f4f7fb",
+  themeColor: "#f6f5f1",
 };
 
 // Inline script — runs before React hydrates to prevent flash of light theme.
@@ -55,12 +67,15 @@ export default function RootLayout({
   return (
     <html
       lang="ja"
-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
+      className={`${notoSansJp.variable} ${zenMaru.variable} ${geistMono.variable} h-full antialiased`}
     >
       <head>
         <script dangerouslySetInnerHTML={{ __html: themeBootstrap }} />
       </head>
-      <body className="min-h-full flex flex-col">{children}</body>
+      <body className="min-h-full flex flex-col">
+        <ThemeApplier />
+        {children}
+      </body>
     </html>
   );
 }
