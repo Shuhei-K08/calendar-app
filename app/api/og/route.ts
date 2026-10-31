@@ -296,6 +296,97 @@ function classify(text: string, url: string): { main: Genre; subs: Genre[] } | n
   };
 }
 
+function decodeEntities(s: string): string {
+  return s
+    .replace(/&#(\d+);/g, (_, n) => String.fromCodePoint(Number(n)))
+    .replace(/&#x([0-9a-f]+);/gi, (_, n) => String.fromCodePoint(parseInt(n, 16)))
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;|&apos;/g, "'")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&nbsp;/g, " ")
+    .replace(/&amp;/g, "&");
+}
+
+// ---- HTML取得 ----------------------------------------------------------
+
+const BROWSER_UA =
+  "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36";
+const MOBILE_UA =
+  "Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1";
+// SNSのリンクプレビュー用クローラー。OGPだけは返してくれるサイトが多い
+const OGP_CRAWLER_UA = "facebookexternalhit/1.1 (+http://www.facebook.com/externalhit_uatext.php)";
+
+const browserHeaders = (ua: string): Record<string, string> => ({
+  "User-Agent": ua,
+  Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+  "Accept-Language": "ja,en-US;q=0.9,en;q=0.8",
+});
+
+/** アクセス制限・Bot判定ページかどうか（食べログの「現在アクセスが集中しています」等） */
+function isBlockedPage(status: number, html: string): boolean {
+  if (status === 403 || status === 429 || status === 503) return true;
+  const title = html.match(/<title[^>]*>([^<]*)<\/title>/i)?.[1] ?? "";
+  const head = title + " " + html.slice(0, 3000);
+  return /アクセスが集中|アクセスが混み合|しばらく(時間を置いて|してから)|Access Denied|Just a moment|Attention Required|captcha/i.test(
+    head,
+  );
+}
+
+async function fetchHtml(url: string, headers: Record<string, string>): Promise<{ status: number; html: string }> {
+  const res = await fetch(url, { headers, redirect: "follow", signal: AbortSignal.timeout(6000) });
+  const buffer = await res.arrayBuffer();
+
+  // Content-Typeヘッダー → HTMLのmeta charset の順で文字コードを判定
+  const contentType = res.headers.get("content-type") ?? "";
+  const headerCharset = contentType.match(/charset=([^\s;]+)/i)?.[1];
+  const tentative = new TextDecoder("utf-8").decode(buffer);
+  const metaCharset =
+    tentative.match(/<meta[^>]+charset=["']?([^"';\s>]+)/i)?.[1] ??
+    tentative.match(/<meta[^>]+http-equiv=["']Content-Type["'][^>]+content=["'][^"']*charset=([^"'\s;]+)/i)?.[1];
+  const charset = headerCharset ?? metaCharset ?? "utf-8";
+
+  let html: string;
+  try {
+    html = new TextDecoder(charset).decode(buffer);
+  } catch {
+    html = tentative;
+  }
+  return { status: res.status, html };
+}
+
+/**
+ * ブラウザ相当のヘッダーで取得し、制限ページが返ってきたら
+ * OGPクローラーUA・スマホ版サイトの順に再試行する。全滅なら null。
+ */
+async function fetchHtmlWithFallback(url: string): Promise<string | null> {
+  const attempts: { url: string; headers: Record<string, string> }[] = [
+    { url, headers: browserHeaders(BROWSER_UA) },
+    { url, headers: { "User-Agent": OGP_CRAWLER_UA, "Accept-Language": "ja" } },
+  ];
+
+  // 食べログはスマホ版(s.tabelog.com)も試す
+  try {
+    const u = new URL(url);
+    if (/(^|\.)tabelog\.com$/i.test(u.hostname) && !u.hostname.startsWith("s.")) {
+      u.hostname = "s.tabelog.com";
+      attempts.push({ url: u.toString(), headers: browserHeaders(MOBILE_UA) });
+    }
+  } catch {
+    /* ignore */
+  }
+
+  for (const a of attempts) {
+    try {
+      const { status, html } = await fetchHtml(a.url, a.headers);
+      if (!isBlockedPage(status, html)) return html;
+    } catch {
+      /* 次の方法で再試行 */
+    }
+  }
+  return null;
+}
+
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const url = searchParams.get("url");
@@ -305,43 +396,20 @@ export async function GET(request: Request) {
   }
 
   try {
-    const res = await fetch(url, {
-      headers: { "User-Agent": "Mozilla/5.0 (compatible; ShareCal/1.0)" },
-      signal: AbortSignal.timeout(6000),
-    });
-
-    const buffer = await res.arrayBuffer();
-
-    // Detect charset from Content-Type header
-    const contentType = res.headers.get("content-type") ?? "";
-    const headerCharset = contentType.match(/charset=([^\s;]+)/i)?.[1];
-
-    // Tentatively decode as UTF-8 to read HTML meta charset
-    const tentative = new TextDecoder("utf-8").decode(buffer);
-    const metaCharset =
-      tentative.match(/<meta[^>]+charset=["']?([^"';\s>]+)/i)?.[1] ??
-      tentative.match(/<meta[^>]+http-equiv=["']Content-Type["'][^>]+content=["'][^"']*charset=([^"'\s;]+)/i)?.[1];
-
-    const charset = headerCharset ?? metaCharset ?? "utf-8";
-
-    let html: string;
-    try {
-      html = new TextDecoder(charset).decode(buffer);
-    } catch {
-      html = tentative;
-    }
+    const html = await fetchHtmlWithFallback(url);
+    if (!html) throw new Error("blocked or unreachable");
 
     const getMeta = (property: string): string => {
       const match =
         html.match(new RegExp(`<meta[^>]+property=["']og:${property}["'][^>]+content=["']([^"']+)["']`, "i")) ??
         html.match(new RegExp(`<meta[^>]+content=["']([^"']+)["'][^>]+property=["']og:${property}["']`, "i")) ??
         html.match(new RegExp(`<meta[^>]+name=["']${property}["'][^>]+content=["']([^"']+)["']`, "i"));
-      return match?.[1] ?? "";
+      return decodeEntities(match?.[1] ?? "");
     };
 
     const title =
       getMeta("title") ||
-      html.match(/<title[^>]*>([^<]+)<\/title>/i)?.[1] ||
+      decodeEntities(html.match(/<title[^>]*>([^<]+)<\/title>/i)?.[1] ?? "") ||
       "";
     const description = getMeta("description");
     const siteName = getMeta("site_name");
