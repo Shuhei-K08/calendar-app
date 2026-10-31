@@ -5,7 +5,9 @@ import { useRouter } from "next/navigation";
 import { Calendar, dateFnsLocalizer, Event, View } from "react-big-calendar";
 import { addDays, addMonths, addWeeks, addYears, endOfDay, format, getDay, isSameDay, parse, startOfDay, startOfWeek } from "date-fns";
 import { ja } from "date-fns/locale/ja";
+import withDragAndDrop, { type EventInteractionArgs } from "react-big-calendar/lib/addons/dragAndDrop";
 import "react-big-calendar/lib/css/react-big-calendar.css";
+import "react-big-calendar/lib/addons/dragAndDrop/styles.css";
 import { supabase } from "@/lib/supabase";
 import { DesktopNavigation, MobileNavigation, ShareCalLogo } from "@/app/components/AppNavigation";
 import * as HolidayJp from "@holiday-jp/holiday_jp";
@@ -218,6 +220,29 @@ function TimeEventBlock({ event }: { event: CalendarEvent; title: string }) {
     </span>
   );
 }
+
+// PC・タブレット用: ドラッグで予定を移動・長さ変更できるカレンダー
+const DnDCalendar = withDragAndDrop<CalendarEvent>(Calendar);
+
+// ドラッグで動かせるのは自分の通常予定だけ（繰り返し・共有された予定は対象外）
+const canDragEvent = (event: CalendarEvent) =>
+  event.canDelete && !event.recurringId && !event.ownerDeleted;
+
+type EventComment = {
+  id: string;
+  user_id: string;
+  body: string | null;
+  reaction: string | null;
+  created_at: string;
+};
+
+const QUICK_REACTIONS = [
+  { emoji: "👍", label: "了解" },
+  { emoji: "🙏", label: "ありがとう" },
+  { emoji: "❤️", label: "いいね" },
+  { emoji: "🎉", label: "楽しみ" },
+  { emoji: "😢", label: "ざんねん" },
+];
 
 // 週・日表示を開いたときに最初に見せる時刻（朝8時）
 const CALENDAR_SCROLL_TIME = new Date(1970, 0, 1, 8, 0, 0);
@@ -856,6 +881,22 @@ export default function Home() {
     [calendarWeekStart],
   );
   const [confirmDeleteEvent, setConfirmDeleteEvent] = useState<CalendarEvent | null>(null);
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  // 予定のコメント・リアクション（詳細画面を開いたときに読み込む）
+  const [comments, setComments] = useState<EventComment[]>([]);
+  const [commentsState, setCommentsState] = useState<"idle" | "loading" | "ready" | "unavailable">("idle");
+  const [commentDraft, setCommentDraft] = useState("");
+  const [commentSending, setCommentSending] = useState(false);
+  // ドラッグで動かした直後の「元に戻す」用
+  const [lastMove, setLastMove] = useState<{
+    id: string;
+    title: string;
+    prevStart: Date;
+    prevEnd: Date;
+    prevAllDay: boolean;
+  } | null>(null);
+  const lastMoveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [copyingEvent, setCopyingEvent] = useState(false);
 
   const fetchConnections = useCallback(async (userId: string) => {
     const { data: acceptedConnections, error } = await supabase
@@ -1351,6 +1392,7 @@ export default function Home() {
         router.push("/login");
         return;
       }
+      setCurrentUserId(user.id);
 
       const { data: profile } = await supabase
         .from("profiles")
@@ -1493,6 +1535,7 @@ export default function Home() {
 
   const openDetailEvent = (event: CalendarEvent) => {
     setDetailEvent(event);
+    void loadComments(event);
     setOcrBusy(false);
     setIsDetailEditing(false);
     setRecurringEditScope("single");
@@ -1602,7 +1645,11 @@ export default function Home() {
     setEditForm((current) => ({ ...current, end: formatDateTimeLocal(nextEnd) }));
   };
 
-  const addEventWithForm = async (form: EventForm, keepOpen = false): Promise<boolean> => {
+  const addEventWithForm = async (
+    form: EventForm,
+    keepOpen = false,
+    successMessage = "予定を追加しました",
+  ): Promise<boolean> => {
     if (!form.title.trim()) return false;
 
     const {
@@ -1702,7 +1749,7 @@ export default function Home() {
       if (dateMovedTimer.current) clearTimeout(dateMovedTimer.current);
       dateMovedTimer.current = setTimeout(() => setShowDateMoved(false), 2500);
     } else {
-      show("予定を追加しました", "success");
+      show(successMessage, "success");
       setIsEventModalOpen(false);
     }
     await fetchEvents();
@@ -1710,6 +1757,237 @@ export default function Home() {
   };
 
   const addEvent = async () => addEventWithForm(eventForm, false);
+
+  // 新規登録画面の ‹ › : 入力内容はそのままで日付だけ前後に動かす
+  const shiftFormDays = (amount: number) => {
+    setEventForm((current) => ({
+      ...current,
+      start: formatDateTimeLocal(addDays(new Date(current.start), amount)),
+      end: formatDateTimeLocal(addDays(new Date(current.end || current.start), amount)),
+    }));
+  };
+
+  // ── 予定の複製 ─────────────────────────────────────────────
+  // 予定の内容をフォームに写す（相手の予定は分類・共有先を引き継がず自分の予定にする）
+  const buildCopyForm = (event: CalendarEvent, dayOffset: number): EventForm => {
+    const isMine = event.canDelete;
+    const start = addDays(event.start, dayOffset);
+    const end = addDays(event.end, dayOffset);
+    return {
+      title: event.title,
+      start: formatDateTimeLocal(start),
+      end: formatDateTimeLocal(end),
+      allDay: event.allDay,
+      note: event.note ?? "",
+      url: event.url ?? "",
+      prefecture: event.prefecture ?? "",
+      city: event.city ?? "",
+      imageUrl: event.imageUrl ?? "",
+      categoryId: isMine ? event.categoryId ?? "" : "",
+      selectedUserIds: isMine ? event.sharedWith.map((u) => u.id) : [],
+      shareType: isMine && event.visibility !== "private" ? event.visibility : "together",
+    };
+  };
+
+  // 1週間後の同じ時間にそのまま登録
+  const copyEventToNextWeek = async (event: CalendarEvent) => {
+    if (copyingEvent) return;
+    setCopyingEvent(true);
+    try {
+      const nextStart = addDays(event.start, 7);
+      const ok = await addEventWithForm(
+        buildCopyForm(event, 7),
+        false,
+        `${format(nextStart, "M月d日(E)", { locale: ja })}に「${event.title}」をコピーしました`,
+      );
+      if (ok) setDetailEvent(null);
+    } finally {
+      setCopyingEvent(false);
+    }
+  };
+
+  // 内容を入れた状態で登録画面を開く（日付や時間を変えてから登録）
+  const openCopyEditor = (event: CalendarEvent) => {
+    setEventForm(buildCopyForm(event, 0));
+    setShowMoreFields(Boolean(event.note || event.url || event.imageUrl));
+    setOcrBusy(false);
+    setDetailEvent(null);
+    setIsEventModalOpen(true);
+    show("内容をコピーしました。日付を選んで登録してください", "info");
+  };
+
+  // ── ドラッグで移動・長さ変更 ────────────────────────────────
+  const saveEventTimes = async (
+    event: CalendarEvent,
+    nextStart: Date,
+    nextEnd: Date,
+    nextAllDay: boolean,
+    options: { recordUndo: boolean; message?: string },
+  ) => {
+    if (!event.id) return;
+    const prev = { start: event.start, end: event.end, allDay: event.allDay };
+    // 先に画面へ反映（失敗したら戻す）
+    setEvents((current) =>
+      current.map((e) => (e.id === event.id ? { ...e, start: nextStart, end: nextEnd, allDay: nextAllDay } : e)),
+    );
+
+    let { error } = await supabase
+      .from("events")
+      .update({ start_at: nextStart.toISOString(), end_at: nextEnd.toISOString(), all_day: nextAllDay })
+      .eq("id", event.id);
+    if (error?.code === "PGRST204" || error?.code === "42703") {
+      ({ error } = await supabase
+        .from("events")
+        .update({ start_at: nextStart.toISOString(), end_at: nextEnd.toISOString() })
+        .eq("id", event.id));
+    }
+
+    if (error) {
+      console.error(error);
+      setEvents((current) =>
+        current.map((e) => (e.id === event.id ? { ...e, start: prev.start, end: prev.end, allDay: prev.allDay } : e)),
+      );
+      show("予定を動かせませんでした", "error");
+      return;
+    }
+
+    if (options.recordUndo) {
+      setLastMove({ id: event.id, title: event.title, prevStart: prev.start, prevEnd: prev.end, prevAllDay: prev.allDay });
+      if (lastMoveTimer.current) clearTimeout(lastMoveTimer.current);
+      lastMoveTimer.current = setTimeout(() => setLastMove(null), 7000);
+    }
+    if (options.message) show(options.message, "success");
+  };
+
+  const handleEventDrop = ({ event, start, end, isAllDay }: EventInteractionArgs<CalendarEvent>) => {
+    if (!canDragEvent(event)) return;
+    let nextStart = new Date(start);
+    let nextEnd = new Date(end);
+    const nextAllDay = isAllDay ?? event.allDay;
+    if (nextAllDay && !event.allDay) {
+      // 時間指定 → 終日の枠へ: その日いっぱいの終日予定にする
+      nextStart = startOfDay(nextStart);
+      nextEnd = endOfDay(nextStart);
+    } else if (!nextAllDay && event.allDay) {
+      // 終日 → 時間の枠へ: 1時間の予定にする
+      nextEnd = new Date(nextStart.getTime() + 60 * 60 * 1000);
+    } else if (nextAllDay && nextEnd.getTime() <= nextStart.getTime()) {
+      nextEnd = endOfDay(nextStart);
+    }
+    if (nextStart.getTime() === event.start.getTime() && nextEnd.getTime() === event.end.getTime() && nextAllDay === event.allDay) return;
+    void saveEventTimes(event, nextStart, nextEnd, nextAllDay, { recordUndo: true });
+  };
+
+  const handleEventResize = ({ event, start, end }: EventInteractionArgs<CalendarEvent>) => {
+    if (!canDragEvent(event)) return;
+    const nextStart = new Date(start);
+    let nextEnd = new Date(end);
+    if (event.allDay) {
+      // 終日予定の終わりは「最終日の23:59」で保存する
+      nextEnd = endOfDay(addDays(nextEnd, nextEnd.getHours() === 0 && nextEnd.getMinutes() === 0 ? -1 : 0));
+    }
+    if (nextEnd.getTime() <= nextStart.getTime()) return;
+    void saveEventTimes(event, nextStart, nextEnd, event.allDay, { recordUndo: true });
+  };
+
+  const undoLastMove = async () => {
+    if (!lastMove) return;
+    const target = events.find((e) => e.id === lastMove.id);
+    const move = lastMove;
+    setLastMove(null);
+    if (lastMoveTimer.current) clearTimeout(lastMoveTimer.current);
+    if (!target) return;
+    await saveEventTimes(target, move.prevStart, move.prevEnd, move.prevAllDay, {
+      recordUndo: false,
+      message: "元に戻しました",
+    });
+  };
+
+  // ── コメント・リアクション ─────────────────────────────────
+  const commentTargetOf = (event: CalendarEvent) =>
+    event.recurringId
+      ? { column: "recurring_event_id" as const, id: event.recurringId }
+      : event.id
+        ? { column: "event_id" as const, id: event.id }
+        : null;
+
+  const isCommentable = (event: CalendarEvent) =>
+    !event.ownerDeleted && (event.isShared || event.sharedWith.length > 0);
+
+  const isMissingTable = (error: { code?: string; message?: string } | null) =>
+    !!error && (error.code === "42P01" || error.code === "PGRST205" || /event_comments/.test(error.message ?? ""));
+
+  const loadComments = async (event: CalendarEvent) => {
+    setComments([]);
+    setCommentDraft("");
+    const target = commentTargetOf(event);
+    if (!target || !isCommentable(event)) {
+      setCommentsState("idle");
+      return;
+    }
+    setCommentsState("loading");
+    const { data, error } = await supabase
+      .from("event_comments")
+      .select("id, user_id, body, reaction, created_at")
+      .eq(target.column, target.id)
+      .order("created_at", { ascending: true });
+    if (error) {
+      if (!isMissingTable(error)) console.error(error);
+      setCommentsState(isMissingTable(error) ? "unavailable" : "ready");
+      return;
+    }
+    setComments((data ?? []) as EventComment[]);
+    setCommentsState("ready");
+  };
+
+  const commenterName = (userId: string, event: CalendarEvent) => {
+    if (userId === currentUserId) return "自分";
+    const connected = connections.find((c) => c.id === userId);
+    if (connected) return connected.username;
+    if (userId === event.ownerId) return event.ownerName;
+    return "メンバー";
+  };
+
+  const sendComment = async (event: CalendarEvent, payload: { body?: string; reaction?: string }) => {
+    const target = commentTargetOf(event);
+    if (!target || commentSending) return;
+    setCommentSending(true);
+    const { data, error } = await supabase
+      .from("event_comments")
+      .insert({ [target.column]: target.id, body: payload.body ?? null, reaction: payload.reaction ?? null })
+      .select("id, user_id, body, reaction, created_at")
+      .single();
+    setCommentSending(false);
+    if (error || !data) {
+      console.error(error);
+      if (isMissingTable(error)) setCommentsState("unavailable");
+      else show("送信できませんでした", "error");
+      return;
+    }
+    setComments((current) => [...current, data as EventComment]);
+    if (payload.body) setCommentDraft("");
+  };
+
+  const deleteComment = async (commentId: string) => {
+    const before = comments;
+    setComments((current) => current.filter((c) => c.id !== commentId));
+    const { error } = await supabase.from("event_comments").delete().eq("id", commentId);
+    if (error) {
+      console.error(error);
+      setComments(before);
+      show("削除できませんでした", "error");
+    }
+  };
+
+  // 同じリアクションをもう一度押したら取り消し
+  const toggleReaction = async (event: CalendarEvent, emoji: string) => {
+    const mine = comments.find((c) => c.reaction === emoji && c.user_id === currentUserId);
+    if (mine) {
+      await deleteComment(mine.id);
+      return;
+    }
+    await sendComment(event, { reaction: emoji });
+  };
 
   const updateEvent = async () => {
     if (!detailEvent?.id || !detailEvent.canDelete) return;
@@ -2618,7 +2896,7 @@ export default function Home() {
           {/* カレンダー本体 */}
           <section className="calendar-card home-grid-main p-2 sm:p-3">
             <div className="calendar-shell desktop-calendar">
-              <Calendar<CalendarEvent>
+              <DnDCalendar
                 key={calendarWeekStart}
                 localizer={calendarLocalizer}
                 events={visibleEvents}
@@ -2650,6 +2928,14 @@ export default function Home() {
                 onShowMore={(_shownEvents, date) => showDayFromMore(date)}
                 onSelectSlot={handleSelectSlot}
                 onSelectEvent={handleSelectCalendarEvent}
+                onEventDrop={handleEventDrop}
+                onEventResize={handleEventResize}
+                draggableAccessor={canDragEvent}
+                resizableAccessor={(event: CalendarEvent) =>
+                  // 月表示で時間指定の予定を横に伸ばすと日をまたいでしまうので、終日予定だけ伸ばせるようにする
+                  canDragEvent(event) && (calendarView !== "month" || event.allDay)
+                }
+                resizable
               />
             </div>
           </section>
@@ -2834,11 +3120,7 @@ export default function Home() {
                   <button
                     className="flex h-8 w-8 items-center justify-center rounded-full text-[#64748b] transition hover:bg-[#f1f5f9] active:scale-90"
                     aria-label="前の日"
-                    onClick={() => {
-                      const d = new Date(eventForm.start);
-                      d.setDate(d.getDate() - 1);
-                      setEventForm(createBlankForm(d));
-                    }}
+                    onClick={() => shiftFormDays(-1)}
                   >
                     <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                       <polyline points="15 18 9 12 15 6" />
@@ -2866,11 +3148,7 @@ export default function Home() {
                   <button
                     className="flex h-8 w-8 items-center justify-center rounded-full text-[#64748b] transition hover:bg-[#f1f5f9] active:scale-90"
                     aria-label="次の日"
-                    onClick={() => {
-                      const d = new Date(eventForm.start);
-                      d.setDate(d.getDate() + 1);
-                      setEventForm(createBlankForm(d));
-                    }}
+                    onClick={() => shiftFormDays(+1)}
                   >
                     <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                       <polyline points="9 18 15 12 9 6" />
@@ -3471,6 +3749,112 @@ export default function Home() {
                     共有していない自分の予定です。
                   </div>
                 )}
+                {isCommentable(detailEvent) && (
+                  <section className="comment-box" aria-label="ひとこと・リアクション">
+                    <p className="comment-box-title">ひとこと・リアクション</p>
+                    {commentsState === "unavailable" ? (
+                      <p className="mt-1 text-xs font-semibold text-[#64748b]">
+                        この機能を使うには、Supabase で <code>supabase-event-comments.sql</code> を実行してください。
+                      </p>
+                    ) : (
+                      <>
+                        <div className="mt-2 flex flex-wrap gap-1.5">
+                          {QUICK_REACTIONS.map((r) => {
+                            const reacted = comments.filter((c) => c.reaction === r.emoji);
+                            const mine = reacted.some((c) => c.user_id === currentUserId);
+                            return (
+                              <button
+                                key={r.emoji}
+                                type="button"
+                                className="reaction-btn"
+                                data-active={mine ? "true" : undefined}
+                                disabled={commentSending || commentsState === "loading"}
+                                title={reacted.length > 0 ? reacted.map((c) => commenterName(c.user_id, detailEvent)).join("、") : r.label}
+                                onClick={() => void toggleReaction(detailEvent, r.emoji)}
+                              >
+                                <span className="text-base leading-none">{r.emoji}</span>
+                                <span>{r.label}</span>
+                                {reacted.length > 0 && <span className="reaction-count">{reacted.length}</span>}
+                              </button>
+                            );
+                          })}
+                        </div>
+                        {comments.some((c) => c.reaction) && (
+                          <p className="mt-1.5 text-[11px] font-semibold text-[#64748b]">
+                            {Array.from(new Set(comments.filter((c) => c.reaction).map((c) => c.user_id)))
+                              .map((uid) => `${commenterName(uid, detailEvent)} ${comments.filter((c) => c.reaction && c.user_id === uid).map((c) => c.reaction).join("")}`)
+                              .join("　")}
+                          </p>
+                        )}
+                        <div className="mt-3 flex flex-col gap-2">
+                          {commentsState === "loading" && <p className="text-xs text-[#94a3b8]">読み込み中…</p>}
+                          {comments.filter((c) => c.body).map((c) => {
+                            const mine = c.user_id === currentUserId;
+                            return (
+                              <div key={c.id} className={`comment-item ${mine ? "is-mine" : ""}`}>
+                                <div className="flex items-center gap-2">
+                                  <span className="text-xs font-black text-[#0f172a]">{commenterName(c.user_id, detailEvent)}</span>
+                                  <span className="text-[11px] text-[#94a3b8]">{format(new Date(c.created_at), "M/d HH:mm")}</span>
+                                  {mine && (
+                                    <button
+                                      type="button"
+                                      className="ml-auto text-[11px] font-bold text-[#94a3b8] hover:text-[#be123c]"
+                                      onClick={() => void deleteComment(c.id)}
+                                    >
+                                      削除
+                                    </button>
+                                  )}
+                                </div>
+                                <p className="mt-0.5 whitespace-pre-wrap break-words text-sm text-[#334155]">{c.body}</p>
+                              </div>
+                            );
+                          })}
+                        </div>
+                        <form
+                          className="mt-2 flex gap-2"
+                          onSubmit={(e) => {
+                            e.preventDefault();
+                            const body = commentDraft.trim();
+                            if (body) void sendComment(detailEvent, { body });
+                          }}
+                        >
+                          <input
+                            className="h-10 min-w-0 flex-1 rounded-lg border border-[#cbd5e1] bg-white px-3 text-sm outline-none focus:border-[#0f766e] focus:ring-2 focus:ring-[#99f6e4]"
+                            value={commentDraft}
+                            maxLength={500}
+                            placeholder="ひとこと送る（例：19時に駅で！）"
+                            onChange={(e) => setCommentDraft(e.target.value)}
+                            enterKeyHint="send"
+                          />
+                          <button
+                            type="submit"
+                            className="h-10 shrink-0 rounded-lg bg-[#0f766e] px-4 text-sm font-bold text-white disabled:opacity-50"
+                            disabled={!commentDraft.trim() || commentSending}
+                          >
+                            送信
+                          </button>
+                        </form>
+                      </>
+                    )}
+                  </section>
+                )}
+                {!detailEvent.ownerDeleted && (
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      className="copy-btn"
+                      disabled={copyingEvent}
+                      onClick={() => void copyEventToNextWeek(detailEvent)}
+                    >
+                      <span className="copy-btn-title">{copyingEvent ? "コピー中…" : "来週も同じ"}</span>
+                      <span className="copy-btn-sub">{format(addDays(detailEvent.start, 7), "M/d(E)", { locale: ja })}に登録</span>
+                    </button>
+                    <button type="button" className="copy-btn" onClick={() => openCopyEditor(detailEvent)}>
+                      <span className="copy-btn-title">複製して編集</span>
+                      <span className="copy-btn-sub">日付・時間を変えて登録</span>
+                    </button>
+                  </div>
+                )}
                 {(detailEvent.canDelete || detailEvent.ownerDeleted) && (
                   <div className="grid gap-2 sm:grid-cols-2">
                     {detailEvent.canDelete && (
@@ -3810,6 +4194,12 @@ export default function Home() {
         </div>
       )}
 
+      {lastMove && (
+        <div className="undo-bar" role="status">
+          <span className="min-w-0 flex-1 truncate">「{lastMove.title}」を動かしました</span>
+          <button type="button" className="undo-bar-btn" onClick={() => void undoLastMove()}>元に戻す</button>
+        </div>
+      )}
       <ToastStack toasts={toasts} />
       <MobileNavigation />
     </main>

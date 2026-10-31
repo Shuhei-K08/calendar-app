@@ -1535,3 +1535,113 @@ kbd {
   .day-panel .day-event-bar { align-self: stretch; }
   .day-panel .day-group-label { margin-top: 0; }
 }
+
+/* ============================================================
+   新機能: ドラッグ移動・複製・コメント
+   ============================================================ */
+/* ドラッグできる予定は手のカーソル */
+.calendar-shell .rbc-addons-dnd .rbc-addons-dnd-draggable-event,
+.calendar-shell .rbc-addons-dnd .rbc-event.rbc-addons-dnd-resizable { cursor: grab; }
+.calendar-shell .rbc-addons-dnd .rbc-addons-dnd-dragged-event { opacity: 0.45; }
+.calendar-shell .rbc-addons-dnd-drag-preview { box-shadow: 0 8px 20px rgba(15, 23, 42, 0.18); opacity: 0.95; }
+.calendar-shell .rbc-addons-dnd .rbc-addons-dnd-resize-ns-anchor .rbc-addons-dnd-resize-ns-icon,
+.calendar-shell .rbc-addons-dnd .rbc-addons-dnd-resize-ew-anchor .rbc-addons-dnd-resize-ew-icon { border-color: currentColor; }
+
+.undo-bar {
+  align-items: center;
+  background: #0f172a;
+  border-radius: 14px;
+  bottom: 24px;
+  box-shadow: 0 12px 32px rgba(15, 23, 42, 0.3);
+  color: #fff;
+  display: flex;
+  font-size: 13px;
+  font-weight: 700;
+  gap: 12px;
+  left: 50%;
+  max-width: min(440px, calc(100vw - 32px));
+  padding: 10px 10px 10px 16px;
+  position: fixed;
+  transform: translateX(-50%);
+  width: max-content;
+  z-index: 70;
+}
+.undo-bar-btn {
+  background: #fff;
+  border-radius: 9px;
+  color: #0f172a;
+  flex-shrink: 0;
+  font-size: 13px;
+  font-weight: 800;
+  padding: 6px 12px;
+}
+@media (max-width: 639px) { .undo-bar { bottom: 96px; } }
+
+/* 複製ボタン */
+.copy-btn {
+  align-items: flex-start;
+  background: var(--surface-alt);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: 9px 12px;
+  text-align: left;
+  transition: border-color 0.15s, background 0.15s;
+}
+.copy-btn:hover { background: var(--accent-soft); border-color: var(--accent); }
+.copy-btn:disabled { opacity: 0.6; }
+.copy-btn-title { color: var(--fg-strong); font-size: 13px; font-weight: 800; }
+.copy-btn-sub { color: var(--fg-muted); font-size: 11px; font-weight: 600; }
+
+/* コメント・リアクション */
+.comment-box {
+  background: var(--surface-alt);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 12px;
+}
+.comment-box-title { color: var(--fg-strong); font-size: 13px; font-weight: 900; }
+.reaction-btn {
+  align-items: center;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  color: var(--fg);
+  display: inline-flex;
+  font-size: 12px;
+  font-weight: 700;
+  gap: 4px;
+  height: 32px;
+  padding: 0 10px;
+  transition: background 0.15s, border-color 0.15s;
+}
+.reaction-btn:hover { border-color: var(--accent); }
+.reaction-btn[data-active="true"] {
+  background: color-mix(in srgb, var(--accent) 12%, var(--surface));
+  border-color: var(--accent);
+  color: var(--accent-strong);
+}
+.reaction-btn:disabled { opacity: 0.6; }
+.reaction-count {
+  background: var(--accent);
+  border-radius: 999px;
+  color: #fff;
+  font-size: 10px;
+  font-weight: 800;
+  line-height: 1;
+  padding: 2px 5px;
+}
+.comment-item {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 8px 10px;
+}
+.comment-item.is-mine { background: color-mix(in srgb, var(--accent) 6%, var(--surface)); }
+/* 長さ変更のつまみは、カーソルを乗せたときだけ表示 */
+.calendar-shell .rbc-addons-dnd .rbc-addons-dnd-resize-ew-anchor,
+.calendar-shell .rbc-addons-dnd .rbc-addons-dnd-resize-ns-anchor { opacity: 0; transition: opacity 0.15s; }
+.calendar-shell .rbc-addons-dnd .rbc-event:hover .rbc-addons-dnd-resize-ew-anchor,
+.calendar-shell .rbc-addons-dnd .rbc-event:hover .rbc-addons-dnd-resize-ns-anchor { opacity: 1; }
