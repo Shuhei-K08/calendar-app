@@ -2650,10 +2650,36 @@ export default function Home() {
   };
 
   // 日付タップ直後に届くクリックが、ずれた位置の予定に当たって詳細が開くのを防ぐ
+  // 予定の帯を押したとき
+  // - 月表示: 詳細は開かず、その日を選んで下（PCは右）の一覧に予定を出す。
+  //   予定の帯がマスの大半を占めて日付を押しにくいため、帯を押しても「日付を選んだ」扱いにする
+  // - 週・日表示: これまでどおり詳細を開く
   const handleSelectCalendarEvent = (event: CalendarEvent) => {
+    const now = currentTimeMs();
     const last = lastDateTapRef.current;
-    if (last && currentTimeMs() - last.at < 450) return;
-    openDetailEvent(event);
+    if (last && now - last.at < 450) return;
+
+    if (calendarView !== "month") {
+      openDetailEvent(event);
+      return;
+    }
+
+    // 何日にもまたがる予定は、いま選んでいる日がその中ならそのまま、違えば開始日（表示中の月にかかるように）を選ぶ
+    const current = dayDetail?.date;
+    let date = startOfDay(event.start);
+    if (current && current >= startOfDay(event.start) && current <= event.end) {
+      date = current;
+    } else if (date.getMonth() !== calendarDate.getMonth() && event.end >= new Date(calendarDate.getFullYear(), calendarDate.getMonth(), 1)) {
+      date = new Date(calendarDate.getFullYear(), calendarDate.getMonth(), 1);
+    }
+    lastDateTapRef.current = { key: format(date, "yyyy-MM-dd"), at: now };
+
+    if (bulkMode) {
+      void registerPatternOn(date);
+      return;
+    }
+    setDayDetail({ date, events: [] });
+    setIsDayEventsOpen(true);
   };
 
   const shiftSelectedDay = (amount: number) => {
@@ -4332,7 +4358,7 @@ export default function Home() {
             <div className="mt-5 grid gap-3 text-sm text-[#4d5753]">
               <div className="rounded-2xl bg-[#f7f6f2] p-3">
                 <p className="font-bold text-[#1b2421]">1. 日付を押して予定を確認・登録</p>
-                <p className="mt-1">日付を押すとその日の予定が下に出ます。「＋追加」か、同じ日付をもう一度押すと登録画面が開きます。</p>
+                <p className="mt-1">日付や予定を押すと、その日の予定が下に出ます。予定の中身は下の一覧から開けます。登録は「＋」か、同じ日付をもう一度押すと開きます。</p>
               </div>
               <div className="rounded-2xl bg-[#f7f6f2] p-3">
                 <p className="font-bold text-[#1b2421]">2. よく使う予定で時短</p>
