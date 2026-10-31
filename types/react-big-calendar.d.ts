@@ -31,8 +31,10 @@ declare module "react-big-calendar" {
     view?: View;
     dayLayoutAlgorithm?: "overlap" | "no-overlap";
     popup?: boolean;
+    doShowMoreDrillDown?: boolean;
     selectable?: boolean | "ignoreEvents";
     longPressThreshold?: number;
+    scrollToTime?: Date;
     messages?: {
       today?: string;
       previous?: string;
@@ -41,6 +43,10 @@ declare module "react-big-calendar" {
       week?: string;
       day?: string;
       agenda?: string;
+      date?: string;
+      time?: string;
+      event?: string;
+      allDay?: string;
       noEventsInRange?: string;
       showMore?: (total: number) => string;
     };
@@ -49,6 +55,14 @@ declare module "react-big-calendar" {
       dayHeaderFormat?: string;
       dayRangeHeaderFormat?: ({ start, end }: { start: Date; end: Date }) => string;
       weekdayFormat?: string;
+      dateFormat?: string;
+      dayFormat?: string;
+      agendaDateFormat?: string;
+      agendaHeaderFormat?: ({ start, end }: { start: Date; end: Date }) => string;
+    };
+    dayPropGetter?: (date: Date) => {
+      className?: string;
+      style?: React.CSSProperties;
     };
     eventPropGetter?: (event: TEvent) => {
       className?: string;
@@ -68,7 +82,10 @@ declare module "react-big-calendar" {
           date: Date;
           label: string;
         }>;
+        event?: React.ComponentType<{ event: TEvent; title: string }>;
       };
+      week?: { event?: React.ComponentType<{ event: TEvent; title: string }> };
+      day?: { event?: React.ComponentType<{ event: TEvent; title: string }> };
     };
     onNavigate?: (date: Date) => void;
     onView?: (view: View) => void;
