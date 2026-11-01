@@ -1,28 +1,11 @@
 import type { Metadata, Viewport } from "next";
-import { Geist_Mono, Noto_Sans_JP, Zen_Maru_Gothic } from "next/font/google";
 import ThemeApplier from "@/app/components/ThemeApplier";
 import "./globals.css";
 
-// 本文: 読みやすいゴシック
-const notoSansJp = Noto_Sans_JP({
-  variable: "--font-body",
-  weight: ["400", "500", "700"],
-  preload: false,
-  display: "swap",
-});
-
-// 見出し・数字: 丸みのあるゴシック
-const zenMaru = Zen_Maru_Gothic({
-  variable: "--font-display",
-  weight: ["500", "700", "900"],
-  preload: false,
-  display: "swap",
-});
-
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
-});
+// 日本語フォントはファイル数がとても多く、next/font だとビルドで失敗することがあるため
+// Google Fonts から直接読み込む（--font-body / --font-display は globals.css で定義）
+const GOOGLE_FONTS_URL =
+  "https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700&family=Zen+Maru+Gothic:wght@500;700;900&display=swap";
 
 export const metadata: Metadata = {
   title: "ShareCal",
@@ -71,9 +54,13 @@ export default function RootLayout({
     <html
       lang="ja"
       suppressHydrationWarning
-      className={`${notoSansJp.variable} ${zenMaru.variable} ${geistMono.variable} h-full antialiased`}
+      className="h-full antialiased"
     >
       <head>
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
+        {/* eslint-disable-next-line @next/next/no-page-custom-font */}
+        <link rel="stylesheet" href={GOOGLE_FONTS_URL} />
         <script dangerouslySetInnerHTML={{ __html: themeBootstrap }} />
       </head>
       <body className="min-h-full flex flex-col">

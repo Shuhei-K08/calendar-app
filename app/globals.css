@@ -4,6 +4,9 @@
    Design Tokens — semantic, themable
    ============================================================ */
 :root {
+  --font-body: "Noto Sans JP";
+  --font-display: "Zen Maru Gothic";
+  --font-geist-mono: ui-monospace;
   /* surfaces */
   --background: #f6f5f1;
   --app-bg: #f6f5f1;
