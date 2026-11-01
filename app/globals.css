@@ -2253,3 +2253,28 @@ h1, h2, h3, .font-display { font-family: var(--font-display), var(--font-body), 
 
 /* ロゴマーク（B案） */
 .sharecal-logo-icon { border-radius: 10px; display: block; flex-shrink: 0; }
+
+/* ===== スポット: 絞り込みを1行の横スクロールに ===== */
+.spot-filter-row {
+  display: flex; gap: 6px; overflow-x: auto; flex-wrap: nowrap;
+  scrollbar-width: none; -webkit-overflow-scrolling: touch;
+  margin-left: -12px; margin-right: -12px; padding: 1px 12px;
+  mask-image: linear-gradient(to right, transparent 0, #000 12px, #000 calc(100% - 28px), transparent 100%);
+  -webkit-mask-image: linear-gradient(to right, transparent 0, #000 12px, #000 calc(100% - 28px), transparent 100%);
+}
+.spot-filter-row::-webkit-scrollbar { display: none; }
+.spot-chip { flex-shrink: 0; white-space: nowrap; min-height: 36px; }
+.spot-chip-count { font-size: 11px; opacity: 0.7; margin-left: 2px; }
+.spot-subchip {
+  flex-shrink: 0; white-space: nowrap; height: 30px; padding: 0 11px; border-radius: 999px;
+  border: 0; background: #eef5f2; color: #2c4a42; font-size: 12px; font-weight: 700;
+}
+.spot-subchip.is-active { background: #0f7a66; color: #fff; }
+.spot-area { position: relative; flex-shrink: 0; }
+.spot-area select {
+  height: 44px; max-width: 120px; padding: 0 28px 0 12px; border-radius: 12px;
+  border: 1px solid var(--border); background: var(--surface-alt); color: var(--fg-strong);
+  font-size: 13px; font-weight: 700; appearance: none; -webkit-appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%234d5753' stroke-width='3' stroke-linecap='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat; background-position: right 10px center;
+}

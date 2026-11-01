@@ -765,26 +765,27 @@ export default function LinksPage() {
           <div className="flex items-center gap-3">
             <ShareCalLogo compact />
             <div>
-              <h1 className="mt-1 text-2xl font-black text-[var(--fg-strong)]">リンク集</h1>
+              <h1 className="mt-1 text-2xl font-black text-[var(--fg-strong)]">スポット</h1>
             </div>
           </div>
           <DesktopNavigation />
         </header>
 
         <p className="text-sm text-[var(--fg-muted)]">
-          予定に登録したURLを、お店のジャンル別にまとめています。カードを押すと詳細が開き、場所の追加やリンクを開けます。
+          予定に登録したお店や場所を、ジャンル別にまとめています。
         </p>
 
         {/* 検索 */}
         <section className="glass-card p-3">
-          <div className="search-input flex h-11 items-center gap-2 rounded-xl border border-[var(--border)] bg-[var(--surface-alt)] px-3">
+          <div className="flex gap-2">
+          <div className="search-input flex h-11 min-w-0 flex-1 items-center gap-2 rounded-xl border border-[var(--border)] bg-[var(--surface-alt)] px-3">
             <svg viewBox="0 0 24 24" className="h-5 w-5 text-[var(--fg-muted)]" stroke="currentColor" fill="none" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <circle cx="11" cy="11" r="7" />
               <path d="m21 21-4.3-4.3" />
             </svg>
             <input
               className="h-full flex-1 bg-transparent text-sm outline-none placeholder:text-[var(--fg-muted)]"
-              placeholder="店名・ジャンル・地名・URLで検索（例: カフェ）"
+              placeholder="店名・ジャンル・地名で検索"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
             />
@@ -794,82 +795,80 @@ export default function LinksPage() {
               </button>
             )}
           </div>
+          {prefectures.length > 0 && (
+            <label className="spot-area">
+              <span className="sr-only">エリア</span>
+              <select value={activePrefecture} onChange={(e) => setActivePrefecture(e.target.value)}>
+                <option value="all">全エリア</option>
+                {prefectures.map((p) => (
+                  <option key={p} value={p}>{p}</option>
+                ))}
+              </select>
+            </label>
+          )}
+          </div>
 
-          {/* ジャンル絞り込み */}
+          {/* 絞り込み: 1行ずつ横にスクロール（縦に伸びないように） */}
           {genres.length > 0 && (
-            <div className="mt-3 flex flex-wrap gap-2">
+            <div className="spot-filter-row mt-3">
               <button
-                className={`chip ${favOnly ? "chip-active" : ""}`}
+                type="button"
+                className={`chip spot-chip ${favOnly ? "chip-active" : ""}`}
                 onClick={() => setFavOnly((v) => !v)}
+                aria-pressed={favOnly}
               >
-                ⭐ お気に入り（{favCount}）
+                ★ お気に入り {favCount}
               </button>
               <button
-                className={`chip ${activeGenre === "all" && !favOnly ? "chip-active" : ""}`}
+                type="button"
+                className={`chip spot-chip ${activeGenre === "all" && !favOnly ? "chip-active" : ""}`}
                 onClick={() => {
                   setActiveGenre("all");
                   setActiveSubGenre("all");
                   setFavOnly(false);
                 }}
               >
-                すべて（{enriched.length}）
+                すべて {urlGroups.length}
               </button>
               {genres.map((g) => (
                 <button
+                  type="button"
                   key={g.genre}
-                  className={`chip ${activeGenre === g.genre ? "chip-active" : ""}`}
+                  className={`chip spot-chip ${activeGenre === g.genre ? "chip-active" : ""}`}
                   onClick={() => {
-                    setActiveGenre(g.genre);
+                    setActiveGenre(activeGenre === g.genre ? "all" : g.genre);
                     setActiveSubGenre("all");
                   }}
                 >
-                  {g.emoji} {g.genre}（{g.count}）
+                  {g.emoji} {g.genre} <span className="spot-chip-count">{g.count}</span>
                 </button>
               ))}
             </div>
           )}
 
-          {/* 細かいジャンル（大きいジャンルを選んだときだけ） */}
+          {/* 細かいジャンル（大きいジャンルを選んだときだけ・小さめ） */}
           {subGenres.length > 0 && (
-            <div className="mt-2 flex flex-wrap items-center gap-2 border-l-2 border-[var(--accent)] pl-3">
+            <div className="spot-filter-row spot-filter-sub mt-2">
               <button
-                className={`chip ${activeSubGenre === "all" ? "chip-active" : ""}`}
+                type="button"
+                className={`spot-subchip ${activeSubGenre === "all" ? "is-active" : ""}`}
                 onClick={() => setActiveSubGenre("all")}
               >
                 {activeGenre}すべて
               </button>
               {subGenres.map((g) => (
                 <button
+                  type="button"
                   key={g.genre}
-                  className={`chip ${activeSubGenre === g.genre ? "chip-active" : ""}`}
+                  className={`spot-subchip ${activeSubGenre === g.genre ? "is-active" : ""}`}
                   onClick={() => setActiveSubGenre(g.genre)}
                 >
-                  {g.emoji} {g.genre}（{g.count}）
+                  {g.genre} {g.count}
                 </button>
               ))}
             </div>
           )}
 
-          {/* 都道府県絞り込み */}
-          {prefectures.length > 0 && (
-            <div className="mt-2 flex flex-wrap gap-2">
-              <button
-                className={`chip ${activePrefecture === "all" ? "chip-active" : ""}`}
-                onClick={() => setActivePrefecture("all")}
-              >
-                全エリア
-              </button>
-              {prefectures.map((p) => (
-                <button
-                  key={p}
-                  className={`chip ${activePrefecture === p ? "chip-active" : ""}`}
-                  onClick={() => setActivePrefecture(p)}
-                >
-                  📍 {p}
-                </button>
-              ))}
-            </div>
-          )}
           {ogLoading && (
             <p className="mt-2 text-xs text-[var(--fg-muted)]">店名・ジャンルを取得中…</p>
           )}
@@ -884,8 +883,8 @@ export default function LinksPage() {
           <div className="empty-state p-8 text-center">
             <p className="text-base">
               {items.length === 0
-                ? "URL付きの予定がまだありません。予定にURLを登録すると、ここに自動で並びます。"
-                : "条件に合うリンクが見つかりませんでした。"}
+                ? "まだスポットがありません。予定にお店のURLを登録すると、ここに自動で並びます。"
+                : "条件に合うスポットが見つかりませんでした。"}
             </p>
           </div>
         ) : (

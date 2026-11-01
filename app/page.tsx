@@ -3548,7 +3548,7 @@ export default function Home() {
                     className="rounded-xl border border-[#e2dfd8] bg-[#f7f6f2] px-2.5 py-1 text-xs font-bold text-[#0f7a66]"
                     onClick={() => openLinkPicker("new")}
                   >
-                    🔗 リンク集から選択
+                    📍 スポットから選択
                   </button>
                 </div>
                 <input
@@ -3883,7 +3883,7 @@ export default function Home() {
                       className="rounded-xl border border-[#e2dfd8] bg-[#f7f6f2] px-2.5 py-1 text-xs font-bold text-[#0f7a66]"
                       onClick={() => openLinkPicker("edit")}
                     >
-                      🔗 リンク集から選択
+                      📍 スポットから選択
                     </button>
                   </div>
                   <input
@@ -4459,7 +4459,7 @@ export default function Home() {
         </div>
       )}
 
-      {/* リンク集から選択 */}
+      {/* スポットから選択 */}
       {linkPickerTarget && (
         <div
           className="fixed inset-0 z-[65] flex items-end justify-center bg-[#1b2421]/40 p-3 sm:items-center"
@@ -4470,7 +4470,7 @@ export default function Home() {
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between">
-              <p className="text-base font-black text-[#1b2421]">リンク集から選択</p>
+              <p className="text-base font-black text-[#1b2421]">スポットから選択</p>
               <button className="text-[#8e958f]" onClick={() => setLinkPickerTarget(null)}>
                 ✕
               </button>
@@ -4488,7 +4488,7 @@ export default function Home() {
                 <p className="p-4 text-center text-sm text-[#8e958f]">
                   {linkOptions.length === 0
                     ? "URL付きの予定がまだありません。"
-                    : "一致するリンクがありません。"}
+                    : "一致するスポットがありません。"}
                 </p>
               ) : (
                 filteredLinkOptions.map((opt) => (

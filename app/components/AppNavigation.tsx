@@ -46,9 +46,10 @@ const CalendarIcon = () => (
   </svg>
 );
 
-const LinksIcon = () => (
+const SpotIcon = () => (
   <svg className="nav-svg" viewBox="0 0 24 24" aria-hidden="true">
-    <path d="M10 13a5 5 0 0 0 7 0l3-3a5 5 0 0 0-7-7l-1.5 1.5M14 11a5 5 0 0 0-7 0l-3 3a5 5 0 0 0 7 7l1.5-1.5" />
+    <path d="M12 21s-6.5-5.6-6.5-11a6.5 6.5 0 0 1 13 0c0 5.4-6.5 11-6.5 11Z" />
+    <circle cx="12" cy="10" r="2.5" />
   </svg>
 );
 
@@ -88,7 +89,7 @@ const PlusIcon = () => (
 // メインのメニューは4つだけ（よく使う予定は追加画面・設定から、管理は設定から）
 const items = [
   { href: "/", label: "カレンダー", icon: <CalendarIcon /> },
-  { href: "/links", label: "リンク", icon: <LinksIcon /> },
+  { href: "/links", label: "スポット", icon: <SpotIcon /> },
   { href: "/connect", label: "ふたり", icon: <PeopleIcon /> },
   { href: "/settings", label: "設定", icon: <SettingsIcon /> },
 ];
