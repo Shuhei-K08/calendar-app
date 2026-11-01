@@ -66,6 +66,11 @@ const WISH_BASE_COLS = "id, user_id, url, title, genre, note, created_at";
 const isMissingColumn = (code?: string) => code === "42703" || code === "PGRST204";
 const isMissingTable = (code?: string) => code === "42P01" || code === "PGRST205";
 const nowMs = () => Date.now();
+const todayStartMs = () => {
+  const d = new Date(nowMs());
+  d.setHours(0, 0, 0, 0);
+  return d.getTime();
+};
 
 type ToastItem = { id: number; msg: string; type: "success" | "error" | "info" };
 
@@ -303,6 +308,7 @@ export default function LinksPage() {
   const [editGenre, setEditGenre] = useState("");
   const [editNote, setEditNote] = useState("");
   const [refetching, setRefetching] = useState(false);
+  const [showAllVisits, setShowAllVisits] = useState(false);
   const [savingLoc, setSavingLoc] = useState(false);
   // 都道府県ごとの市区町村一覧キャッシュ
   const [cityListByPref, setCityListByPref] = useState<Record<string, string[]>>({});
@@ -723,6 +729,7 @@ export default function LinksPage() {
   const openDetail = (g: LinkGroup) => {
     setDetailKey(g.key);
     setExpandedOccId(null);
+    setShowAllVisits(false);
     // 編集欄は「保存済み or 自動取得」の値で初期化（違っていれば直して保存）
     setEditName(g.storeName);
     setEditPref(g.prefecture);
@@ -1338,66 +1345,58 @@ export default function LinksPage() {
 
             {detail.wishNote && !detail.wishMine && <p className="wish-note">{detail.wishNote}</p>}
 
-            {/* 予定日リスト（日付タップで予定名・メモを表示） */}
-            {detail.occurrences.length > 0 && (
-            <div className="mt-4">
-              <p className="text-xs font-bold text-[var(--fg-muted)]">
-                予定日（{detail.occurrences.length}件）— 日付をタップで予定名・メモを表示
-              </p>
-              <div className="mt-2 space-y-1.5">
-                {detail.occurrences.map((occ) => {
-                  const open = expandedOccId === occ.id;
-                  return (
-                    <div
-                      key={occ.id}
-                      className="rounded-xl border border-[var(--border)] bg-[var(--surface-alt)]"
+            {/* これからの予定 / 行った日（行った日は最新だけ。ほかはタップで表示） */}
+            {detail.occurrences.length > 0 && (() => {
+              const today = todayStartMs();
+              const upcoming = detail.occurrences
+                .filter((o) => o.date.getTime() >= today)
+                .sort((a, b) => a.date.getTime() - b.date.getTime());
+              const past = detail.occurrences.filter((o) => o.date.getTime() < today);
+              const shownPast = showAllVisits ? past : past.slice(0, 1);
+              const renderOcc = (occ: LinkOccurrence, isNext: boolean) => {
+                const open = expandedOccId === occ.id;
+                return (
+                  <div key={occ.id} className={`visit-row ${isNext ? "is-next" : ""}`}>
+                    <button
+                      type="button"
+                      className="visit-row-main"
+                      aria-expanded={open}
+                      onClick={() => setExpandedOccId(open ? null : occ.id)}
                     >
-                      <button
-                        type="button"
-                        onClick={() => setExpandedOccId(open ? null : occ.id)}
-                        className="flex w-full items-center justify-between gap-2 p-2.5 text-left"
-                      >
-                        <span className="flex flex-wrap items-center gap-1.5">
-                          <span className="badge badge-slate">
-                            {format(occ.date, "yyyy/M/d", { locale: ja })}
-                          </span>
-                          {occ.ownerName && (
-                            <span className="badge badge-slate">👥 {occ.ownerName}</span>
-                          )}
-                        </span>
-                        <svg
-                          viewBox="0 0 24 24"
-                          className={`h-4 w-4 shrink-0 text-[var(--fg-muted)] transition-transform ${open ? "rotate-180" : ""}`}
-                          fill="none"
-                          stroke="currentColor"
-                          strokeWidth="2"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                        >
-                          <path d="m6 9 6 6 6-6" />
-                        </svg>
-                      </button>
-                      {open && (
-                        <div className="border-t border-[var(--border)] p-2.5">
-                          <p className="text-sm font-bold text-[var(--fg-strong)]">
-                            予定名: {occ.eventTitle || "（名称なし）"}
-                          </p>
-                          {occ.note ? (
-                            <p className="mt-1 whitespace-pre-wrap text-sm text-[var(--fg-muted)]">
-                              {occ.note}
-                            </p>
-                          ) : (
-                            <p className="mt-1 text-sm text-[var(--fg-muted)]">メモはありません。</p>
-                          )}
-                        </div>
+                      <span className="visit-date">{format(occ.date, "yyyy/M/d（E）", { locale: ja })}</span>
+                      <span className="visit-title">{occ.eventTitle || "（名称なし）"}</span>
+                      {occ.ownerName && <span className="visit-owner">{occ.ownerName}</span>}
+                    </button>
+                    {open && (
+                      <p className="visit-note">{occ.note ? occ.note : "メモはありません。"}</p>
+                    )}
+                  </div>
+                );
+              };
+              return (
+                <div className="visit-block">
+                  {upcoming.length > 0 && (
+                    <>
+                      <p className="visit-label">これからの予定</p>
+                      {upcoming.map((o) => renderOcc(o, true))}
+                    </>
+                  )}
+                  {past.length > 0 && (
+                    <>
+                      <p className="visit-label">
+                        行った日<span>{past.length}回</span>
+                      </p>
+                      {shownPast.map((o) => renderOcc(o, false))}
+                      {past.length > 1 && (
+                        <button type="button" className="visit-more" onClick={() => setShowAllVisits((v) => !v)}>
+                          {showAllVisits ? "閉じる" : `ほか${past.length - 1}回を見る`}
+                        </button>
                       )}
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-
-            )}
+                    </>
+                  )}
+                </div>
+              );
+            })()}
 
             {/* 店名・ジャンル・場所の追加・編集 */}
             {(detail.occurrences.length > 0 || detail.wishId) && (

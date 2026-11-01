@@ -2462,3 +2462,17 @@ button.st-row:active { background: #f3f1ec; }
 .st-avatar.tone-orange { background: #fde8d7; color: #9a4a1e; }
 .shop-refetch { display: block; margin: 8px 0 0 auto; height: 32px; padding: 0 4px; border: 0; background: transparent; color: #0f7a66; font-size: 12px; font-weight: 700; cursor: pointer; }
 .shop-refetch:disabled { opacity: 0.5; }
+
+/* スポットの詳細: これからの予定 / 行った日 */
+.visit-block { margin-top: 14px; display: flex; flex-direction: column; gap: 6px; }
+.visit-label { margin: 6px 0 0; display: flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 700; color: #4d5753; }
+.visit-label span { padding: 1px 7px; border-radius: 999px; background: #efede8; font-size: 11px; color: #3a4440; }
+.visit-row { border-radius: 12px; background: #f6f5f1; overflow: hidden; }
+.visit-row.is-next { background: #ddf0ea; }
+.visit-row-main { width: 100%; min-height: 44px; display: flex; align-items: center; gap: 8px; padding: 8px 12px; border: 0; background: transparent; text-align: left; cursor: pointer; white-space: normal; color: #1b2421; }
+.visit-date { flex-shrink: 0; font-size: 13px; font-weight: 700; }
+.visit-row.is-next .visit-date { color: #0b5e4f; }
+.visit-title { flex: 1; min-width: 0; font-size: 13px; color: #4d5753; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.visit-owner { flex-shrink: 0; font-size: 11px; font-weight: 700; color: #9a4a1e; background: #fde8d7; border-radius: 6px; padding: 1px 6px; }
+.visit-note { margin: 0; padding: 0 12px 10px; font-size: 13px; color: #4d5753; white-space: pre-wrap; }
+.visit-more { align-self: flex-start; height: 36px; padding: 0 4px; border: 0; background: transparent; color: #0f7a66; font-size: 13px; font-weight: 700; cursor: pointer; }
