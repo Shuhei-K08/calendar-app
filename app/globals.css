@@ -2476,3 +2476,8 @@ button.st-row:active { background: #f3f1ec; }
 .visit-owner { flex-shrink: 0; font-size: 11px; font-weight: 700; color: #9a4a1e; background: #fde8d7; border-radius: 6px; padding: 1px 6px; }
 .visit-note { margin: 0; padding: 0 12px 10px; font-size: 13px; color: #4d5753; white-space: pre-wrap; }
 .visit-more { align-self: flex-start; height: 36px; padding: 0 4px; border: 0; background: transparent; color: #0f7a66; font-size: 13px; font-weight: 700; cursor: pointer; }
+
+/* スマホの月表示: マス全体をタップ範囲に（予定の帯や数字の上を押しても、下のマスが受け取る） */
+.calendar-section-mobile .calendar-shell .rbc-month-view .rbc-row-content { pointer-events: none; }
+.calendar-section-mobile .calendar-shell .rbc-month-view .rbc-day-bg.bulk-tap-cell { cursor: pointer; }
+.calendar-section-mobile .calendar-shell .rbc-month-view .rbc-day-bg.bulk-tap-cell:active { background: color-mix(in srgb, var(--accent) 10%, transparent); }

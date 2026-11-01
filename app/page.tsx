@@ -3072,7 +3072,8 @@ export default function Home() {
             onTouchStart={handleCalendarTouchStart}
             onTouchEnd={handleCalendarTouchEnd}
           >
-            <BulkTapContext.Provider value={bulkMode ? selectDate : null}>
+            {/* スマホの月表示は、日付の数字だけでなくマス全体のどこを押してもその日を選ぶ */}
+            <BulkTapContext.Provider value={selectDate}>
             <Calendar<CalendarEvent>
               key={calendarWeekStart + "-mobile"}
               localizer={calendarLocalizer}
