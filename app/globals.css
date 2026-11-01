@@ -2460,3 +2460,5 @@ button.st-row:active { background: #f3f1ec; }
 .mobile-nav.is-three > .mobile-nav-link:last-child { justify-self: center; width: 88px; }
 .st-avatar.tone-purple { background: #ece6fb; color: #5530b0; }
 .st-avatar.tone-orange { background: #fde8d7; color: #9a4a1e; }
+.shop-refetch { display: block; margin: 8px 0 0 auto; height: 32px; padding: 0 4px; border: 0; background: transparent; color: #0f7a66; font-size: 12px; font-weight: 700; cursor: pointer; }
+.shop-refetch:disabled { opacity: 0.5; }

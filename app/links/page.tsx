@@ -55,11 +55,15 @@ type WishRow = {
   title: string | null;
   genre: string | null;
   note: string | null;
+  prefecture?: string | null;
+  city?: string | null;
   created_at: string;
 };
 type WishSpot = WishRow & { ownerName: string | null };
 
-const WISH_COLS = "id, user_id, url, title, genre, note, created_at";
+const WISH_COLS = "id, user_id, url, title, genre, note, prefecture, city, created_at";
+const WISH_BASE_COLS = "id, user_id, url, title, genre, note, created_at";
+const isMissingColumn = (code?: string) => code === "42703" || code === "PGRST204";
 const isMissingTable = (code?: string) => code === "42P01" || code === "PGRST205";
 const nowMs = () => Date.now();
 
@@ -190,6 +194,21 @@ const PREFECTURES = [
 const normalizeUrl = (url: string) =>
   /^https?:\/\//i.test(url) ? url : `https://${url}`;
 
+// 同じお店かどうかを見分けるためのキー。URLの細かな違い（末尾の/、www.、食べログのスマホ版 s.、
+// ?以降の付け足し、#）は無視する。Googleマップなど ? の中身で場所が決まるものは残す
+const spotKey = (url: string) => {
+  try {
+    const u = new URL(normalizeUrl(url.trim()));
+    let host = u.hostname.toLowerCase().replace(/^www\./, "");
+    if (/(^|\.)tabelog\.com$/.test(host)) host = host.replace(/^s\./, "");
+    const keepQuery = /google\.|goo\.gl|maps\.app|youtube\.com/.test(host);
+    const path = decodeURIComponent(u.pathname).replace(/\/+$/, "").toLowerCase();
+    return `${host}${path}${keepQuery ? u.search : ""}`;
+  } catch {
+    return url.trim().toLowerCase();
+  }
+};
+
 const hostOf = (url: string) => {
   try {
     return new URL(normalizeUrl(url)).hostname.replace(/^www\./, "");
@@ -282,6 +301,8 @@ export default function LinksPage() {
   const [editPref, setEditPref] = useState("");
   const [editCity, setEditCity] = useState("");
   const [editGenre, setEditGenre] = useState("");
+  const [editNote, setEditNote] = useState("");
+  const [refetching, setRefetching] = useState(false);
   const [savingLoc, setSavingLoc] = useState(false);
   // 都道府県ごとの市区町村一覧キャッシュ
   const [cityListByPref, setCityListByPref] = useState<Record<string, string[]>>({});
@@ -394,7 +415,12 @@ export default function LinksPage() {
       .sort((a, b) => b.date.getTime() - a.date.getTime());
 
     // --- 行きたいスポット（自分＋つながっている相手） ---
-    const w = await supabase.from("wish_spots").select(WISH_COLS).order("created_at", { ascending: false });
+    // 場所の列がまだ無いDBでは、場所なしで読み直す
+    const wFull = await supabase.from("wish_spots").select(WISH_COLS).order("created_at", { ascending: false });
+    const w: { data: unknown[] | null; error: { code?: string } | null } =
+      wFull.error && isMissingColumn(wFull.error.code)
+        ? await supabase.from("wish_spots").select(WISH_BASE_COLS).order("created_at", { ascending: false })
+        : wFull;
     if (w.error) {
       setWishMissing(isMissingTable(w.error.code));
       setWishes([]);
@@ -574,7 +600,7 @@ export default function LinksPage() {
   const urlGroups = useMemo<LinkGroup[]>(() => {
     const map = new Map<string, EnrichedItem[]>();
     for (const it of enriched) {
-      const key = normalizeUrl(it.url).toLowerCase();
+      const key = spotKey(it.url);
       const arr = map.get(key);
       if (arr) arr.push(it);
       else map.set(key, [it]);
@@ -625,7 +651,7 @@ export default function LinksPage() {
     // 行きたいリストを重ねる（同じURLの予定があればそこに印を付け、無ければ新しいカードにする）
     const byKey = new Map(groups.map((g) => [g.key, g]));
     for (const w of wishes) {
-      const key = normalizeUrl(w.url).toLowerCase();
+      const key = spotKey(w.url);
       const existing = byKey.get(key);
       if (existing) {
         if (!existing.wishId || w.ownerName === null) {
@@ -648,8 +674,8 @@ export default function LinksPage() {
         subGenre: g.sub,
         emoji: main === UNCATEGORIZED ? "📌" : mainEmoji(main),
         subEmoji: g.sub ? genreEmoji(g.sub) : "",
-        prefecture: og?.prefecture ?? "",
-        city: og?.city ?? "",
+        prefecture: w.prefecture || og?.prefecture || "",
+        city: w.city || og?.city || "",
         placeName: w.title ?? "",
         linkGenre: w.genre ?? "",
         isFavorite: false,
@@ -703,6 +729,7 @@ export default function LinksPage() {
     setEditCity(g.city);
     // 手動 or 自動で割り当て済みのジャンルを初期表示（細かいジャンルがあればそちら、未設定のときだけ空）
     setEditGenre(g.genre === UNCATEGORIZED ? "" : g.subGenre || g.genre);
+    setEditNote(g.wishNote);
     if (g.prefecture) void loadCities(g.prefecture);
   };
 
@@ -720,7 +747,7 @@ export default function LinksPage() {
       show("お店のURLを貼り付けてください", "error");
       return;
     }
-    const key = normalizeUrl(url).toLowerCase();
+    const key = spotKey(url);
     if (urlGroups.some((g) => g.key === key && g.wishId)) {
       show("もう行きたいリストに入っています", "info");
       setWishInput("");
@@ -741,7 +768,7 @@ export default function LinksPage() {
     const { data, error } = await supabase
       .from("wish_spots")
       .insert({ url, title: info?.storeName || null, genre: info?.subGenre || info?.mainGenre || null })
-      .select(WISH_COLS)
+      .select(WISH_BASE_COLS)
       .single();
     setAddingWish(false);
     if (error) {
@@ -784,6 +811,32 @@ export default function LinksPage() {
     }
   };
 
+  // お店の情報をURLから取り直す。店名・ジャンル・場所が空なら編集欄にも入れる
+  const refetchShop = async (g: { url: string }) => {
+    setRefetching(true);
+    try {
+      const r = await fetch(`/api/og?url=${encodeURIComponent(normalizeUrl(g.url))}&t=${nowMs()}`);
+      if (!r.ok) throw new Error();
+      const info = toOgInfo(await r.json());
+      ogCache.current[normalizeUrl(g.url)] = info;
+      setOgMap({ ...ogCache.current });
+      if (!editName.trim() && info.storeName) setEditName(info.storeName);
+      if (!editGenre && (info.subGenre || info.mainGenre)) setEditGenre(info.subGenre || info.mainGenre);
+      if (!editPref && info.prefecture) {
+        setEditPref(info.prefecture);
+        void loadCities(info.prefecture);
+        if (info.city) setEditCity(info.city);
+      }
+      const d = info.details;
+      const got = d && Object.values(d).some(Boolean);
+      show(got ? "お店の情報を取り直しました" : info.storeName ? "店名は取れましたが、詳しい情報は取れませんでした" : "このページからは情報が取れませんでした", got ? "success" : "info");
+    } catch {
+      show("情報を取得できませんでした", "error");
+    } finally {
+      setRefetching(false);
+    }
+  };
+
   const planHref = (g: { url: string; storeName: string }) =>
     `/?new=1&url=${encodeURIComponent(normalizeUrl(g.url))}${g.storeName ? `&title=${encodeURIComponent(g.storeName)}` : ""}`;
 
@@ -809,10 +862,58 @@ export default function LinksPage() {
     [show],
   );
 
+  // 行きたいリストの行を保存（店名・ジャンル・場所・メモ）
+  const saveWish = async (wishId: string) => {
+    const full = {
+      title: editName.trim() || null,
+      genre: editGenre.trim() || null,
+      note: editNote.trim() || null,
+      prefecture: editPref || null,
+      city: editCity.trim() || null,
+    };
+    let { error } = await supabase.from("wish_spots").update(full).eq("id", wishId);
+    let locationSaved = true;
+    if (error && isMissingColumn(error.code)) {
+      // 場所の列がまだ無いDBでは、場所を外して保存
+      const { prefecture: _p, city: _c, ...rest } = full;
+      void _p;
+      void _c;
+      ({ error } = await supabase.from("wish_spots").update(rest).eq("id", wishId));
+      locationSaved = false;
+    }
+    if (error) return { ok: false, locationSaved };
+    setWishes((prev) =>
+      prev.map((w) =>
+        w.id === wishId
+          ? { ...w, ...full, ...(locationSaved ? {} : { prefecture: w.prefecture, city: w.city }) }
+          : w,
+      ),
+    );
+    return { ok: true, locationSaved };
+  };
+
   const saveLocation = async () => {
-    if (!detail || !detail.hasOwn) return;
-    const ids = detail.ownIds;
+    if (!detail) return;
+    const wishId = detail.wishMine ? detail.wishId : null;
+    if (!detail.hasOwn && !wishId) return;
     setSavingLoc(true);
+
+    // 行きたいリストだけのお店
+    if (!detail.hasOwn && wishId) {
+      const r = await saveWish(wishId);
+      setSavingLoc(false);
+      if (!r.ok) {
+        show("保存に失敗しました", "error");
+      } else if (!r.locationSaved) {
+        show("場所を保存するにはSQL（supabase-wish-spots-location.sql）を実行してください。ほかは保存しました。", "error");
+      } else {
+        show("保存しました", "success");
+      }
+      return;
+    }
+    if (wishId) await saveWish(wishId);
+
+    const ids = detail.ownIds;
 
     const base = {
       place_name: editName.trim() || null,
@@ -1161,8 +1262,12 @@ export default function LinksPage() {
                           </span>
                         ) : (
                           <span className="link-card-date">
-                            {g.occurrences.length > 1 ? `${g.occurrences.length}回 ・ 最近 ` : ""}
-                            {format(g.latestDate, "M/d", { locale: ja })}
+                            {(() => {
+                              const past = g.occurrences.filter((o) => !g.nextDate || o.date.getTime() < g.nextDate.getTime());
+                              const last = past[0]?.date ?? g.latestDate;
+                              return `${past.length > 1 ? `${past.length}回 ・ 最近 ` : ""}${format(last, "M/d", { locale: ja })}`;
+                            })()}
+                            {g.nextDate && <span className="wish-planned ml-1">次は {format(g.nextDate, "M/d", { locale: ja })}</span>}
                           </span>
                         )}
                       </span>
@@ -1226,9 +1331,12 @@ export default function LinksPage() {
               )}
             </div>
 
-            <ShopInfo details={ogMap[normalizeUrl(detail.url)]?.details} loading={ogLoading && !ogMap[normalizeUrl(detail.url)]} />
+            <ShopInfo details={ogMap[normalizeUrl(detail.url)]?.details} loading={(ogLoading && !ogMap[normalizeUrl(detail.url)]) || refetching} />
+            <button type="button" className="shop-refetch" disabled={refetching} onClick={() => void refetchShop(detail)}>
+              {refetching ? "取得中…" : "お店の情報を取り直す"}
+            </button>
 
-            {detail.wishNote && <p className="wish-note">{detail.wishNote}</p>}
+            {detail.wishNote && !detail.wishMine && <p className="wish-note">{detail.wishNote}</p>}
 
             {/* 予定日リスト（日付タップで予定名・メモを表示） */}
             {detail.occurrences.length > 0 && (
@@ -1292,10 +1400,10 @@ export default function LinksPage() {
             )}
 
             {/* 店名・ジャンル・場所の追加・編集 */}
-            {detail.occurrences.length > 0 && (
+            {(detail.occurrences.length > 0 || detail.wishId) && (
             <div className="mt-4 rounded-xl border border-[var(--border)] bg-[var(--surface-alt)] p-3">
               <p className="text-xs font-bold text-[var(--fg-muted)]">店名・ジャンル・場所（URLから自動取得・違っていれば修正できます）</p>
-              {!detail.hasOwn ? (
+              {!detail.hasOwn && !detail.wishMine ? (
                 <p className="mt-2 text-sm text-[var(--fg)]">
                   {[detail.prefecture, detail.city].filter(Boolean).join(" ") || "場所未登録"}
                   <span className="ml-1 text-xs text-[var(--fg-muted)]">（共有相手の予定のため編集不可）</span>
@@ -1372,6 +1480,15 @@ export default function LinksPage() {
                       ))}
                     </select>
                   </div>
+                  {detail.wishMine && (
+                    <textarea
+                      className="field-input mt-2 w-full"
+                      rows={2}
+                      placeholder="ひとことメモ（例：記念日に行きたい）"
+                      value={editNote}
+                      onChange={(e) => setEditNote(e.target.value)}
+                    />
+                  )}
                   <button
                     type="button"
                     className="btn btn-soft mt-2"

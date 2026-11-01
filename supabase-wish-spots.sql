@@ -8,6 +8,8 @@ create table if not exists public.wish_spots (
   title text,
   genre text,
   note text,
+  prefecture text,
+  city text,
   created_at timestamptz not null default now()
 );
 
