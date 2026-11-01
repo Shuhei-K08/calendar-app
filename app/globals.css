@@ -2287,3 +2287,30 @@ h1, h2, h3, .font-display { font-family: var(--font-display), var(--font-body), 
 .shop-info dd { margin: 0; font-size: 13px; color: #1b2421; white-space: pre-line; overflow-wrap: anywhere; line-height: 1.55; }
 .shop-info dd a { color: #0f7a66; font-weight: 700; }
 .shop-info-loading { margin: 12px 0 0; font-size: 12px; color: #4d5753; }
+
+/* ===== スポット: 行きたい / 行った ===== */
+.spot-tabs { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px; padding: 4px; border-radius: 14px; background: #ece9e2; }
+.spot-tabs button { height: 42px; border: 0; border-radius: 11px; background: transparent; color: #4d5753; font-size: 14px; font-weight: 700; }
+.spot-tabs button span { font-size: 12px; margin-left: 2px; opacity: 0.75; }
+.spot-tabs button[aria-selected="true"] { background: #fff; color: #1b2421; box-shadow: 0 1px 3px rgba(27, 36, 33, 0.12); }
+.spot-tabs button[aria-selected="true"] span { color: #0f7a66; opacity: 1; }
+.wish-add { display: flex; align-items: center; gap: 8px; background: #fff; border: 1.5px dashed #9cc9bc; border-radius: 16px; padding: 6px 6px 6px 12px; }
+.wish-add-icon { width: 20px; height: 20px; flex-shrink: 0; fill: none; stroke: #0f7a66; stroke-width: 2; }
+.wish-add input { flex: 1; min-width: 0; height: 40px; border: 0; background: transparent; outline: none; font-size: 16px; color: #1b2421; }
+.wish-add input::placeholder { color: #6b7570; font-size: 14px; }
+.wish-add button { flex-shrink: 0; height: 40px; padding: 0 14px; border: 0; border-radius: 11px; background: #0f7a66; color: #fff; font-size: 13px; font-weight: 700; }
+.wish-add button:disabled { opacity: 0.6; }
+.wish-sql-note { margin: 0; padding: 10px 12px; border-radius: 12px; background: #fdf3e7; color: #7a4512; font-size: 12px; font-weight: 700; }
+.wish-planned { color: #0b5e4f; background: #ddf0ea; border-radius: 6px; padding: 1px 6px; font-weight: 700; }
+.wish-note { margin: 12px 0 0; padding: 10px 12px; border-radius: 12px; background: #fffaf2; font-size: 13px; color: #1b2421; white-space: pre-wrap; }
+.wish-actions { margin-top: 14px; display: flex; flex-direction: column; gap: 6px; }
+.wish-actions .btn { width: 100%; justify-content: center; min-height: 48px; }
+.wish-remove { height: 40px; border: 0; background: transparent; color: #a33a2a; font-size: 13px; font-weight: 700; }
+
+/* 予定の追加: 行きたいお店から選ぶ */
+.wish-pick { display: flex; flex-direction: column; gap: 6px; padding: 10px 12px; border-radius: 16px; background: #f2f8f5; }
+.wish-pick-label { margin: 0; font-size: 12px; font-weight: 700; color: #0b5e4f; }
+.wish-pick-row { display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; margin: 0 -12px; padding: 1px 12px; }
+.wish-pick-row::-webkit-scrollbar { display: none; }
+.wish-pick-chip { flex-shrink: 0; max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; height: 36px; padding: 0 13px; border-radius: 999px; border: 1px solid #cfe3db; background: #fff; color: #1b2421; font-size: 13px; font-weight: 700; }
+.wish-pick-chip.is-on { background: #0f7a66; border-color: #0f7a66; color: #fff; }

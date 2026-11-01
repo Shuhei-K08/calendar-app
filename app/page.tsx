@@ -498,7 +498,7 @@ const linkHostOf = (url: string) => {
   }
 };
 
-type LinkOption = { url: string; label: string; host: string; isFavorite: boolean };
+type LinkOption = { url: string; label: string; host: string; isFavorite: boolean; isWish?: boolean };
 
 type ImageFieldToast = (message: string, type?: ToastType) => void;
 
@@ -1526,9 +1526,46 @@ export default function Home() {
       });
     }
 
-    setLinkOptions(options);
+    // 行きたいリスト（自分＋相手）を先頭に。テーブルが無ければ何もしない
+    const wish = await supabase
+      .from("wish_spots")
+      .select("url, title, created_at")
+      .order("created_at", { ascending: false });
+    const wishOptions: LinkOption[] = [];
+    for (const row of (wish.data ?? []) as { url: string; title: string | null }[]) {
+      const url = (row.url ?? "").trim();
+      if (!url) continue;
+      const key = normalizeLinkUrl(url).toLowerCase();
+      const label = (row.title?.trim() || url).trim();
+      const i = options.findIndex((o) => normalizeLinkUrl(o.url).toLowerCase() === key);
+      if (i >= 0) {
+        options.splice(i, 1); // 行ったことがあっても、行きたいに入っていれば行きたい扱いで先頭に
+      } else if (seen.has(key)) continue;
+      seen.add(key);
+      wishOptions.push({ url, label, host: linkHostOf(url), isFavorite: false, isWish: true });
+    }
+
+    setLinkOptions([...wishOptions, ...options]);
     setLinkOptionsLoaded(true);
   }, []);
+
+  // 予定の追加を開いたら、行きたいお店の候補を読み込んでおく
+  useEffect(() => {
+    if (!isEventModalOpen || linkOptionsLoaded) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    void fetchLinkOptions();
+  }, [isEventModalOpen, linkOptionsLoaded, fetchLinkOptions]);
+
+  const wishChips = useMemo(() => linkOptions.filter((o) => o.isWish).slice(0, 8), [linkOptions]);
+
+  const chooseWish = (opt: LinkOption) => {
+    setEventForm((current) => ({
+      ...current,
+      url: opt.url,
+      title: current.title.trim() ? current.title : opt.label.startsWith("http") ? current.title : opt.label,
+    }));
+    setShowMoreFields(true);
+  };
 
   const openLinkPicker = (target: "new" | "edit") => {
     setLinkPickerTarget(target);
@@ -2537,6 +2574,15 @@ export default function Home() {
     if (params.get("new") === "1") {
       window.history.replaceState(null, "", window.location.pathname);
       openAddRef.current();
+      // スポットの「予定にする」から来たときは、お店のURLと名前を入れておく
+      const url = params.get("url") ?? "";
+      const title = params.get("title") ?? "";
+      if (url || title) {
+        // eslint-disable-next-line react-hooks/set-state-in-effect
+        setEventForm((current) => ({ ...current, url: url || current.url, title: title || current.title }));
+        // eslint-disable-next-line react-hooks/set-state-in-effect
+        if (url) setShowMoreFields(true);
+      }
     }
   }, [loading]);
 
@@ -3430,6 +3476,29 @@ export default function Home() {
                   }
                 />
               </label>
+              {wishChips.length > 0 && (
+                <div className="wish-pick sm:col-span-2">
+                  <p className="wish-pick-label">行きたいお店から選ぶ</p>
+                  <div className="wish-pick-row">
+                    {wishChips.map((opt) => {
+                      const on = normalizeLinkUrl(eventForm.url).toLowerCase() === normalizeLinkUrl(opt.url).toLowerCase();
+                      return (
+                        <button
+                          key={opt.url}
+                          type="button"
+                          className={`wish-pick-chip ${on ? "is-on" : ""}`}
+                          aria-pressed={on}
+                          onClick={() =>
+                            on ? setEventForm((current) => ({ ...current, url: "" })) : chooseWish(opt)
+                          }
+                        >
+                          {opt.label.startsWith("http") ? opt.host || opt.label : opt.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
               <div className="flex items-center justify-between gap-3 rounded-2xl border border-[#e2dfd8] bg-[#f7f6f2] px-3 py-3 sm:col-span-2">
                 <div>
                   <p className="text-sm font-bold text-[#1b2421]">終日の予定</p>
@@ -4495,10 +4564,17 @@ export default function Home() {
                   <button
                     key={opt.url}
                     type="button"
-                    onClick={() => chooseLink(opt.url)}
+                    onClick={() => {
+                      if (opt.isWish && linkPickerTarget === "new") {
+                        chooseWish(opt);
+                        setLinkPickerTarget(null);
+                      } else {
+                        chooseLink(opt.url);
+                      }
+                    }}
                     className="flex w-full items-center gap-2 rounded-lg border border-[#ece9e2] p-2.5 text-left transition hover:border-[#0f7a66] hover:bg-[#e1f1ec]"
                   >
-                    <span className="text-base">{opt.isFavorite ? "⭐" : "🔗"}</span>
+                    <span className="text-base">{opt.isWish ? "📍" : opt.isFavorite ? "⭐" : "🔗"}</span>
                     <span className="min-w-0 flex-1">
                       <span className="block truncate text-sm font-bold text-[#1b2421]">{opt.label}</span>
                       <span className="block truncate text-xs text-[#8e958f]">{opt.host || opt.url}</span>

@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import Link from "next/link";
 import { ShopInfo, type ShopDetails } from "@/app/components/ShopInfo";
 import { format } from "date-fns";
 import { ja } from "date-fns/locale/ja";
@@ -46,6 +47,21 @@ type OgInfo = {
   prefecture: string;
   city: string;
 };
+
+type WishRow = {
+  id: string;
+  user_id: string;
+  url: string;
+  title: string | null;
+  genre: string | null;
+  note: string | null;
+  created_at: string;
+};
+type WishSpot = WishRow & { ownerName: string | null };
+
+const WISH_COLS = "id, user_id, url, title, genre, note, created_at";
+const isMissingTable = (code?: string) => code === "42P01" || code === "PGRST205";
+const nowMs = () => Date.now();
 
 type ToastItem = { id: number; msg: string; type: "success" | "error" | "info" };
 
@@ -215,6 +231,29 @@ const cleanStoreName = (raw: string) => {
   return s || raw.trim();
 };
 
+// /api/og の結果を表示用にそろえる
+type OgResponse = {
+  title?: string;
+  siteName?: string;
+  main?: { label?: string } | null;
+  subs?: { label?: string }[];
+  prefecture?: string;
+  city?: string;
+  details?: ShopDetails;
+};
+function toOgInfo(d: OgResponse): OgInfo {
+  const subLabel: string = (d.subs ?? [])[0]?.label ?? "";
+  const mainLabel: string = d.main?.label ?? (subLabel ? SUB_TO_MAIN[subLabel] ?? "" : "");
+  return {
+    storeName: cleanStoreName(d.title || d.siteName || ""),
+    mainGenre: mainLabel,
+    subGenre: subLabel,
+    prefecture: d.prefecture ?? "",
+    city: d.city ?? "",
+    details: d.details ?? undefined,
+  };
+}
+
 export default function LinksPage() {
   const [items, setItems] = useState<LinkItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -225,6 +264,12 @@ export default function LinksPage() {
   const [activeSubGenre, setActiveSubGenre] = useState<string>("all");
   const [activePrefecture, setActivePrefecture] = useState<string>("all");
   const [favOnly, setFavOnly] = useState(false);
+  // 行きたい / 行った
+  const [tab, setTab] = useState<"want" | "went">("want");
+  const [wishes, setWishes] = useState<WishSpot[]>([]);
+  const [wishMissing, setWishMissing] = useState(false);
+  const [wishInput, setWishInput] = useState("");
+  const [addingWish, setAddingWish] = useState(false);
   const [toasts, setToasts] = useState<ToastItem[]>([]);
   const ogCache = useRef<Record<string, OgInfo>>({});
   const autoSaveTried = useRef<Set<string>>(new Set());
@@ -348,6 +393,22 @@ export default function LinksPage() {
       }))
       .sort((a, b) => b.date.getTime() - a.date.getTime());
 
+    // --- 行きたいスポット（自分＋つながっている相手） ---
+    const w = await supabase.from("wish_spots").select(WISH_COLS).order("created_at", { ascending: false });
+    if (w.error) {
+      setWishMissing(isMissingTable(w.error.code));
+      setWishes([]);
+    } else {
+      setWishMissing(false);
+      const rows = (w.data ?? []) as WishRow[];
+      const unknown = Array.from(new Set(rows.map((r) => r.user_id).filter((id) => id !== user.id && !ownerMap.has(id))));
+      if (unknown.length > 0) {
+        const { data: profiles } = await supabase.from("profiles").select("id, username").in("id", unknown);
+        (profiles ?? []).forEach((p) => ownerMap.set(p.id, p.username));
+      }
+      setWishes(rows.map((r) => ({ ...r, ownerName: r.user_id === user.id ? null : ownerMap.get(r.user_id) ?? "相手" })));
+    }
+
     setItems(list);
     setLoading(false);
     // showは安定。意図的に依存から除外
@@ -361,8 +422,8 @@ export default function LinksPage() {
 
   // 各URLの店名・ジャンルをOGから取得
   useEffect(() => {
-    if (items.length === 0) return;
-    const urls = Array.from(new Set(items.map((it) => normalizeUrl(it.url))));
+    if (items.length === 0 && wishes.length === 0) return;
+    const urls = Array.from(new Set([...items.map((it) => normalizeUrl(it.url)), ...wishes.map((w) => normalizeUrl(w.url))]));
     const todo = urls.filter((u) => !ogCache.current[u]);
     if (todo.length === 0) return;
 
@@ -376,17 +437,7 @@ export default function LinksPage() {
           try {
             const r = await fetch(`/api/og?url=${encodeURIComponent(u)}`);
             if (!r.ok) throw new Error();
-            const d = await r.json();
-            const subLabel: string = (d.subs ?? [])[0]?.label ?? "";
-            const mainLabel: string = d.main?.label ?? (subLabel ? SUB_TO_MAIN[subLabel] ?? "" : "");
-            ogCache.current[u] = {
-              storeName: cleanStoreName(d.title || d.siteName || ""),
-              mainGenre: mainLabel,
-              subGenre: subLabel,
-              prefecture: d.prefecture ?? "",
-              city: d.city ?? "",
-              details: d.details ?? undefined,
-            };
+            ogCache.current[u] = toOgInfo(await r.json());
           } catch {
             ogCache.current[u] = {
               storeName: "",
@@ -408,7 +459,7 @@ export default function LinksPage() {
     return () => {
       cancelled = true;
     };
-  }, [items]);
+  }, [items, wishes]);
 
   // 自分の予定で場所が未登録のものは、OGから取得できた県・市を自動保存
   useEffect(() => {
@@ -511,6 +562,12 @@ export default function LinksPage() {
     ownIds: string[];
     occurrences: LinkOccurrence[];
     latestDate: Date;
+    hasPast: boolean; // 予定日が過ぎたものがある = 行った
+    nextDate: Date | null; // これからの予定（いちばん近い日）
+    wishId: string | null; // 行きたいリストに入っていれば、その行のid
+    wishMine: boolean;
+    wishBy: string | null; // 追加した人（自分なら null）
+    wishNote: string;
   };
 
   // 同じURLの予定をまとめる（1URL = 1カード、予定日は複数）
@@ -522,7 +579,12 @@ export default function LinksPage() {
       if (arr) arr.push(it);
       else map.set(key, [it]);
     }
-    return Array.from(map.entries())
+    const todayStart = (() => {
+      const d = new Date(nowMs());
+      d.setHours(0, 0, 0, 0);
+      return d.getTime();
+    })();
+    const groups: LinkGroup[] = Array.from(map.entries())
       .map(([key, list]) => {
         const sorted = [...list].sort((a, b) => b.date.getTime() - a.date.getTime());
         const own = sorted.filter((x) => x.ownerName === null);
@@ -550,10 +612,63 @@ export default function LinksPage() {
             ownerName: x.ownerName,
           })),
           latestDate: sorted[0].date,
+          hasPast: sorted.some((x) => x.date.getTime() < todayStart),
+          nextDate:
+            [...sorted].reverse().find((x) => x.date.getTime() >= todayStart)?.date ?? null,
+          wishId: null as string | null,
+          wishMine: false,
+          wishBy: null as string | null,
+          wishNote: "",
         };
-      })
-      .sort((a, b) => b.latestDate.getTime() - a.latestDate.getTime());
-  }, [enriched]);
+      });
+
+    // 行きたいリストを重ねる（同じURLの予定があればそこに印を付け、無ければ新しいカードにする）
+    const byKey = new Map(groups.map((g) => [g.key, g]));
+    for (const w of wishes) {
+      const key = normalizeUrl(w.url).toLowerCase();
+      const existing = byKey.get(key);
+      if (existing) {
+        if (!existing.wishId || w.ownerName === null) {
+          existing.wishId = w.id;
+          existing.wishMine = w.ownerName === null;
+          existing.wishBy = w.ownerName;
+          existing.wishNote = w.note ?? "";
+        }
+        continue;
+      }
+      const og = ogMap[normalizeUrl(w.url)];
+      const g = w.genre ? splitGenre(w.genre) : { main: og?.mainGenre ?? "", sub: og?.subGenre ?? "" };
+      const main = g.main || UNCATEGORIZED;
+      const created = new Date(w.created_at);
+      const wishGroup: LinkGroup = {
+        key,
+        url: w.url,
+        storeName: (w.title || og?.storeName || "").trim(),
+        genre: main,
+        subGenre: g.sub,
+        emoji: main === UNCATEGORIZED ? "📌" : mainEmoji(main),
+        subEmoji: g.sub ? genreEmoji(g.sub) : "",
+        prefecture: og?.prefecture ?? "",
+        city: og?.city ?? "",
+        placeName: w.title ?? "",
+        linkGenre: w.genre ?? "",
+        isFavorite: false,
+        hasOwn: false,
+        ownIds: [],
+        occurrences: [],
+        latestDate: created,
+        hasPast: false,
+        nextDate: null,
+        wishId: w.id,
+        wishMine: w.ownerName === null,
+        wishBy: w.ownerName,
+        wishNote: w.note ?? "",
+      };
+      byKey.set(key, wishGroup);
+      groups.push(wishGroup);
+    }
+    return groups.sort((a, b) => b.latestDate.getTime() - a.latestDate.getTime());
+  }, [enriched, wishes, ogMap]);
 
   const detail = useMemo(
     () => urlGroups.find((g) => g.key === detailKey) ?? null,
@@ -596,6 +711,81 @@ export default function LinksPage() {
     setExpandedOccId(null);
     setSavingLoc(false);
   };
+
+  // 行きたいリストに追加（URLを貼るだけ。店名・ジャンルはURLから自動取得）
+  const addWish = async (raw?: string) => {
+    const text = (raw ?? wishInput).trim();
+    const url = text.match(/https?:\/\/[^\s]+/)?.[0] ?? (/^[\w-]+(\.[\w-]+)+(\/\S*)?$/.test(text) ? normalizeUrl(text) : "");
+    if (!url) {
+      show("お店のURLを貼り付けてください", "error");
+      return;
+    }
+    const key = normalizeUrl(url).toLowerCase();
+    if (urlGroups.some((g) => g.key === key && g.wishId)) {
+      show("もう行きたいリストに入っています", "info");
+      setWishInput("");
+      return;
+    }
+    setAddingWish(true);
+    let info: OgInfo | null = null;
+    try {
+      const r = await fetch(`/api/og?url=${encodeURIComponent(url)}`);
+      if (r.ok) {
+        info = toOgInfo(await r.json());
+        ogCache.current[normalizeUrl(url)] = info;
+        setOgMap({ ...ogCache.current });
+      }
+    } catch {
+      /* 店名が取れなくても保存する */
+    }
+    const { data, error } = await supabase
+      .from("wish_spots")
+      .insert({ url, title: info?.storeName || null, genre: info?.subGenre || info?.mainGenre || null })
+      .select(WISH_COLS)
+      .single();
+    setAddingWish(false);
+    if (error) {
+      if (isMissingTable(error.code)) {
+        setWishMissing(true);
+        show("行きたいリストを使うにはSQL（supabase-wish-spots.sql）を実行してください。", "error");
+      } else {
+        show("追加に失敗しました", "error");
+      }
+      return;
+    }
+    setWishes((prev) => [{ ...(data as WishRow), ownerName: null }, ...prev]);
+    setWishInput("");
+    setTab("want");
+    show(`${info?.storeName || "お店"}を行きたいに追加しました`, "success");
+  };
+
+  const pasteWish = async () => {
+    try {
+      const text = await navigator.clipboard.readText();
+      if (text) {
+        setWishInput(text);
+        void addWish(text);
+      }
+    } catch {
+      show("長押しして貼り付けてください", "info");
+    }
+  };
+
+  const removeWish = async (id: string) => {
+    const prev = wishes;
+    setWishes((list) => list.filter((w) => w.id !== id));
+    closeDetail();
+    const { error } = await supabase.from("wish_spots").delete().eq("id", id);
+    if (error) {
+      setWishes(prev);
+      show("外せませんでした", "error");
+    } else {
+      show("行きたいリストから外しました", "success");
+    }
+  };
+
+  const planHref = (g: { url: string; storeName: string }) =>
+    `/?new=1&url=${encodeURIComponent(normalizeUrl(g.url))}${g.storeName ? `&title=${encodeURIComponent(g.storeName)}` : ""}`;
 
   const toggleFavorite = useCallback(
     async (g: { ownIds: string[]; isFavorite: boolean; hasOwn: boolean }) => {
@@ -676,9 +866,14 @@ export default function LinksPage() {
     if (genreSaved) show("保存しました", "success");
   };
 
+  // 行きたい = まだ行っていない（行きたいリスト＋これからの予定）、行った = 予定日が過ぎたもの
+  const wantGroups = useMemo(() => urlGroups.filter((g) => !g.hasPast), [urlGroups]);
+  const wentGroups = useMemo(() => urlGroups.filter((g) => g.hasPast), [urlGroups]);
+  const tabGroups = tab === "want" ? wantGroups : wentGroups;
+
   const genres = useMemo(() => {
     const map = new Map<string, { emoji: string; count: number }>();
-    urlGroups.forEach((g) => {
+    tabGroups.forEach((g) => {
       const cur = map.get(g.genre);
       if (cur) cur.count += 1;
       else map.set(g.genre, { emoji: g.emoji, count: 1 });
@@ -690,13 +885,13 @@ export default function LinksPage() {
         if (b.genre === UNCATEGORIZED) return -1;
         return b.count - a.count;
       });
-  }, [urlGroups]);
+  }, [tabGroups]);
 
   // 大きいジャンルを選んでいるときだけ、その中の細かいジャンルで絞り込める
   const subGenres = useMemo(() => {
     if (activeGenre === "all") return [];
     const map = new Map<string, { emoji: string; count: number }>();
-    urlGroups.forEach((g) => {
+    tabGroups.forEach((g) => {
       if (g.genre !== activeGenre || !g.subGenre) return;
       const cur = map.get(g.subGenre);
       if (cur) cur.count += 1;
@@ -705,21 +900,21 @@ export default function LinksPage() {
     return Array.from(map.entries())
       .map(([genre, v]) => ({ genre, ...v }))
       .sort((a, b) => b.count - a.count);
-  }, [urlGroups, activeGenre]);
+  }, [tabGroups, activeGenre]);
 
   const prefectures = useMemo(() => {
     const set = new Set<string>();
-    urlGroups.forEach((g) => {
+    tabGroups.forEach((g) => {
       if (g.prefecture) set.add(g.prefecture);
     });
     return Array.from(set);
-  }, [urlGroups]);
+  }, [tabGroups]);
 
-  const favCount = useMemo(() => urlGroups.filter((g) => g.isFavorite).length, [urlGroups]);
+  const favCount = useMemo(() => tabGroups.filter((g) => g.isFavorite).length, [tabGroups]);
 
   const visible = useMemo(() => {
     const q = query.trim().toLowerCase();
-    return urlGroups.filter((g) => {
+    return tabGroups.filter((g) => {
       if (favOnly && !g.isFavorite) return false;
       if (activeGenre !== "all" && g.genre !== activeGenre) return false;
       if (activeSubGenre !== "all" && g.subGenre !== activeSubGenre) return false;
@@ -740,7 +935,7 @@ export default function LinksPage() {
         )
       );
     });
-  }, [urlGroups, query, activeGenre, activeSubGenre, activePrefecture, favOnly]);
+  }, [tabGroups, query, activeGenre, activeSubGenre, activePrefecture, favOnly]);
 
   const grouped = useMemo(() => {
     const map = new Map<string, { emoji: string; items: LinkGroup[] }>();
@@ -775,9 +970,46 @@ export default function LinksPage() {
           <DesktopNavigation />
         </header>
 
-        <p className="text-sm text-[var(--fg-muted)]">
-          予定に登録したお店や場所を、ジャンル別にまとめています。
-        </p>
+        <div className="spot-tabs" role="tablist" aria-label="表示切り替え">
+          <button type="button" role="tab" aria-selected={tab === "want"} onClick={() => setTab("want")}>
+            行きたい <span>{wantGroups.length}</span>
+          </button>
+          <button type="button" role="tab" aria-selected={tab === "went"} onClick={() => setTab("went")}>
+            行った <span>{wentGroups.length}</span>
+          </button>
+        </div>
+
+        {tab === "want" && (
+          <form
+            className="wish-add"
+            onSubmit={(e) => {
+              e.preventDefault();
+              void addWish();
+            }}
+          >
+            <svg viewBox="0 0 24 24" className="wish-add-icon" aria-hidden="true">
+              <path d="M12 21s-6.5-5.6-6.5-11a6.5 6.5 0 0 1 13 0c0 5.4-6.5 11-6.5 11Z" />
+              <circle cx="12" cy="10" r="2.5" />
+            </svg>
+            <input
+              type="text"
+              inputMode="url"
+              aria-label="お店のURL"
+              placeholder="いいなと思ったお店のURLを貼る"
+              value={wishInput}
+              onChange={(e) => setWishInput(e.target.value)}
+              disabled={addingWish}
+            />
+            {wishInput.trim() ? (
+              <button type="submit" disabled={addingWish}>{addingWish ? "追加中…" : "追加"}</button>
+            ) : (
+              <button type="button" onClick={() => void pasteWish()} disabled={addingWish}>貼り付け</button>
+            )}
+          </form>
+        )}
+        {tab === "want" && wishMissing && (
+          <p className="wish-sql-note">行きたいリストを使うには、Supabase の SQL Editor で supabase-wish-spots.sql を1回実行してください。</p>
+        )}
 
         {/* 検索 */}
         <section className="glass-card p-3">
@@ -832,7 +1064,7 @@ export default function LinksPage() {
                   setFavOnly(false);
                 }}
               >
-                すべて {urlGroups.length}
+                すべて {tabGroups.length}
               </button>
               {genres.map((g) => (
                 <button
@@ -886,8 +1118,10 @@ export default function LinksPage() {
         ) : grouped.length === 0 ? (
           <div className="empty-state p-8 text-center">
             <p className="text-base">
-              {items.length === 0
-                ? "まだスポットがありません。予定にお店のURLを登録すると、ここに自動で並びます。"
+              {tabGroups.length === 0
+                ? tab === "want"
+                  ? "いいなと思ったお店のURLを上に貼ると、ここに並びます。"
+                  : "まだ行ったスポットがありません。お店のURL付きの予定の日が過ぎると、ここに並びます。"
                 : "条件に合うスポットが見つかりませんでした。"}
             </p>
           </div>
@@ -910,17 +1144,27 @@ export default function LinksPage() {
                         ) : (
                           <span className="text-2xl" aria-hidden="true">{g.emoji}</span>
                         )}
-                        {!g.hasOwn && <span className="link-card-shared">共有</span>}
+                        {!g.hasOwn && !g.wishMine && <span className="link-card-shared">{g.wishBy ?? "共有"}</span>}
                       </span>
                       <span className="link-card-body">
                         <span className={`link-card-name ${g.storeName ? "" : "is-url"}`}>{g.storeName || shortUrl(g.url)}</span>
                         <span className="link-card-meta">
                           {[g.subGenre || g.genre, g.city || g.prefecture].filter((v) => v && v !== "未設定").join(" ・ ") || hostOf(g.url)}
                         </span>
-                        <span className="link-card-date">
-                          {g.occurrences.length > 1 ? `${g.occurrences.length}回 ・ 最近 ` : ""}
-                          {format(g.latestDate, "M/d", { locale: ja })}
-                        </span>
+                        {tab === "want" ? (
+                          <span className="link-card-date">
+                            {g.nextDate ? (
+                              <span className="wish-planned">{format(g.nextDate, "M/d", { locale: ja })} に予定あり</span>
+                            ) : (
+                              `${g.wishBy ?? "わたし"}が追加`
+                            )}
+                          </span>
+                        ) : (
+                          <span className="link-card-date">
+                            {g.occurrences.length > 1 ? `${g.occurrences.length}回 ・ 最近 ` : ""}
+                            {format(g.latestDate, "M/d", { locale: ja })}
+                          </span>
+                        )}
                       </span>
                     </button>
                     {g.hasOwn && (
@@ -984,7 +1228,10 @@ export default function LinksPage() {
 
             <ShopInfo details={ogMap[normalizeUrl(detail.url)]?.details} loading={ogLoading && !ogMap[normalizeUrl(detail.url)]} />
 
+            {detail.wishNote && <p className="wish-note">{detail.wishNote}</p>}
+
             {/* 予定日リスト（日付タップで予定名・メモを表示） */}
+            {detail.occurrences.length > 0 && (
             <div className="mt-4">
               <p className="text-xs font-bold text-[var(--fg-muted)]">
                 予定日（{detail.occurrences.length}件）— 日付をタップで予定名・メモを表示
@@ -1042,7 +1289,10 @@ export default function LinksPage() {
               </div>
             </div>
 
+            )}
+
             {/* 店名・ジャンル・場所の追加・編集 */}
+            {detail.occurrences.length > 0 && (
             <div className="mt-4 rounded-xl border border-[var(--border)] bg-[var(--surface-alt)] p-3">
               <p className="text-xs font-bold text-[var(--fg-muted)]">店名・ジャンル・場所（URLから自動取得・違っていれば修正できます）</p>
               {!detail.hasOwn ? (
@@ -1133,6 +1383,21 @@ export default function LinksPage() {
                 </>
               )}
             </div>
+
+            )}
+
+            {(detail.wishId || !detail.hasPast) && (
+              <div className="wish-actions">
+                <Link className="btn btn-primary" href={planHref(detail)}>
+                  {detail.nextDate ? "別の日にも予定にする" : "予定にする"}
+                </Link>
+                {detail.wishId && detail.wishMine && (
+                  <button type="button" className="wish-remove" onClick={() => void removeWish(detail.wishId as string)}>
+                    行きたいリストから外す
+                  </button>
+                )}
+              </div>
+            )}
 
             <div className="mt-5 flex flex-wrap justify-between gap-2">
               <button className="btn btn-soft" onClick={closeDetail}>閉じる</button>
