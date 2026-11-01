@@ -5,15 +5,35 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 
+// ロゴマーク（B案: 吹き出しの形のカレンダー。3つの点は わたし・ふたり・相手 の色）
+export function ShareCalMark({ size = 36, className = "" }: { size?: number; className?: string }) {
+  return (
+    <svg
+      className={`sharecal-logo-icon ${className}`}
+      width={size}
+      height={size}
+      viewBox="0 0 120 120"
+      aria-hidden="true"
+    >
+      <rect width="120" height="120" rx="28" fill="#0F7A66" />
+      <path
+        d="M38 30h44a14 14 0 0 1 14 14v30a14 14 0 0 1-14 14H72l-12 12-4-12H38a14 14 0 0 1-14-14V44a14 14 0 0 1 14-14Z"
+        fill="#FFFFFF"
+      />
+      <path d="M38 30h44a14 14 0 0 1 14 14v4H24v-4a14 14 0 0 1 14-14Z" fill="#CFE9E1" />
+      <rect x="39" y="22" width="7" height="16" rx="3.5" fill="#FFFFFF" />
+      <rect x="74" y="22" width="7" height="16" rx="3.5" fill="#FFFFFF" />
+      <circle cx="43" cy="67" r="6" fill="#0F7A66" />
+      <circle cx="60" cy="67" r="6" fill="#6D3FD8" />
+      <circle cx="77" cy="67" r="6" fill="#E0703A" />
+    </svg>
+  );
+}
+
 export function ShareCalLogo({ compact = false }: { compact?: boolean }) {
   return (
     <div className="sharecal-logo" aria-label="ShareCal">
-      <span className="sharecal-logo-mark" aria-hidden="true">
-        <svg viewBox="0 0 24 24">
-          <rect x="3.5" y="5" width="17" height="15" rx="3" />
-          <path d="M8 3v4M16 3v4M3.5 10h17" />
-        </svg>
-      </span>
+      <ShareCalMark />
       {!compact && <span className="sharecal-logo-text">ShareCal</span>}
     </div>
   );

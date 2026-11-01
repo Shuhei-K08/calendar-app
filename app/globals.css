@@ -2250,3 +2250,6 @@ h1, h2, h3, .font-display { font-family: var(--font-display), var(--font-body), 
 .is-bulk .calendar-shell .rbc-month-view .rbc-day-bg.bulk-tap-cell:hover { background: color-mix(in srgb, var(--accent) 8%, transparent); }
 .is-bulk .calendar-shell .rbc-month-view .rbc-day-bg.bulk-tap-cell:active { background: color-mix(in srgb, var(--accent) 18%, transparent); }
 .is-bulk .calendar-shell .rbc-month-view .rbc-day-bg + .rbc-day-bg { border-left: 1px solid #f1efea !important; }
+
+/* ロゴマーク（B案） */
+.sharecal-logo-icon { border-radius: 10px; display: block; flex-shrink: 0; }

@@ -9,7 +9,7 @@ import withDragAndDrop, { type EventInteractionArgs } from "react-big-calendar/l
 import "react-big-calendar/lib/css/react-big-calendar.css";
 import "react-big-calendar/lib/addons/dragAndDrop/styles.css";
 import { supabase } from "@/lib/supabase";
-import { DesktopNavigation, MobileNavigation, OPEN_ADD_EVENT, ShareCalLogo } from "@/app/components/AppNavigation";
+import { DesktopNavigation, MobileNavigation, OPEN_ADD_EVENT, ShareCalLogo, ShareCalMark } from "@/app/components/AppNavigation";
 import * as HolidayJp from "@holiday-jp/holiday_jp";
 
 const locales = { ja };
@@ -318,15 +318,7 @@ const LoadingScreen = () => (
       {/* カレンダーアイコン + リング */}
       <div className="relative flex h-20 w-20 items-center justify-center">
         <span className="loading-ring" aria-hidden="true" />
-        <svg viewBox="0 0 40 40" className="h-10 w-10 text-[#0f7a66]" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-          <rect x="4" y="7" width="32" height="28" rx="4" />
-          <line x1="4" y1="15" x2="36" y2="15" />
-          <line x1="13" y1="4" x2="13" y2="11" />
-          <line x1="27" y1="4" x2="27" y2="11" />
-          <rect x="10" y="21" width="5" height="5" rx="1" fill="currentColor" stroke="none" />
-          <rect x="18" y="21" width="5" height="5" rx="1" fill="currentColor" stroke="none" opacity="0.4" />
-          <rect x="26" y="21" width="5" height="5" rx="1" fill="currentColor" stroke="none" opacity="0.2" />
-        </svg>
+        <ShareCalMark size={44} />
       </div>
 
       {/* テキスト */}
