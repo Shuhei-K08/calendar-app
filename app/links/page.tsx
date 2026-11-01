@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { ShopInfo, type ShopDetails } from "@/app/components/ShopInfo";
 import { format } from "date-fns";
 import { ja } from "date-fns/locale/ja";
 import { supabase } from "@/lib/supabase";
@@ -36,7 +37,9 @@ type LinkItem = {
   linkGenre: string; // 手動設定したジャンル（空=未設定）
 };
 
+
 type OgInfo = {
+  details?: ShopDetails;
   storeName: string;
   mainGenre: string; // 大きいジャンル（例: グルメ・飲食）。判定できなければ空
   subGenre: string; // 細かいジャンル（例: 居酒屋）。無ければ空
@@ -382,6 +385,7 @@ export default function LinksPage() {
               subGenre: subLabel,
               prefecture: d.prefecture ?? "",
               city: d.city ?? "",
+              details: d.details ?? undefined,
             };
           } catch {
             ogCache.current[u] = {
@@ -978,6 +982,8 @@ export default function LinksPage() {
               )}
             </div>
 
+            <ShopInfo details={ogMap[normalizeUrl(detail.url)]?.details} loading={ogLoading && !ogMap[normalizeUrl(detail.url)]} />
+
             {/* 予定日リスト（日付タップで予定名・メモを表示） */}
             <div className="mt-4">
               <p className="text-xs font-bold text-[var(--fg-muted)]">
@@ -1131,10 +1137,10 @@ export default function LinksPage() {
             <div className="mt-5 flex flex-wrap justify-between gap-2">
               <button className="btn btn-soft" onClick={closeDetail}>閉じる</button>
               <div className="flex gap-2">
-                {mapUrlOf([detail.storeName, detail.prefecture, detail.city]) && (
+                {mapUrlOf([detail.storeName, ogMap[normalizeUrl(detail.url)]?.details?.address || [detail.prefecture, detail.city].join(" ")]) && (
                   <a
                     className="btn btn-soft"
-                    href={mapUrlOf([detail.storeName, detail.prefecture, detail.city])}
+                    href={mapUrlOf([detail.storeName, ogMap[normalizeUrl(detail.url)]?.details?.address || [detail.prefecture, detail.city].join(" ")])}
                     target="_blank"
                     rel="noopener noreferrer"
                   >
@@ -1159,3 +1165,4 @@ export default function LinksPage() {
     </main>
   );
 }
+

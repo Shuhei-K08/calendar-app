@@ -2278,3 +2278,12 @@ h1, h2, h3, .font-display { font-family: var(--font-display), var(--font-body), 
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%234d5753' stroke-width='3' stroke-linecap='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
   background-repeat: no-repeat; background-position: right 10px center;
 }
+
+/* お店の詳細 */
+.shop-info { margin: 14px 0 0; display: grid; gap: 0; border-radius: 14px; background: #f6f5f1; padding: 4px 12px; }
+.shop-info-row { display: grid; grid-template-columns: 64px minmax(0, 1fr); gap: 10px; padding: 8px 0; border-bottom: 1px solid #e8e5de; }
+.shop-info-row:last-child { border-bottom: 0; }
+.shop-info dt { font-size: 12px; font-weight: 700; color: #4d5753; }
+.shop-info dd { margin: 0; font-size: 13px; color: #1b2421; white-space: pre-line; overflow-wrap: anywhere; line-height: 1.55; }
+.shop-info dd a { color: #0f7a66; font-weight: 700; }
+.shop-info-loading { margin: 12px 0 0; font-size: 12px; color: #4d5753; }

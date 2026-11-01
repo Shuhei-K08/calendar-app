@@ -308,6 +308,101 @@ function decodeEntities(s: string): string {
     .replace(/&amp;/g, "&");
 }
 
+
+// ---- お店の詳細（JSON-LD と「営業時間」などの表から、取れる分だけ） ----
+
+type ShopDetails = {
+  address: string;
+  phone: string;
+  hours: string;
+  holiday: string;
+  budget: string;
+  rating: string;
+  ratingCount: string;
+  cuisine: string;
+  access: string;
+};
+
+const stripTags = (s: string) =>
+  decodeEntities(s.replace(/<br\s*\/?>/gi, "\n").replace(/<[^>]+>/g, " "))
+    .split("\n")
+    .map((l) => l.replace(/[ \t\u3000]+/g, " ").trim())
+    .filter(Boolean)
+    .join("\n");
+
+const asText = (v: unknown): string => {
+  if (v == null) return "";
+  if (typeof v === "string" || typeof v === "number") return String(v).trim();
+  if (Array.isArray(v)) return v.map(asText).filter(Boolean).join("、");
+  return "";
+};
+
+function findShopNode(node: unknown): Record<string, unknown> | null {
+  if (!node || typeof node !== "object") return null;
+  if (Array.isArray(node)) {
+    for (const n of node) {
+      const f = findShopNode(n);
+      if (f) return f;
+    }
+    return null;
+  }
+  const obj = node as Record<string, unknown>;
+  const types = ([] as unknown[]).concat(obj["@type"] ?? []).map(String);
+  if (types.some((t) => /Restaurant|FoodEstablishment|LocalBusiness|Store|Cafe|Bar|Hotel|Lodging|TouristAttraction|Place/i.test(t)) && (obj.address || obj.telephone || obj.aggregateRating)) {
+    return obj;
+  }
+  if (obj["@graph"]) return findShopNode(obj["@graph"]);
+  return null;
+}
+
+function tableValue(html: string, label: RegExp): string {
+  // <th>営業時間</th><td>…</td> / <dt>…</dt><dd>…</dd> の形を拾う
+  const re = new RegExp(`<(th|dt)[^>]*>([\\s\\S]{0,80}?)<\\/\\1>\\s*<(td|dd)[^>]*>([\\s\\S]{0,1500}?)<\\/\\3>`, "gi");
+  for (const m of html.matchAll(re)) {
+    if (label.test(stripTags(m[2]))) {
+      const v = stripTags(m[4]);
+      if (v) return v.length > 300 ? v.slice(0, 300) + "…" : v;
+    }
+  }
+  return "";
+}
+
+function extractShopDetails(html: string): ShopDetails {
+  let node: Record<string, unknown> | null = null;
+  for (const m of html.matchAll(/<script[^>]+type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi)) {
+    try {
+      node = findShopNode(JSON.parse(m[1]));
+    } catch {
+      /* ignore */
+    }
+    if (node) break;
+  }
+
+  let address = "";
+  const addr = node?.address;
+  if (typeof addr === "string") address = addr;
+  else if (addr && typeof addr === "object") {
+    const a = addr as Record<string, unknown>;
+    address = [a.addressRegion, a.addressLocality, a.streetAddress].map(asText).join("");
+  }
+  const rating = node?.aggregateRating as Record<string, unknown> | undefined;
+  const openingHours = asText(node?.openingHours);
+
+  return {
+    address: address.trim() || tableValue(html, /^(住所|所在地)$/),
+    phone: asText(node?.telephone) || tableValue(html, /^(電話番号|TEL|予約・お問い合わせ|お問い合わせ)$/i),
+    hours: tableValue(html, /^(営業時間|営業時間・定休日)$/) || openingHours,
+    holiday: tableValue(html, /^(定休日|休業日)$/),
+    budget: asText(node?.priceRange) || tableValue(html, /^(予算|平均予算)$/),
+    rating: asText(rating?.ratingValue),
+    ratingCount: asText(rating?.ratingCount ?? rating?.reviewCount),
+    cuisine: asText(node?.servesCuisine) || tableValue(html, /^ジャンル$/),
+    access: tableValue(html, /^(交通手段|アクセス)$/),
+  };
+}
+
+const EMPTY_DETAILS: ShopDetails = { address: "", phone: "", hours: "", holiday: "", budget: "", rating: "", ratingCount: "", cuisine: "", access: "" };
+
 // ---- HTML取得 ----------------------------------------------------------
 
 const BROWSER_UA =
@@ -438,10 +533,11 @@ export async function GET(request: Request) {
       subs: result?.subs ?? [],
       prefecture: location.prefecture,
       city: location.city,
+      details: extractShopDetails(html),
     });
   } catch {
     // フェッチ失敗時もドメイン判定だけ返す
     const result = classify("", url);
-    return NextResponse.json({ title: "", description: "", siteName: "", image: "", main: result?.main ?? null, subs: result?.subs ?? [], prefecture: "", city: "" });
+    return NextResponse.json({ title: "", description: "", siteName: "", image: "", main: result?.main ?? null, subs: result?.subs ?? [], prefecture: "", city: "", details: EMPTY_DETAILS });
   }
 }
