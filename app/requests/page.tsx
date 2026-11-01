@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
 
 export default function RequestsPage() {
-  redirect("/connect");
+  redirect("/settings?p=partner");
 }

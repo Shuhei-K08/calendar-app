@@ -70,6 +70,7 @@ export default function RootLayout({
   return (
     <html
       lang="ja"
+      suppressHydrationWarning
       className={`${notoSansJp.variable} ${zenMaru.variable} ${geistMono.variable} h-full antialiased`}
     >
       <head>

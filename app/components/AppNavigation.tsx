@@ -53,13 +53,6 @@ const SpotIcon = () => (
   </svg>
 );
 
-const PeopleIcon = () => (
-  <svg className="nav-svg" viewBox="0 0 24 24" aria-hidden="true">
-    <circle cx="9" cy="8" r="3.5" />
-    <path d="M2.5 20a6.5 6.5 0 0 1 13 0M16 4.5a3.5 3.5 0 0 1 0 7M18 14.5a6.5 6.5 0 0 1 3.5 5.5" />
-  </svg>
-);
-
 const SettingsIcon = () => (
   <svg className="nav-svg" viewBox="0 0 24 24" aria-hidden="true">
     <circle cx="12" cy="12" r="3" />
@@ -86,11 +79,10 @@ const PlusIcon = () => (
   </svg>
 );
 
-// メインのメニューは4つだけ（よく使う予定は追加画面・設定から、管理は設定から）
+// メインのメニューは3つだけ（ふたり・よく使う予定・管理は設定の中）
 const items = [
   { href: "/", label: "カレンダー", icon: <CalendarIcon /> },
   { href: "/links", label: "スポット", icon: <SpotIcon /> },
-  { href: "/connect", label: "ふたり", icon: <PeopleIcon /> },
   { href: "/settings", label: "設定", icon: <SettingsIcon /> },
 ];
 
@@ -98,6 +90,8 @@ const ADMIN_CACHE_KEY = "sharecal_is_admin";
 
 // 予定追加イベント: カレンダー画面ならその場で追加画面を開き、他の画面ならカレンダーへ移動して開く
 export const OPEN_ADD_EVENT = "sharecal:add";
+// つながり申請を承認・却下したら、メニューの印を数え直す
+export const PENDING_CHANGED_EVENT = "sharecal:pending-changed";
 
 function useNavigationMeta() {
   const [pendingCount, setPendingCount] = useState(0);
@@ -131,6 +125,9 @@ function useNavigationMeta() {
     };
 
     void fetchMeta();
+    const refetch = () => void fetchMeta();
+    window.addEventListener(PENDING_CHANGED_EVENT, refetch);
+    return () => window.removeEventListener(PENDING_CHANGED_EVENT, refetch);
   }, []);
 
   return { pendingCount, isAdmin };
@@ -169,7 +166,7 @@ export function DesktopNavigation() {
             href={item.href}
             data-active={isActivePath(pathname, item.href) ? "true" : undefined}
           >
-            {item.href === "/connect" && pendingCount > 0 && <span className="nav-badge" />}
+            {item.href === "/settings" && pendingCount > 0 && <span className="nav-badge" />}
             {item.icon}
             <span>{item.label}</span>
           </Link>
@@ -191,7 +188,7 @@ export function DesktopNavigation() {
             >
               {item.icon}
               <span>{item.label}</span>
-              {item.href === "/connect" && pendingCount > 0 && <span className="side-nav-badge">申請</span>}
+              {item.href === "/settings" && pendingCount > 0 && <span className="side-nav-badge">申請</span>}
             </Link>
           ))}
         </nav>
@@ -221,6 +218,7 @@ export function MobileNavigation() {
   const pathname = usePathname();
   const openAdd = useAddAction();
   const [left, right] = [items.slice(0, 2), items.slice(2)];
+  // 右側は「設定」だけなので、真ん中の＋がずれないよう右の2列ぶんを使う
 
   const renderItem = (item: (typeof items)[number]) => (
     <Link
@@ -229,14 +227,14 @@ export function MobileNavigation() {
       href={item.href}
       data-active={isActivePath(pathname, item.href) ? "true" : undefined}
     >
-      {item.href === "/connect" && pendingCount > 0 && <span className="nav-badge mobile" />}
+      {item.href === "/settings" && pendingCount > 0 && <span className="nav-badge mobile" />}
       {item.icon}
       <span>{item.label}</span>
     </Link>
   );
 
   return (
-    <nav className="mobile-nav sm:hidden" aria-label="メニュー">
+    <nav className="mobile-nav is-three sm:hidden" aria-label="メニュー">
       {left.map(renderItem)}
       <button type="button" className="mobile-nav-add" onClick={openAdd} aria-label="予定を追加">
         <PlusIcon />

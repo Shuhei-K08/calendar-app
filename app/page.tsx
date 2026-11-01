@@ -837,6 +837,8 @@ export default function Home() {
   const [loading, setLoading] = useState(true);
   const [events, setEvents] = useState<CalendarEvent[]>([]);
   const [connections, setConnections] = useState<ConnectedUser[]>([]);
+  // まだ相手とつながっていない人への案内（閉じたら出さない）
+  const [connectHintDismissed, setConnectHintDismissed] = useState(true);
   const [patterns, setPatterns] = useState<SchedulePattern[]>([]);
   const [categories, setCategories] = useState<ScheduleCategory[]>([]);
   const [calendarDate, setCalendarDate] = useState(new Date());
@@ -1429,6 +1431,7 @@ export default function Home() {
       ]);
 
       setConnections(acceptedUsers);
+      setConnectHintDismissed(window.localStorage.getItem("sharecal_connect_hint_dismissed") === "1");
       setPatterns(userPatterns);
       setCategories(userCategories);
       setLoading(false);
@@ -3017,6 +3020,26 @@ export default function Home() {
           </div>
         )}
 
+        {!bulkMode && !loading && connections.length === 0 && !connectHintDismissed && (
+          <div className="connect-hint">
+            <a href="/settings?p=partner" className="connect-hint-link">
+              <span className="min-w-0">相手とつながると、予定を共有できます</span>
+              <b>設定する ›</b>
+            </a>
+            <button
+              type="button"
+              className="connect-hint-close"
+              aria-label="案内を閉じる"
+              onClick={() => {
+                window.localStorage.setItem("sharecal_connect_hint_dismissed", "1");
+                setConnectHintDismissed(true);
+              }}
+            >
+              ×
+            </button>
+          </div>
+        )}
+
         {bulkMode && renderBulkBar()}
 
         {/* 検索 + 絞り込み（モバイル） */}
@@ -3159,6 +3182,26 @@ export default function Home() {
               onClick={() => { window.localStorage.setItem("sharecal_notification_prompt_dismissed", "true"); setShowNotificationPrompt(false); }}
             >
               <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12" /></svg>
+            </button>
+          </div>
+        )}
+
+        {!bulkMode && !loading && connections.length === 0 && !connectHintDismissed && (
+          <div className="connect-hint">
+            <a href="/settings?p=partner" className="connect-hint-link">
+              <span className="min-w-0">相手とつながると、予定を共有できます</span>
+              <b>設定する ›</b>
+            </a>
+            <button
+              type="button"
+              className="connect-hint-close"
+              aria-label="案内を閉じる"
+              onClick={() => {
+                window.localStorage.setItem("sharecal_connect_hint_dismissed", "1");
+                setConnectHintDismissed(true);
+              }}
+            >
+              ×
             </button>
           </div>
         )}
