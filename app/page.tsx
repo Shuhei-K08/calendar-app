@@ -857,6 +857,8 @@ export default function Home() {
   const [isEventModalOpen, setIsEventModalOpen] = useState(false);
   // 新規登録フォームの「メモ・画像・URL」欄を開いているか
   const [showMoreFields, setShowMoreFields] = useState(false);
+  // 編集画面の「メモ・画像・URL」欄を開いているか
+  const [showEditMoreFields, setShowEditMoreFields] = useState(false);
   // よく使う予定の登録前確認
   const [confirmPattern, setConfirmPattern] = useState<SchedulePattern | null>(null);
   const [savingPattern, setSavingPattern] = useState(false);
@@ -3708,7 +3710,7 @@ export default function Home() {
       )}
 
       {detailEvent && (
-        <div className="fixed inset-0 z-50 flex items-start overflow-hidden bg-[#1b2421]/40 p-3 pt-4 sm:items-center sm:justify-center" onClick={() => { setDetailEvent(null); setIsDetailEditing(false); setDetailImageOpen(false); }}>
+        <div className={`fixed inset-0 z-50 flex items-start overflow-hidden bg-[#1b2421]/45 p-3 pt-4 sm:items-center sm:justify-center ${isDetailEditing ? "add-sheet-overlay" : ""}`} onClick={() => { setDetailEvent(null); setIsDetailEditing(false); setDetailImageOpen(false); }}>
           {detailImageOpen && detailEvent.imageUrl && (
             <div
               className="fixed inset-0 z-[70] flex items-center justify-center bg-black/70 p-4"
@@ -3723,16 +3725,26 @@ export default function Home() {
               />
             </div>
           )}
-          <div className="detail-sheet max-h-[88vh] w-full max-w-full overflow-y-auto overflow-x-hidden rounded-[28px] p-4 shadow-2xl sm:max-w-lg sm:p-6" onClick={(e) => e.stopPropagation()}>
-            <div className="mb-3 flex items-center gap-2">
-              <span className="flex-1 text-sm font-bold text-[#66706c]">
-                {isDetailEditing ? "予定を編集" : format(detailEvent.start, "M月d日（E）", { locale: ja })}
-              </span>
+          <div
+            className={isDetailEditing
+              ? "add-sheet max-h-[88vh] w-full max-w-2xl overflow-y-auto overflow-x-hidden rounded-[28px] bg-white p-5 pt-3 shadow-2xl sm:p-7"
+              : "detail-sheet max-h-[88vh] w-full max-w-full overflow-y-auto overflow-x-hidden rounded-[28px] p-4 shadow-2xl sm:max-w-lg sm:p-6"}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {isDetailEditing && <span className="add-sheet-handle" aria-hidden="true" />}
+            <div className={`flex items-center gap-2 ${isDetailEditing ? "mb-5" : "mb-3"}`}>
+              {isDetailEditing ? (
+                <h2 className="add-sheet-title flex-1">予定を編集</h2>
+              ) : (
+                <span className="flex-1 text-sm font-bold text-[#66706c]">
+                  {format(detailEvent.start, "M月d日（E）", { locale: ja })}
+                </span>
+              )}
               {detailEvent.canDelete && !isDetailEditing && (
                 <button
                   type="button"
                   className="h-9 rounded-full border border-[#dad7cf] bg-white px-4 text-sm font-bold text-[#1b2421]"
-                  onClick={() => setIsDetailEditing(true)}
+                  onClick={() => { setShowEditMoreFields(false); setIsDetailEditing(true); }}
                 >
                   編集
                 </button>
@@ -3750,11 +3762,12 @@ export default function Home() {
             </div>
 
             {detailEvent.canDelete && isDetailEditing ? (
-              <div className="grid gap-3 text-sm sm:grid-cols-2">
-                <label className="space-y-1 sm:col-span-2">
-                  <span className="text-xs font-semibold text-[#66706c]">タイトル</span>
+              <div className="grid gap-4 text-sm sm:grid-cols-2">
+                <label className="space-y-1.5 sm:col-span-2">
+                  <span className="field-label">タイトル</span>
                   <input
-                    className="h-11 w-full rounded-xl border border-[#e2dfd8] bg-[#f7f6f2] px-3 outline-none transition focus:border-[#0f7a66] focus:ring-2 focus:ring-[#bfe3d8]"
+                    className="add-title-input w-full outline-none transition"
+                    placeholder="例：ごはん、歯医者、打ち合わせ"
                     value={editForm.title}
                     onChange={(event) =>
                       setEditForm((current) => ({ ...current, title: event.target.value }))
@@ -3779,8 +3792,8 @@ export default function Home() {
                     <span className="absolute left-1 h-5 w-5 rounded-full bg-white shadow transition peer-checked:translate-x-5" />
                   </label>
                 </div>
-                <label className="space-y-1 sm:col-span-2">
-                  <span className="text-xs font-semibold text-[#66706c]">分類</span>
+                <label className="space-y-1.5 sm:col-span-2">
+                  <span className="field-label">分類</span>
                   <select
                     className="h-11 w-full rounded-xl border border-[#e2dfd8] bg-[#f7f6f2] px-3 outline-none transition focus:border-[#0f7a66] focus:ring-2 focus:ring-[#bfe3d8]"
                     value={editForm.categoryId}
@@ -3796,8 +3809,8 @@ export default function Home() {
                     ))}
                   </select>
                 </label>
-                <label className="space-y-1">
-                  <span className="text-xs font-semibold text-[#66706c]">開始</span>
+                <label className="space-y-1.5">
+                  <span className="field-label">開始</span>
                   <input
                     className="h-11 w-full rounded-xl border border-[#e2dfd8] bg-[#f7f6f2] px-3 outline-none transition focus:border-[#0f7a66] focus:ring-2 focus:ring-[#bfe3d8]"
                     type="datetime-local"
@@ -3815,8 +3828,8 @@ export default function Home() {
                     }}
                   />
                 </label>
-                <label className="space-y-1">
-                  <span className="text-xs font-semibold text-[#66706c]">終了</span>
+                <label className="space-y-1.5">
+                  <span className="field-label">終了</span>
                   <input
                     className="h-11 w-full rounded-xl border border-[#e2dfd8] bg-[#f7f6f2] px-3 outline-none transition focus:border-[#0f7a66] focus:ring-2 focus:ring-[#bfe3d8]"
                     type="datetime-local"
@@ -3833,8 +3846,19 @@ export default function Home() {
                     {isEndOnNextDay(editForm) ? "終了日を当日に戻す" : "終了日を翌日にする"}
                   </button>
                 </label>
-                <label className="space-y-1 sm:col-span-2">
-                  <span className="text-xs font-semibold text-[#66706c]">メモ</span>
+                {!(showEditMoreFields || editForm.note || editForm.imageUrl || editForm.url) ? (
+                  <button
+                    type="button"
+                    className="flex items-center justify-center gap-2 rounded-xl border border-dashed border-[#dad7cf] py-3 text-sm font-bold text-[#4d5753] transition hover:border-[#0f7a66] hover:bg-[#e1f1ec] hover:text-[#0f7a66] sm:col-span-2"
+                    onClick={() => setShowEditMoreFields(true)}
+                  >
+                    <PlusIcon />
+                    メモ・画像・URLを追加
+                  </button>
+                ) : (
+                <>
+                <label className="space-y-1.5 sm:col-span-2">
+                  <span className="field-label">メモ</span>
                   <textarea
                     className="min-h-24 w-full rounded-xl border border-[#e2dfd8] bg-[#f7f6f2] p-3 outline-none transition focus:border-[#0f7a66] focus:ring-2 focus:ring-[#bfe3d8]"
                     value={editForm.note}
@@ -3859,9 +3883,9 @@ export default function Home() {
                     onBusyChange={setOcrBusy}
                   />
                 </div>
-                <label className="space-y-1 sm:col-span-2">
+                <label className="space-y-1.5 sm:col-span-2">
                   <div className="flex items-center justify-between gap-2">
-                    <span className="text-xs font-semibold text-[#66706c]">URL（お店・予約ページなど）</span>
+                    <span className="field-label">URL（お店・予約ページなど）</span>
                     <button
                       type="button"
                       className="rounded-xl border border-[#e2dfd8] bg-[#f7f6f2] px-2.5 py-1 text-xs font-bold text-[#0f7a66]"
@@ -3887,6 +3911,8 @@ export default function Home() {
                     placeholder="https://..."
                   />
                 </label>
+                </>
+                )}
               </div>
             ) : (
               <div className="space-y-4 text-sm">
@@ -4233,11 +4259,11 @@ export default function Home() {
             )}
 
             {detailEvent.canDelete && isDetailEditing && (
-              <div className="mt-6 space-y-4">
+              <div className="mt-5 space-y-5">
                 {detailEvent.recurringId && (
-                  <div className="rounded-xl bg-[#f7f6f2] p-3">
-                    <p className="text-xs font-bold text-[#66706c]">編集する範囲</p>
-                    <div className="mt-2 grid grid-cols-2 gap-2">
+                  <div className="space-y-2">
+                    <p className="field-label">変更する範囲</p>
+                    <div className="who-segment" style={{ gridTemplateColumns: "repeat(2, minmax(0, 1fr))" }} role="radiogroup" aria-label="変更する範囲">
                       {[
                         { value: "single" as const, label: "この日だけ" },
                         { value: "all" as const, label: "すべての繰り返し" },
@@ -4245,26 +4271,60 @@ export default function Home() {
                         <button
                           key={option.value}
                           type="button"
+                          role="radio"
+                          aria-checked={recurringEditScope === option.value}
+                          className="who-segment-btn"
+                          data-active={recurringEditScope === option.value ? "true" : undefined}
                           onClick={() => setRecurringEditScope(option.value)}
-                          className={`h-10 rounded-lg border text-sm font-bold transition ${
-                            recurringEditScope === option.value
-                              ? "border-[#0f7a66] bg-[#0f7a66] text-white"
-                              : "border-[#e2dfd8] bg-white text-[#4d5753]"
-                          }`}
                         >
                           {option.label}
                         </button>
                       ))}
                     </div>
-                    <p className="mt-2 text-xs text-[#66706c]">
+                    <p className="text-xs text-[#66706c]">
                       {recurringEditScope === "single"
-                        ? "この日の予定だけを変更します（時間・URLなども変更でき、他の回はそのままです）。"
+                        ? "この日の予定だけを変更します。ほかの回はそのままです。"
                         : "変更内容が繰り返し予定のすべての回に反映されます。"}
                     </p>
                   </div>
                 )}
+
+                {connections.length === 1 ? (() => {
+                  // 相手が1人のとき: 追加画面と同じ「だれの予定？」
+                  const partner = connections[0];
+                  const who = shareDraftIds.length === 0 ? "me" : editForm.shareType === "partner" ? "partner" : "together";
+                  const pick = (value: "me" | "partner" | "together") => {
+                    setShareDraftIds(value === "me" ? [] : [partner.id]);
+                    setEditForm((current) => ({ ...current, shareType: value === "partner" ? "partner" : "together" }));
+                  };
+                  return (
+                    <div className="space-y-2">
+                      <p className="field-label">だれの予定？</p>
+                      <div className="who-segment" role="radiogroup" aria-label="だれの予定">
+                        {([
+                          { value: "me", label: "わたしだけ" },
+                          { value: "partner", label: `${partner.username}に共有` },
+                          { value: "together", label: "ふたりの予定" },
+                        ] as const).map((option) => (
+                          <button
+                            key={option.value}
+                            type="button"
+                            role="radio"
+                            aria-checked={who === option.value}
+                            className="who-segment-btn"
+                            data-kind={option.value}
+                            data-active={who === option.value ? "true" : undefined}
+                            onClick={() => pick(option.value)}
+                          >
+                            {option.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })() : (
                 <div>
-                  <p className="mb-2 text-xs font-semibold text-[#66706c]">共有先を変更</p>
+                  <p className="field-label mb-2">共有する相手</p>
                   {shareDraftIds.length > 0 && (
                     <div className="mb-3 grid gap-2 sm:grid-cols-2">
                       {[
@@ -4328,31 +4388,37 @@ export default function Home() {
                     )}
                   </div>
                 </div>
+                )}
 
                 <button
-                  className="h-11 w-full rounded-lg bg-[#0f7a66] px-5 text-sm font-semibold text-white shadow-sm transition hover:bg-[#0b5e4f] disabled:cursor-not-allowed disabled:opacity-50"
-                  onClick={updateEvent}
-                  disabled={ocrBusy}
-                >
-                  {ocrBusy ? "画像を処理中…" : "予定を保存"}
-                </button>
-                <button
-                  className="h-11 w-full rounded-lg border border-[#fecdd3] px-5 text-sm font-semibold text-[#be123c] transition hover:bg-[#fff1f2] disabled:cursor-not-allowed disabled:opacity-50"
+                  type="button"
+                  className="mx-auto block h-10 rounded-full px-4 text-sm font-bold text-[#be123c] hover:bg-[#fff1f2] disabled:opacity-50"
                   onClick={() => deleteEvent(detailEvent)}
                   disabled={ocrBusy}
                 >
-                  削除する
+                  この予定を削除
                 </button>
+
+                <div className="sticky -bottom-5 z-10 -mx-5 -mb-5 border-t border-[#ece9e2] bg-white/95 px-5 py-3 pb-[max(12px,env(safe-area-inset-bottom))] backdrop-blur sm:-bottom-7 sm:-mx-7 sm:-mb-7 sm:px-7">
+                  <div className="flex gap-2">
+                    <button
+                      className="h-12 shrink-0 rounded-2xl border border-[#dad7cf] bg-[#f7f6f2] px-4 text-sm font-bold text-[#4d5753] transition hover:bg-white"
+                      onClick={() => setIsDetailEditing(false)}
+                      type="button"
+                    >
+                      キャンセル
+                    </button>
+                    <button
+                      className="h-12 flex-1 rounded-2xl bg-[#0f7a66] px-5 text-base font-bold text-white shadow-sm transition hover:bg-[#0b5e4f] disabled:cursor-not-allowed disabled:opacity-50"
+                      onClick={updateEvent}
+                      disabled={ocrBusy || !editForm.title.trim()}
+                      type="button"
+                    >
+                      {ocrBusy ? "画像を処理中…" : !editForm.title.trim() ? "タイトルを入力してください" : "保存する"}
+                    </button>
+                  </div>
+                </div>
               </div>
-            )}
-            {isDetailEditing && (
-              <button
-                className="mt-5 h-11 w-full rounded-2xl border border-[#e2dfd8] bg-white px-5 text-sm font-bold text-[#3a4440]"
-                onClick={() => setIsDetailEditing(false)}
-                type="button"
-              >
-                編集をやめる
-              </button>
             )}
           </div>
         </div>
