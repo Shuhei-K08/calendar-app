@@ -23,6 +23,7 @@ const BUCKET = "work-templates";
 const COLS = "id, project_id, name, file_name, storage_path, mapping, last_used_at, created_at";
 const XLSX_TYPE = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
 const lib = () => import("@/lib/xlsxTemplate");
+const thisMonth = () => new Date(Date.now());
 
 /** 案件のテンプレート一覧（よく使う順） */
 export async function loadExportTemplates(projectId: string): Promise<{ list: ExportTemplate[]; missing: boolean }> {
@@ -48,16 +49,26 @@ const saveBlob = (bytes: Uint8Array | ArrayBuffer, fileName: string) => {
   window.setTimeout(() => URL.revokeObjectURL(a.href), 1000);
 };
 
-/** 元のファイル名の「202610」などを書き出す月に置き換える。無ければ末尾に付ける */
-export const outputFileName = (original: string, month: Date) => {
-  const ym = `${month.getFullYear()}${pad2(month.getMonth() + 1)}`;
+/** 元のファイル名から、書き出すファイル名のひな形を作る。
+ *  「202610」「2026年10月」「0000年00月」「YYYY-MM」などを {年}{月} にし、無ければ末尾に付ける */
+export const suggestFileName = (original: string) => {
   const base = original.replace(/\.xlsx$/i, "");
-  const replaced = base.replace(/20\d{2}[-_.年]?(0[1-9]|1[0-2])(?!\d)/, (m) => {
-    const sep = /20\d{2}([-_.年]?)/.exec(m)?.[1] ?? "";
-    return `${month.getFullYear()}${sep}${pad2(month.getMonth() + 1)}`;
-  });
-  return `${replaced === base ? `${base}_${ym}` : replaced}.xlsx`;
+  const re = /(0000|YYYY|yyyy|20\d{2})([-_.年]?)(00|MM|mm|0[1-9]|1[0-2])(?!\d)/;
+  return re.test(base) ? base.replace(re, (_m, _y, sep: string) => `{年}${sep}{月}`) : `${base}_{年}{月}`;
 };
+
+/** ひな形の {年}{月} を書き出す月にして、ファイル名にする */
+export const outputFileName = (pattern: string, month: Date) => {
+  const name = (pattern.trim() || "勤怠表_{年}{月}")
+    .replace(/\{年\}/g, String(month.getFullYear()))
+    .replace(/\{月\}/g, pad2(month.getMonth() + 1))
+    .replace(/[\\/:*?"<>|]/g, "_")
+    .replace(/\.xlsx$/i, "");
+  return `${name}.xlsx`;
+};
+
+/** テンプレートの書き出しファイル名（設定が無い古いものは元のファイル名から作る） */
+export const exportFileName = (t: ExportTemplate, month: Date) => outputFileName(t.mapping.fileName || suggestFileName(t.file_name), month);
 
 /** 画面の1か月分 → 書き込む内容 */
 export const toDayWrites = (days: DayInfo[]): DayWrite[] =>
@@ -82,7 +93,7 @@ export async function exportWithTemplate(t: ExportTemplate, month: Date, days: D
   const { fillTemplate } = await lib();
   const original = await downloadOriginal(t);
   const out = await fillTemplate(original, t.mapping, month, toDayWrites(days), { name });
-  saveBlob(out, outputFileName(t.file_name, month));
+  saveBlob(out, exportFileName(t, month));
   await supabase.from("work_export_templates").update({ last_used_at: new Date(Date.now()).toISOString() }).eq("id", t.id);
 }
 
@@ -122,7 +133,7 @@ export async function runDummyTest(bytes: Uint8Array, mapping: TemplateMapping, 
   const month = new Date(Date.now());
   const { days, checks } = dummyDays(month);
   const out = await fillTemplate(bytes, mapping, month, days, { name: "テスト 太郎" });
-  const fileName = `【テスト】${outputFileName(originalName, month)}`;
+  const fileName = `【テスト】${outputFileName(mapping.fileName || suggestFileName(originalName), month)}`;
   saveBlob(out, fileName);
   const worked = days.filter((d) => !d.off);
   return {
@@ -192,12 +203,19 @@ export function ExportTemplateList({ projectId, show }: { projectId: string; sho
       const { detectTemplate, listSheets, blankMapping, sheetGrid } = await lib();
       try {
         const detected = await detectTemplate(bytes);
-        setSetup({ bytes, fileName: file.name, name: file.name.replace(/\.xlsx$/i, ""), detected, mapping: detected.mapping, auto: true });
+        setSetup({ bytes, fileName: file.name, name: "", detected, mapping: { ...detected.mapping, fileName: suggestFileName(file.name) }, auto: true });
       } catch {
         const sheets = await listSheets(bytes);
         const mapping = blankMapping(sheets[0] ?? "");
         const grid = await sheetGrid(bytes, mapping.sheet, 1, 40);
-        setSetup({ bytes, fileName: file.name, name: file.name.replace(/\.xlsx$/i, ""), detected: { sheets, mapping, found: {}, grid }, mapping, auto: false });
+        setSetup({
+          bytes,
+          fileName: file.name,
+          name: "",
+          detected: { sheets, mapping, found: {}, grid },
+          mapping: { ...mapping, fileName: suggestFileName(file.name) },
+          auto: false,
+        });
       }
     } catch {
       show("このファイルは読み込めませんでした", "error");
@@ -225,7 +243,7 @@ export function ExportTemplateList({ projectId, show }: { projectId: string; sho
       const { listSheets, sheetGrid } = await lib();
       const sheets = await listSheets(bytes);
       const grid = await sheetGrid(bytes, t.mapping.sheet, Math.max(1, t.mapping.firstRow - 6), t.mapping.firstRow + 31);
-      setSetup({ bytes, fileName: t.file_name, name: t.name, detected: { sheets, mapping: t.mapping, found: {}, grid }, mapping: t.mapping, auto: false, editing: t });
+      setSetup({ bytes, fileName: t.file_name, name: t.name, detected: { sheets, mapping: t.mapping, found: {}, grid }, mapping: { ...t.mapping, fileName: t.mapping.fileName || suggestFileName(t.file_name) }, auto: false, editing: t });
     } catch {
       show("テンプレートを開けませんでした", "error");
     } finally {
@@ -485,8 +503,14 @@ function TemplateSetupSheet({
         </p>
 
         <label className="kt-field">
-          <span className="kt-label">テンプレートの名前</span>
-          <input className="kt-input" value={name} onChange={(e) => setName(e.target.value)} />
+          <span className="kt-label">テンプレートの名前（書き出すときのボタンに出ます）</span>
+          <input className="kt-input" value={name} maxLength={20} placeholder="例：A社 勤怠表" onChange={(e) => setName(e.target.value)} />
+        </label>
+
+        <label className="kt-field">
+          <span className="kt-label">書き出すファイル名（{"{年}"}{"{月}"} が書き出す月になります）</span>
+          <input className="kt-input" value={map.fileName ?? ""} onChange={(e) => setMap((m) => ({ ...m, fileName: e.target.value }))} />
+          <small className="kt-muted kt-xt-fname">例：{outputFileName(map.fileName ?? "", thisMonth())}</small>
         </label>
 
         <div className="kt-two">

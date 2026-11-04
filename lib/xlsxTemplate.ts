@@ -22,6 +22,7 @@ export type TemplateMapping = {
   kindOff: string; // 平日に休んだ日に書く区分（空なら書かない）
   kindPaid: string; // メモに「有給・年休」とある休みの日に書く区分（空なら kindOff）
   clearOtherDays: boolean; // 記録の無い日のセルを空にする
+  fileName?: string; // 書き出すファイル名（{年}{月} が書き出す月に変わる。拡張子なし）
 };
 
 export type DetectResult = {

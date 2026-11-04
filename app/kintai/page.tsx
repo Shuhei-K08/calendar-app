@@ -29,7 +29,7 @@ import {
 } from "@/lib/kintai";
 import TemplatesView from "./TemplatesView";
 import { setKintaiEnabled, useKintaiEnabled } from "@/lib/features";
-import { ExportTemplateList, exportWithTemplate, loadExportTemplates, type ExportTemplate } from "./ExcelTemplates";
+import { ExportTemplateList, exportFileName, exportWithTemplate, loadExportTemplates, type ExportTemplate } from "./ExcelTemplates";
 
 /* ── 小さな道具 ── */
 type ToastItem = { id: number; msg: string; type: "success" | "error" | "info" };
@@ -1314,12 +1314,10 @@ function ExportSheet({
               {xts.map((t) => (
                 <button key={t.id} type="button" role="radio" aria-checked={choice === t.id} className="kt-xt-choice" onClick={() => setChoice(t.id)}>
                   <b>{t.name}</b>
-                  <small>{t.file_name}</small>
                 </button>
               ))}
               <button type="button" role="radio" aria-checked={choice === "standard"} className="kt-xt-choice" onClick={() => setChoice("standard")}>
                 <b>標準の作業報告書</b>
-                <small>このアプリの形</small>
               </button>
             </div>
           </div>
@@ -1332,7 +1330,8 @@ function ExportSheet({
         )}
         {chosen && (
           <p className="kt-xt-status is-ok">
-            「{chosen.file_name}」のシート「{chosen.mapping.sheet}」に、{month.getMonth() + 1}月の記録を書き込みます。表の見た目と計算式はそのままです。
+            「{chosen.name}」（シート「{chosen.mapping.sheet}」）に{month.getMonth() + 1}月の記録を書き込み、
+            <span className="kt-xt-fname">{exportFileName(chosen, month)}</span> で保存します。表の見た目と計算式はそのままです。
           </p>
         )}
         <div className="kt-preview" role="region" aria-label="書き出す表の見本">
@@ -1379,7 +1378,7 @@ function ExportSheet({
             <button type="button" className="kt-btn is-ghost" onClick={() => void copy()}>表をコピー</button>
           )}
           <button type="button" className="kt-btn is-primary" disabled={busy} onClick={() => void (chosen ? fillAndSave([chosen]) : download())}>
-            {busy ? "作成中…" : chosen ? `${chosen.name} に書き込んで保存` : ".xlsx で保存"}
+            {busy ? "作成中…" : chosen ? "勤怠表に書き込んで保存" : ".xlsx で保存"}
           </button>
         </div>
         <p className="kt-muted">
