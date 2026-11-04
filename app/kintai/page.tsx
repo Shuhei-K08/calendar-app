@@ -1310,16 +1310,12 @@ function ExportSheet({
         {xts.length > 0 && (
           <div className="kt-field">
             <span className="kt-label">書き出す形</span>
-            <div className="kt-xt-choices" role="radiogroup" aria-label="書き出す形">
+            <select className="kt-input" value={choice} onChange={(e) => setChoice(e.target.value)} aria-label="書き出す形">
               {xts.map((t) => (
-                <button key={t.id} type="button" role="radio" aria-checked={choice === t.id} className="kt-xt-choice" onClick={() => setChoice(t.id)}>
-                  <b>{t.name}</b>
-                </button>
+                <option key={t.id} value={t.id}>{t.name}</option>
               ))}
-              <button type="button" role="radio" aria-checked={choice === "standard"} className="kt-xt-choice" onClick={() => setChoice("standard")}>
-                <b>標準の作業報告書</b>
-              </button>
-            </div>
+              <option value="standard">標準の作業報告書（このアプリの形）</option>
+            </select>
           </div>
         )}
         {(!chosen || chosen.mapping.nameCell) && (
