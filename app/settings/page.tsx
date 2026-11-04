@@ -407,7 +407,16 @@ export default function SettingsPage() {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) { show("ログインしてください", "error"); return; }
     setSendingRequest(true);
-    const { data: target, error: findError } = await supabase.from("profiles").select("id").eq("share_code", code).single();
+    // 共有IDから相手を探す（他人のプロフィールは直接読めないので、専用の関数で id だけ受け取る）
+    let target: { id: string } | null = null;
+    const rpc = await supabase.rpc("find_profile_by_share_code", { code });
+    if (!rpc.error) {
+      target = rpc.data ? { id: rpc.data as string } : null;
+    } else {
+      const old = await supabase.from("profiles").select("id").eq("share_code", code).maybeSingle();
+      target = (old.data as { id: string } | null) ?? null;
+    }
+    const findError = !target;
     if (findError || !target) { show("その共有IDのユーザーが見つかりません", "error"); setSendingRequest(false); return; }
     if (target.id === user.id) { show("自分の共有IDです。相手のIDを入力してください", "error"); setSendingRequest(false); return; }
     const { error } = await supabase.from("connections").insert({ requester_id: user.id, receiver_id: target.id, status: "pending" });

@@ -6,6 +6,7 @@ import { ShopInfo, type ShopDetails } from "@/app/components/ShopInfo";
 import { format } from "date-fns";
 import { ja } from "date-fns/locale/ja";
 import { supabase } from "@/lib/supabase";
+import { authFetch } from "@/lib/authFetch";
 import { DesktopNavigation, MobileNavigation, ShareCalLogo } from "@/app/components/AppNavigation";
 
 type DbLinkEvent = {
@@ -467,7 +468,7 @@ export default function LinksPage() {
       await Promise.all(
         todo.map(async (u) => {
           try {
-            const r = await fetch(`/api/og?url=${encodeURIComponent(u)}`);
+            const r = await authFetch(`/api/og?url=${encodeURIComponent(u)}`);
             if (!r.ok) throw new Error();
             ogCache.current[u] = toOgInfo(await r.json());
           } catch {
@@ -712,7 +713,7 @@ export default function LinksPage() {
     cityTried.current.add(pref);
     setCityLoading(true);
     try {
-      const r = await fetch(`/api/cities?prefecture=${encodeURIComponent(pref)}`);
+      const r = await authFetch(`/api/cities?prefecture=${encodeURIComponent(pref)}`);
       const d = await r.json();
       const cities = (d.cities ?? []) as string[];
       setCityListByPref((prev) => ({ ...prev, [pref]: cities }));
@@ -763,7 +764,7 @@ export default function LinksPage() {
     setAddingWish(true);
     let info: OgInfo | null = null;
     try {
-      const r = await fetch(`/api/og?url=${encodeURIComponent(url)}`);
+      const r = await authFetch(`/api/og?url=${encodeURIComponent(url)}`);
       if (r.ok) {
         info = toOgInfo(await r.json());
         ogCache.current[normalizeUrl(url)] = info;
@@ -822,7 +823,7 @@ export default function LinksPage() {
   const refetchShop = async (g: { url: string }) => {
     setRefetching(true);
     try {
-      const r = await fetch(`/api/og?url=${encodeURIComponent(normalizeUrl(g.url))}&t=${nowMs()}`);
+      const r = await authFetch(`/api/og?url=${encodeURIComponent(normalizeUrl(g.url))}&t=${nowMs()}`);
       if (!r.ok) throw new Error();
       const info = toOgInfo(await r.json());
       ogCache.current[normalizeUrl(g.url)] = info;

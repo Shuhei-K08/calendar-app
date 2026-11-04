@@ -1,4 +1,6 @@
 import { NextResponse } from "next/server";
+import { requireUser } from "@/lib/serverAuth";
+import { safeFetch } from "@/lib/safeUrl";
 
 type Genre = { label: string; emoji: string };
 
@@ -429,7 +431,8 @@ function isBlockedPage(status: number, html: string): boolean {
 }
 
 async function fetchHtml(url: string, headers: Record<string, string>): Promise<{ status: number; html: string }> {
-  const res = await fetch(url, { headers, redirect: "follow", signal: AbortSignal.timeout(6000) });
+  // 社内アドレスなどには行かない（リダイレクト先も確認）
+  const res = await safeFetch(url, { headers, signal: AbortSignal.timeout(6000) });
   const buffer = await res.arrayBuffer();
 
   // Content-Typeヘッダー → HTMLのmeta charset の順で文字コードを判定
@@ -483,6 +486,8 @@ async function fetchHtmlWithFallback(url: string): Promise<string | null> {
 }
 
 export async function GET(request: Request) {
+  const auth = await requireUser(request);
+  if (auth.response) return auth.response;
   const { searchParams } = new URL(request.url);
   const url = searchParams.get("url");
 

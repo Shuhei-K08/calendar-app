@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createSupabaseAdmin } from "@/lib/supabaseAdmin";
 import { formatJst, nextPacificMidnight } from "@/lib/quotaReset";
+import { eventImagePath, requireUser, userClient } from "@/lib/serverAuth";
 
 // Google Gemini（Google AI Studio）の無料枠を使った画像OCR。
 // 必要な環境変数:
@@ -50,6 +51,8 @@ const logOcrUsage = async (params: {
 };
 
 export async function POST(request: Request) {
+  const auth = await requireUser(request);
+  if (auth.response) return auth.response;
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) {
     return NextResponse.json(
@@ -73,13 +76,17 @@ export async function POST(request: Request) {
   const model = process.env.GEMINI_MODEL || "gemini-2.5-flash";
 
   try {
-    // 1) 画像を取得して base64 へ
-    const imageRes = await fetch(imageUrl, { signal: AbortSignal.timeout(15000) });
-    if (!imageRes.ok) {
+    // 1) 自分が添付した画像だけを、本人の権限で取り出して base64 へ（他人の画像やほかのURLは読まない）
+    const path = eventImagePath(imageUrl);
+    if (!path || !path.startsWith(`${auth.user.id}/`)) {
+      return NextResponse.json({ error: "この画像は読み取れません" }, { status: 403 });
+    }
+    const { data: blob, error: downloadError } = await userClient(auth.token).storage.from("event-images").download(path);
+    if (downloadError || !blob) {
       return NextResponse.json({ error: "画像の取得に失敗しました" }, { status: 502 });
     }
-    const mimeType = imageRes.headers.get("content-type")?.split(";")[0] || "image/jpeg";
-    const arrayBuffer = await imageRes.arrayBuffer();
+    const mimeType = blob.type?.split(";")[0] || "image/jpeg";
+    const arrayBuffer = await blob.arrayBuffer();
     const base64 = Buffer.from(arrayBuffer).toString("base64");
 
     // 2) Gemini に問い合わせ

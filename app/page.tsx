@@ -9,6 +9,8 @@ import withDragAndDrop, { type EventInteractionArgs } from "react-big-calendar/l
 import "react-big-calendar/lib/css/react-big-calendar.css";
 import "react-big-calendar/lib/addons/dragAndDrop/styles.css";
 import { supabase } from "@/lib/supabase";
+import { authFetch } from "@/lib/authFetch";
+import StoredImage from "@/app/components/StoredImage";
 import { DesktopNavigation, MobileNavigation, OPEN_ADD_EVENT, ShareCalLogo, ShareCalMark } from "@/app/components/AppNavigation";
 import * as HolidayJp from "@holiday-jp/holiday_jp";
 
@@ -573,7 +575,7 @@ function EventImageField({
       setOcrProgress((p) => (p < 95 ? p + Math.max(1, Math.round((95 - p) / 10)) : p));
     }, 300);
     try {
-      const res = await fetch("/api/ocr", {
+      const res = await authFetch("/api/ocr", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ imageUrl }),
@@ -621,8 +623,7 @@ function EventImageField({
       {imageUrl ? (
         <div className="space-y-2">
           <div className="flex items-center gap-3 rounded-xl border border-[#dfe4e2] bg-[var(--surface-alt)] p-2">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={imageUrl} alt="添付画像" className="h-16 w-16 shrink-0 rounded-md object-cover" />
+            <StoredImage src={imageUrl} alt="添付画像" className="h-16 w-16 shrink-0 rounded-md object-cover" />
             <div className="flex flex-wrap gap-2">
               <button
                 type="button"
@@ -683,8 +684,7 @@ function EventImageField({
           className="fixed inset-0 z-[70] flex items-center justify-center bg-black/70 p-4"
           onClick={() => setShowOriginal(false)}
         >
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
+          <StoredImage
             src={imageUrl}
             alt="元画像"
             className="max-h-[90vh] max-w-[90vw] rounded-lg object-contain"
@@ -1374,7 +1374,7 @@ export default function Home() {
       : `https://${detailEvent.url}`;
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setOgLoading(true);
-    fetch(`/api/og?url=${encodeURIComponent(normalizedForFetch)}`)
+    authFetch(`/api/og?url=${encodeURIComponent(normalizedForFetch)}`)
       .then((r) => {
         if (!r.ok) throw new Error(`HTTP ${r.status}`);
         return r.json() as Promise<OgData>;
@@ -3821,8 +3821,7 @@ export default function Home() {
               className="fixed inset-0 z-[70] flex items-center justify-center bg-black/70 p-4"
               onClick={(event) => { event.stopPropagation(); setDetailImageOpen(false); }}
             >
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
+              <StoredImage
                 src={detailEvent.imageUrl}
                 alt="元画像"
                 className="max-h-[90vh] max-w-[90vw] rounded-lg object-contain"
@@ -4084,8 +4083,7 @@ export default function Home() {
                         onClick={() => setDetailImageOpen(true)}
                         aria-label="元画像を表示"
                       >
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img
+                        <StoredImage
                           src={detailEvent.imageUrl}
                           alt="添付画像"
                           className="h-20 w-20 rounded-md object-cover"

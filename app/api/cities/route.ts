@@ -1,10 +1,13 @@
 import { NextResponse } from "next/server";
+import { requireUser } from "@/lib/serverAuth";
 
 // 都道府県名 → 市区町村一覧（HeartRails Geo API をサーバー側で取得して返す）
 // 例: /api/cities?prefecture=東京都
 const cache = new Map<string, string[]>();
 
 export async function GET(request: Request) {
+  const auth = await requireUser(request);
+  if (auth.response) return auth.response;
   const { searchParams } = new URL(request.url);
   const prefecture = searchParams.get("prefecture");
 
