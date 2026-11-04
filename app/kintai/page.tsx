@@ -25,6 +25,7 @@ import {
   type WorkDay,
   type WorkProject,
   type WorkTemplate,
+  type MemoTemplate,
 } from "@/lib/kintai";
 import TemplatesView from "./TemplatesView";
 import { setKintaiEnabled, useKintaiEnabled } from "@/lib/features";
@@ -110,6 +111,9 @@ function EntryForm({
   onOff,
   onClear,
   onSaveTemplate,
+  memoTemplates,
+  recentMemos,
+  onSaveMemo,
   onClose,
 }: {
   day: DayInfo;
@@ -122,6 +126,9 @@ function EntryForm({
   onOff: (memo: string) => void;
   onClear: () => void;
   onSaveTemplate: (label: string, v: EntryState) => void;
+  memoTemplates: MemoTemplate[];
+  recentMemos: string[];
+  onSaveMemo: (text: string) => void;
   onClose?: () => void;
 }) {
   const initial = (): EntryState => {
@@ -229,6 +236,40 @@ function EntryForm({
           onChange={(e) => setV((c) => ({ ...c, memo: e.target.value }))}
         />
       </label>
+      {(memoTemplates.length > 0 || recentMemos.length > 0 || v.memo.trim()) && (
+        <div className="kt-memo-chips" aria-label="作業内容のテンプレート">
+          {memoTemplates.map((m) => (
+            <button
+              key={m.id}
+              type="button"
+              className={`kt-chip ${v.memo === m.text ? "is-on" : ""}`}
+              aria-pressed={v.memo === m.text}
+              onClick={() => setV((c) => ({ ...c, memo: c.memo === m.text ? "" : m.text }))}
+            >
+              {m.text}
+            </button>
+          ))}
+          {recentMemos
+            .filter((r) => !memoTemplates.some((m) => m.text === r))
+            .map((r) => (
+              <button
+                key={`r-${r}`}
+                type="button"
+                className={`kt-chip is-recent ${v.memo === r ? "is-on" : ""}`}
+                aria-pressed={v.memo === r}
+                title="最近使った作業内容"
+                onClick={() => setV((c) => ({ ...c, memo: c.memo === r ? "" : r }))}
+              >
+                {r}
+              </button>
+            ))}
+          {v.memo.trim() && !memoTemplates.some((m) => m.text === v.memo.trim()) && (
+            <button type="button" className="kt-chip is-edit" onClick={() => onSaveMemo(v.memo.trim())}>
+              ＋ この作業内容を保存
+            </button>
+          )}
+        </div>
+      )}
 
       {tplName === null ? (
         <button type="button" className="kt-text-btn" onClick={() => setTplName(activeTpl ? "" : "")}>
@@ -298,6 +339,9 @@ export default function KintaiPage() {
   const [missing, setMissing] = useState(false);
   const [projects, setProjects] = useState<WorkProject[]>([]);
   const [templates, setTemplates] = useState<WorkTemplate[]>([]);
+  const [memoTemplates, setMemoTemplates] = useState<MemoTemplate[]>([]);
+  const [memoMissing, setMemoMissing] = useState(false);
+  const [bulkMemo, setBulkMemo] = useState<string>(""); // まとめて入力で入れる作業内容（空＝そのまま）
   const [records, setRecords] = useState<Record<string, WorkDay>>({});
   const [planned, setPlanned] = useState<Record<string, PlannedDay>>({});
   const [view, setView] = useState<"list" | "calendar">("list");
@@ -334,6 +378,10 @@ export default function KintaiPage() {
     setProjects(((proj.data ?? []) as WorkProject[]).map((p) => ({ ...p, range_min: Number(p.range_min), range_max: Number(p.range_max) })));
     setTemplates((tpl.data ?? []) as WorkTemplate[]);
     setUserName(prof.data?.username ?? "");
+    // 作業内容のテンプレート（表がまだ無ければ使わないだけ）
+    const memo = await supabase.from("work_memo_templates").select("id, text, sort_order").order("sort_order").order("created_at");
+    setMemoMissing(!!memo.error);
+    setMemoTemplates(memo.error ? [] : ((memo.data ?? []) as MemoTemplate[]));
     return user.id;
   }, [router]);
 
@@ -410,6 +458,16 @@ export default function KintaiPage() {
   /* 月のまとめ */
   const project = useMemo(() => projectForMonth(projects, month), [projects, month]);
   const days = useMemo(() => buildMonth(month, todayKey, records, planned, project), [month, todayKey, records, planned, project]);
+  // 最近使った作業内容（この月の記録から新しい順・5つまで）
+  const recentMemos = useMemo(() => {
+    const out: string[] = [];
+    for (const r of Object.values(records).sort((a, b) => (a.work_date < b.work_date ? 1 : -1))) {
+      const m = r.memo?.trim();
+      if (m && !r.is_off && !out.includes(m)) out.push(m);
+      if (out.length >= 5) break;
+    }
+    return out;
+  }, [records]);
   const sum = useMemo(() => summarize(days, todayKey, project), [days, todayKey, project]);
   const pay = useMemo(() => monthlyPay(project, sum.projectedMin), [project, sum.projectedMin]);
   const step = project?.rounding_min || 15;
@@ -493,6 +551,24 @@ export default function KintaiPage() {
     show(`テンプレート「${label}」を保存しました`);
   };
 
+  const saveMemoTemplate = async (text: string) => {
+    if (memoMissing) {
+      show("Supabase で supabase-kintai-memo.sql を実行すると保存できます", "error");
+      return;
+    }
+    const { data, error } = await supabase
+      .from("work_memo_templates")
+      .insert({ text, sort_order: memoTemplates.length })
+      .select("id, text, sort_order")
+      .single();
+    if (error) {
+      show("保存できませんでした", "error");
+      return;
+    }
+    setMemoTemplates((p) => [...p, data as MemoTemplate]);
+    show(`作業内容「${text}」を保存しました`);
+  };
+
   const openDay = (key: string) => {
     if (bulkTpl) {
       void applyBulk(key);
@@ -511,7 +587,7 @@ export default function KintaiPage() {
     }
     const t = templates.find((x) => x.id === bulkTpl);
     if (!t) return;
-    await upsertDay(key, { start_time: hhmm(t.start_time), end_time: hhmm(t.end_time), break_min: t.break_min, memo: records[key]?.memo ?? null });
+    await upsertDay(key, { start_time: hhmm(t.start_time), end_time: hhmm(t.end_time), break_min: t.break_min, memo: bulkMemo || (records[key]?.memo ?? null) });
   };
 
   // 未記入の日を、予定（またはいつもの時間）どおりにまとめて記入
@@ -664,7 +740,16 @@ export default function KintaiPage() {
         </header>
 
         {page === "templates" ? (
-          <TemplatesView templates={templates} project={project} step={step} onChange={setTemplates} show={show} />
+          <TemplatesView
+            templates={templates}
+            project={project}
+            step={step}
+            onChange={setTemplates}
+            memoTemplates={memoTemplates}
+            memoMissing={memoMissing}
+            onMemoChange={setMemoTemplates}
+            show={show}
+          />
         ) : page === "projects" ? (
           <ProjectsView
             projects={projects}
@@ -822,6 +907,17 @@ export default function KintaiPage() {
                             {templates.length === 0 ? "＋ テンプレートを作る" : "編集"}
                           </button>
                         </div>
+                        {bulkTpl && bulkTpl !== "off" && (memoTemplates.length > 0 || recentMemos.length > 0) && (
+                          <label className="kt-bulk-memo">
+                            <span className="kt-label">作業内容：</span>
+                            <select className="kt-input" value={bulkMemo} onChange={(e) => setBulkMemo(e.target.value)}>
+                              <option value="">そのまま（入れない）</option>
+                              {[...memoTemplates.map((m) => m.text), ...recentMemos.filter((r) => !memoTemplates.some((m) => m.text === r))].map((t) => (
+                                <option key={t} value={t}>{t}</option>
+                              ))}
+                            </select>
+                          </label>
+                        )}
                         {bulkTpl && <small className="kt-muted">日付をタップすると入ります。終わったら選んだボタンをもう一度押してください。</small>}
                       </div>
                     )}
@@ -918,6 +1014,9 @@ export default function KintaiPage() {
                         onOff={(m) => void markOff(selected.key, m)}
                         onClear={() => void clearDay(selected.key)}
                         onSaveTemplate={(l, v) => void saveTemplate(l, v)}
+                        memoTemplates={memoTemplates}
+                        recentMemos={recentMemos}
+                        onSaveMemo={(t) => void saveMemoTemplate(t)}
                       />
                     </aside>
                   )}
@@ -944,6 +1043,9 @@ export default function KintaiPage() {
               onOff={(m) => void markOff(selected.key, m)}
               onClear={() => void clearDay(selected.key)}
               onSaveTemplate={(l, v) => void saveTemplate(l, v)}
+              memoTemplates={memoTemplates}
+              recentMemos={recentMemos}
+              onSaveMemo={(t) => void saveMemoTemplate(t)}
               onClose={() => setSheetOpen(false)}
             />
           </div>

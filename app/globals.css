@@ -2813,3 +2813,8 @@ h1, h2, h3, .font-display { font-weight: 800; letter-spacing: -0.01em; }
 .kt-tpl-order button { width: 26px; height: 20px; border: 1px solid var(--border); border-radius: 4px; background: #fff; font-size: 9px; color: var(--fg-muted); cursor: pointer; line-height: 1; }
 .kt-tpl-order button:disabled { opacity: 0.35; cursor: default; }
 .kt-chip.is-edit { border-style: dashed; color: var(--accent-strong); }
+.kt-memo-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: -4px; }
+.kt-memo-chips .kt-chip { height: 30px; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.kt-chip.is-recent:not(.is-on) { background: var(--surface-alt, #f5f7f6); border-style: dashed; color: var(--fg-muted); }
+.kt-bulk-memo { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.kt-bulk-memo .kt-input { flex: 1; min-width: 0; height: 36px; font-size: 13px; }

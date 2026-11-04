@@ -26,6 +26,9 @@ export type WorkTemplate = {
   sort_order: number;
 };
 
+// 作業内容のテンプレート（API改修・レビュー対応 など）
+export type MemoTemplate = { id: string; text: string; sort_order: number };
+
 export type WorkDay = {
   id?: string;
   work_date: string; // YYYY-MM-DD

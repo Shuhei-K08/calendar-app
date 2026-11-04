@@ -3,7 +3,7 @@
 // 勤怠のテンプレート（通常・午後から など）の一覧と、追加・編集・削除・並べ替え
 import { useState } from "react";
 import { supabase } from "@/lib/supabase";
-import { fmtH, fmtHM, timeOptions, workMinutes, type WorkProject, type WorkTemplate } from "@/lib/kintai";
+import { fmtH, fmtHM, timeOptions, workMinutes, type MemoTemplate, type WorkProject, type WorkTemplate } from "@/lib/kintai";
 
 type Show = (m: string, t?: "success" | "error" | "info") => void;
 type Draft = { id?: string; label: string; start: string; end: string; breakMin: number };
@@ -17,12 +17,18 @@ export default function TemplatesView({
   project,
   step,
   onChange,
+  memoTemplates,
+  memoMissing,
+  onMemoChange,
   show,
 }: {
   templates: WorkTemplate[];
   project: WorkProject | null;
   step: number;
   onChange: (list: WorkTemplate[]) => void;
+  memoTemplates: MemoTemplate[];
+  memoMissing: boolean;
+  onMemoChange: (list: MemoTemplate[]) => void;
   show: Show;
 }) {
   const [draft, setDraft] = useState<Draft | null>(null);
@@ -131,7 +137,7 @@ export default function TemplatesView({
     <div className="kt-projects">
       <section className="kt-card">
         <div className="kt-tpl-head">
-          <h2 className="kt-section-title">テンプレート</h2>
+          <h2 className="kt-section-title">時間</h2>
           {!draft && (
             <button type="button" className="kt-btn is-primary is-small" onClick={startNew}>
               ＋ 追加
@@ -186,7 +192,151 @@ export default function TemplatesView({
           </ul>
         )}
       </section>
-      <p className="kt-plain kt-muted">テンプレートを変えても、すでに記録した日の時間は変わりません。</p>
+      <MemoSection list={memoTemplates} missing={memoMissing} onChange={onMemoChange} show={show} />
+      <p className="kt-plain kt-muted">テンプレートを変えても、すでに記録した日の内容は変わりません。</p>
     </div>
+  );
+}
+
+/* ── 作業内容のテンプレート ── */
+function MemoSection({
+  list,
+  missing,
+  onChange,
+  show,
+}: {
+  list: MemoTemplate[];
+  missing: boolean;
+  onChange: (list: MemoTemplate[]) => void;
+  show: Show;
+}) {
+  const [draft, setDraft] = useState<{ id?: string; text: string } | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [confirmDel, setConfirmDel] = useState<string | null>(null);
+
+  const save = async () => {
+    if (!draft) return;
+    const text = draft.text.trim();
+    if (!text) {
+      show("作業内容を入れてください", "error");
+      return;
+    }
+    if (list.some((m) => m.text === text && m.id !== draft.id)) {
+      show("同じ作業内容がもうあります", "error");
+      return;
+    }
+    setSaving(true);
+    const res = draft.id
+      ? await supabase.from("work_memo_templates").update({ text }).eq("id", draft.id).select("id, text, sort_order").single()
+      : await supabase.from("work_memo_templates").insert({ text, sort_order: list.length }).select("id, text, sort_order").single();
+    setSaving(false);
+    if (res.error || !res.data) {
+      show("保存できませんでした", "error");
+      return;
+    }
+    const saved = res.data as MemoTemplate;
+    onChange(draft.id ? list.map((m) => (m.id === saved.id ? saved : m)) : [...list, saved]);
+    setDraft(null);
+    show(draft.id ? "作業内容を更新しました" : `「${text}」を追加しました`);
+  };
+
+  const remove = async (m: MemoTemplate) => {
+    const { error } = await supabase.from("work_memo_templates").delete().eq("id", m.id);
+    if (error) {
+      show("消せませんでした", "error");
+      return;
+    }
+    onChange(list.filter((x) => x.id !== m.id));
+    setConfirmDel(null);
+    show(`「${m.text}」を削除しました`, "info");
+  };
+
+  const move = async (index: number, dir: -1 | 1) => {
+    const j = index + dir;
+    if (j < 0 || j >= list.length) return;
+    const next = [...list];
+    [next[index], next[j]] = [next[j], next[index]];
+    const renumbered = next.map((m, i) => ({ ...m, sort_order: i }));
+    onChange(renumbered);
+    const changed = renumbered.filter((m, i) => list[i]?.id !== m.id);
+    const results = await Promise.all(changed.map((m) => supabase.from("work_memo_templates").update({ sort_order: m.sort_order }).eq("id", m.id)));
+    if (results.some((r: { error: unknown }) => r.error)) show("並び順を保存できませんでした", "error");
+  };
+
+  const form = draft && (
+    <div className="kt-tpl-form">
+      <label className="kt-field">
+        <span className="kt-label">作業内容</span>
+        <input
+          className="kt-input"
+          value={draft.text}
+          onChange={(e) => setDraft({ ...draft, text: e.target.value })}
+          onKeyDown={(e) => e.key === "Enter" && !e.nativeEvent.isComposing && void save()}
+          placeholder="例：API改修、レビュー対応、定例MTG"
+          autoFocus
+        />
+      </label>
+      <div className="kt-entry-actions">
+        <button type="button" className="kt-btn is-ghost" onClick={() => setDraft(null)}>やめる</button>
+        <button type="button" className="kt-btn is-primary" disabled={saving} onClick={() => void save()}>
+          {saving ? "保存中…" : draft.id ? "変更を保存" : "追加する"}
+        </button>
+      </div>
+    </div>
+  );
+
+  return (
+    <section className="kt-card">
+      <div className="kt-tpl-head">
+        <h2 className="kt-section-title">作業内容</h2>
+        {!draft && !missing && (
+          <button type="button" className="kt-btn is-primary is-small" onClick={() => setDraft({ text: "" })}>
+            ＋ 追加
+          </button>
+        )}
+      </div>
+      {missing ? (
+        <p className="kt-plain kt-muted">Supabase で supabase-kintai-memo.sql を実行すると使えます。</p>
+      ) : (
+        <>
+          <p className="kt-muted kt-tpl-lead">1日の記入でタップすると作業内容に入ります。Excel の「作業内容」の欄に書き出されます。</p>
+          {draft && !draft.id && form}
+          {list.length === 0 && !draft ? (
+            <p className="kt-plain kt-muted">まだありません。1日の記入で作業内容を書いて「この作業内容を保存」でも追加できます。</p>
+          ) : (
+            <ul className="kt-plist">
+              {list.map((m, i) => (
+                <li key={m.id} className="kt-tpl-li">
+                  {draft?.id === m.id ? (
+                    form
+                  ) : (
+                    <div className="kt-tpl-item">
+                      <div className="kt-tpl-order">
+                        <button type="button" aria-label={`${m.text}を上へ`} disabled={i === 0} onClick={() => void move(i, -1)}>▲</button>
+                        <button type="button" aria-label={`${m.text}を下へ`} disabled={i === list.length - 1} onClick={() => void move(i, 1)}>▼</button>
+                      </div>
+                      <span className="kt-row-main">
+                        <b>{m.text}</b>
+                      </span>
+                      {confirmDel === m.id ? (
+                        <span className="kt-tpl-actions">
+                          <button type="button" className="kt-link-danger" onClick={() => void remove(m)}>削除する</button>
+                          <button type="button" className="kt-text-btn" onClick={() => setConfirmDel(null)}>戻る</button>
+                        </span>
+                      ) : (
+                        <span className="kt-tpl-actions">
+                          <button type="button" className="kt-text-btn" onClick={() => setDraft({ id: m.id, text: m.text })}>編集</button>
+                          <button type="button" className="kt-link-danger" onClick={() => setConfirmDel(m.id)}>削除</button>
+                        </span>
+                      )}
+                    </div>
+                  )}
+                </li>
+              ))}
+            </ul>
+          )}
+        </>
+      )}
+    </section>
   );
 }
