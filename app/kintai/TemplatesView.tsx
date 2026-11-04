@@ -35,6 +35,21 @@ export default function TemplatesView({
   const [saving, setSaving] = useState(false);
   const [confirmDel, setConfirmDel] = useState<string | null>(null);
   const options = timeOptions(step);
+  const sameAs = (a: { start: string; end: string; breakMin: number }, id?: string) =>
+    templates.find((x) => x.id !== id && hhmm(x.start_time) === a.start && hhmm(x.end_time) === a.end && x.break_min === a.breakMin);
+  // 名前に「7.5h」などがあって、実際の時間と違うとき
+  const labelHours = (label: string) => {
+    const m = /(\d+(?:\.\d+)?)\s*h/i.exec(label) ?? /(\d+(?:\.\d+)?)\s*時間/.exec(label);
+    return m ? Number(m[1]) : null;
+  };
+  const warnings = (t: WorkTemplate) => {
+    const same = sameAs({ start: hhmm(t.start_time), end: hhmm(t.end_time), breakMin: t.break_min }, t.id);
+    const h = workMinutes(t.start_time, t.end_time, t.break_min) / 60;
+    const named = labelHours(t.label);
+    if (same) return `「${same.label}」と同じ時間です`;
+    if (named !== null && Math.abs(named - h) > 0.01) return `名前は${named}hですが、時間は${fmtH(h * 60)}hです`;
+    return "";
+  };
 
   const startNew = () =>
     setDraft({
@@ -124,6 +139,7 @@ export default function TemplatesView({
         </label>
       </div>
       <p className="kt-muted">稼働 {fmtH(workMinutes(draft.start, draft.end, draft.breakMin))}h</p>
+      {sameAs(draft, draft.id) && <p className="kt-tpl-warn">「{sameAs(draft, draft.id)?.label}」と同じ時間です。時間を変えてください。</p>}
       <div className="kt-entry-actions">
         <button type="button" className="kt-btn is-ghost" onClick={() => setDraft(null)}>やめる</button>
         <button type="button" className="kt-btn is-primary" disabled={saving} onClick={() => void save()}>
@@ -167,6 +183,7 @@ export default function TemplatesView({
                       <small>
                         {hhmm(t.start_time)}〜{hhmm(t.end_time)} · 休憩 {t.break_min ? fmtHM(t.break_min) : "なし"} · {fmtH(workMinutes(t.start_time, t.end_time, t.break_min))}h
                       </small>
+                      {warnings(t) && <small className="kt-tpl-warn">{warnings(t)}</small>}
                     </span>
                     {confirmDel === t.id ? (
                       <span className="kt-tpl-actions">

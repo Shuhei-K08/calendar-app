@@ -2818,3 +2818,4 @@ h1, h2, h3, .font-display { font-weight: 800; letter-spacing: -0.01em; }
 .kt-chip.is-recent:not(.is-on) { background: var(--surface-alt, #f5f7f6); border-style: dashed; color: var(--fg-muted); }
 .kt-bulk-memo { display: flex; align-items: center; gap: 8px; min-width: 0; }
 .kt-bulk-memo .kt-input { flex: 1; min-width: 0; height: 36px; font-size: 13px; }
+.kt-tpl-warn { display: block; margin: 2px 0 0; color: #b45309; font-size: 12px; font-weight: 700; }

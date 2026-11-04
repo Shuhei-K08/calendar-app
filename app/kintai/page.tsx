@@ -146,10 +146,13 @@ function EntryForm({
   };
   const [v, setV] = useState<EntryState>(initial);
   const [tplName, setTplName] = useState<string | null>(null);
+  const [pickedTpl, setPickedTpl] = useState<string | null>(null); // 最後に押したテンプレート（同じ時間のものが複数あっても押した方を光らせる）
   const options = useMemo(() => timeOptions(step), [step]);
   const minutes = workMinutes(v.start, v.end, v.breakMin);
   const breakChoices = BREAK_CHOICES.includes(v.breakMin) ? BREAK_CHOICES : [...BREAK_CHOICES, v.breakMin].sort((a, b) => a - b);
-  const activeTpl = templates.find((t) => hhmm(t.start_time) === v.start && hhmm(t.end_time) === v.end && t.break_min === v.breakMin);
+  const sameTime = (t: WorkTemplate) => hhmm(t.start_time) === v.start && hhmm(t.end_time) === v.end && t.break_min === v.breakMin;
+  const picked = templates.find((t) => t.id === pickedTpl);
+  const activeTpl = picked && sameTime(picked) ? picked : templates.find(sameTime);
   const d = day.date;
   const status =
     day.state === "done" ? "記入済み" : day.state === "off" ? "休み" : day.state === "missing" ? "未記入" : day.planSource ? `予定：${day.planSource}` : "";
@@ -178,7 +181,10 @@ function EntryForm({
                 type="button"
                 className={`kt-tpl ${activeTpl?.id === t.id ? "is-on" : ""}`}
                 aria-pressed={activeTpl?.id === t.id}
-                onClick={() => setV((cur) => ({ ...cur, start: hhmm(t.start_time), end: hhmm(t.end_time), breakMin: t.break_min }))}
+                onClick={() => {
+                  setPickedTpl(t.id);
+                  setV((cur) => ({ ...cur, start: hhmm(t.start_time), end: hhmm(t.end_time), breakMin: t.break_min }));
+                }}
               >
                 <b>{t.label}</b>
                 <small>
