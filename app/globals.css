@@ -2798,3 +2798,18 @@ h1, h2, h3, .font-display { font-weight: 800; letter-spacing: -0.01em; }
 .kt-off { display: flex; flex-direction: column; gap: 10px; }
 .kt-off h2 { margin: 0; font-size: 17px; font-weight: 800; }
 .kt-off p { margin: 0; }
+
+/* 勤怠テンプレートの管理 */
+.kt-tpl-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.kt-tpl-head .kt-section-title { margin: 0; }
+.kt-tpl-lead { margin: 6px 0 10px; }
+.kt-tpl-form { display: flex; flex-direction: column; gap: 10px; padding: 12px; border: 1px solid var(--accent); border-radius: 10px; background: var(--accent-soft); margin-bottom: 8px; }
+.kt-tpl-form .kt-muted { margin: 0; }
+.kt-tpl-li { list-style: none; }
+.kt-tpl-item { display: flex; align-items: center; gap: 10px; padding: 10px 4px; border-bottom: 1px solid var(--border); min-width: 0; }
+.kt-tpl-item .kt-row-main { flex: 1; min-width: 0; }
+.kt-tpl-actions { display: inline-flex; gap: 12px; flex: none; }
+.kt-tpl-order { display: flex; flex-direction: column; gap: 2px; flex: none; }
+.kt-tpl-order button { width: 26px; height: 20px; border: 1px solid var(--border); border-radius: 4px; background: #fff; font-size: 9px; color: var(--fg-muted); cursor: pointer; line-height: 1; }
+.kt-tpl-order button:disabled { opacity: 0.35; cursor: default; }
+.kt-chip.is-edit { border-style: dashed; color: var(--accent-strong); }

@@ -26,6 +26,7 @@ import {
   type WorkProject,
   type WorkTemplate,
 } from "@/lib/kintai";
+import TemplatesView from "./TemplatesView";
 import { setKintaiEnabled, useKintaiEnabled } from "@/lib/features";
 import { ExportTemplateList, exportWithTemplate, loadExportTemplates, type ExportTemplate } from "./ExcelTemplates";
 
@@ -300,7 +301,7 @@ export default function KintaiPage() {
   const [records, setRecords] = useState<Record<string, WorkDay>>({});
   const [planned, setPlanned] = useState<Record<string, PlannedDay>>({});
   const [view, setView] = useState<"list" | "calendar">("list");
-  const [page, setPage] = useState<"main" | "projects">("main");
+  const [page, setPage] = useState<"main" | "projects" | "templates">("main");
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
   const [sheetOpen, setSheetOpen] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -492,15 +493,6 @@ export default function KintaiPage() {
     show(`テンプレート「${label}」を保存しました`);
   };
 
-  const deleteTemplate = async (id: string) => {
-    const { error } = await supabase.from("work_templates").delete().eq("id", id);
-    if (error) {
-      show("消せませんでした", "error");
-      return;
-    }
-    setTemplates((p) => p.filter((t) => t.id !== id));
-  };
-
   const openDay = (key: string) => {
     if (bulkTpl) {
       void applyBulk(key);
@@ -664,21 +656,23 @@ export default function KintaiPage() {
                 <button type="button" className="kt-back" onClick={() => setPage("main")}>
                   ‹ 勤怠
                 </button>
-                <h1 className="text-xl font-black">案件とテンプレート</h1>
+                <h1 className="text-xl font-black">{page === "templates" ? "テンプレート" : "案件"}</h1>
               </>
             )}
           </div>
           <DesktopNavigation />
         </header>
 
-        {page === "projects" ? (
+        {page === "templates" ? (
+          <TemplatesView templates={templates} project={project} step={step} onChange={setTemplates} show={show} />
+        ) : page === "projects" ? (
           <ProjectsView
             projects={projects}
             templates={templates}
             month={month}
             onChanged={(list) => setProjects(list)}
             onTemplateAdded={(t) => setTemplates((p) => [...p, t])}
-            onDeleteTemplate={deleteTemplate}
+            onOpenTemplates={() => setPage("templates")}
             show={show}
           />
         ) : loading ? (
@@ -698,6 +692,9 @@ export default function KintaiPage() {
                 {project ? `${project.name} · 精算幅 ${project.range_min}〜${project.range_max}h` : "案件を登録する"} ›
               </button>
               <div className="kt-toolbar-actions">
+                <button type="button" className="kt-btn is-ghost is-small" onClick={() => setPage("templates")}>
+                  テンプレート
+                </button>
                 <button type="button" className="kt-btn is-ghost is-small" onClick={() => setSimOpen(true)} disabled={!project}>
                   休んで大丈夫？
                 </button>
@@ -707,17 +704,17 @@ export default function KintaiPage() {
               </div>
             </div>
 
-            {!project ? (
+            {!project && (
               <div className="kt-card kt-setup">
-                <b>まず、案件を登録しましょう</b>
-                <p>精算幅（例：140〜180h）や、いつもの時間を入れておくと、月末の見込みや下限まであと何時間かが自動で出ます。</p>
+                <b>案件を登録すると、月末の見込みが出ます</b>
+                <p>精算幅（例：140〜180h）や、いつもの時間を入れておくと、月末の見込みや下限まであと何時間かが自動で出ます。記録だけなら、このまま下の一覧やカレンダーから入れられます。</p>
                 <button type="button" className="kt-btn is-primary" onClick={() => setPage("projects")}>
                   案件を登録する
                 </button>
               </div>
-            ) : (
-              <>
-                {notice && (
+            )}
+            <>
+                {project && notice && (
                   <div className={`kt-notice is-${notice.tone}`}>
                     <span className="kt-notice-text">
                       <b>{notice.title}</b>
@@ -735,6 +732,7 @@ export default function KintaiPage() {
                 )}
 
                 {/* 今月のまとめ */}
+                {project && (
                 <section className="kt-summary">
                   <div className="kt-card kt-main-stat">
                     <div className="kt-stat-top">
@@ -781,6 +779,7 @@ export default function KintaiPage() {
                     </div>
                   )}
                 </section>
+                )}
 
                 <div className="kt-columns">
                   <section className="kt-card kt-days">
@@ -819,7 +818,9 @@ export default function KintaiPage() {
                           >
                             休み
                           </button>
-                          {templates.length === 0 && <small className="kt-muted">1日の記入で「テンプレートに保存」すると、ここに出ます</small>}
+                          <button type="button" className="kt-chip is-edit" onClick={() => setPage("templates")}>
+                            {templates.length === 0 ? "＋ テンプレートを作る" : "編集"}
+                          </button>
                         </div>
                         {bulkTpl && <small className="kt-muted">日付をタップすると入ります。終わったら選んだボタンをもう一度押してください。</small>}
                       </div>
@@ -921,14 +922,13 @@ export default function KintaiPage() {
                     </aside>
                   )}
                 </div>
-              </>
-            )}
+            </>
           </>
         )}
       </div>
 
       {/* スマホ: 1日の記入シート */}
-      {sheetOpen && selected && project && (
+      {sheetOpen && selected && (
         <div className="kt-overlay kt-mobile-only" onClick={() => setSheetOpen(false)}>
           <div className="kt-sheet" role="dialog" aria-modal="true" aria-label="1日の勤怠" onClick={(e) => e.stopPropagation()}>
             <span className="kt-handle" aria-hidden="true" />
@@ -1291,7 +1291,7 @@ function ProjectsView({
   month,
   onChanged,
   onTemplateAdded,
-  onDeleteTemplate,
+  onOpenTemplates,
   show,
 }: {
   projects: WorkProject[];
@@ -1299,7 +1299,7 @@ function ProjectsView({
   month: Date;
   onChanged: (list: WorkProject[]) => void;
   onTemplateAdded: (t: WorkTemplate) => void;
-  onDeleteTemplate: (id: string) => void;
+  onOpenTemplates: () => void;
   show: (m: string, t?: ToastItem["type"]) => void;
 }) {
   const current = projectForMonth(projects, month);
@@ -1523,23 +1523,14 @@ function ProjectsView({
       </section>
 
       <section className="kt-card">
-        <h2 className="kt-section-title">テンプレート</h2>
+        <div className="kt-tpl-head">
+          <h2 className="kt-section-title">テンプレート</h2>
+          <button type="button" className="kt-text-btn" onClick={onOpenTemplates}>追加・編集 ›</button>
+        </div>
         {templates.length === 0 ? (
-          <p className="kt-plain kt-muted">1日の記入画面の「この時間をテンプレートに保存」で追加できます。</p>
+          <p className="kt-plain kt-muted">まだありません。「追加・編集」から登録できます。</p>
         ) : (
-          <ul className="kt-plist">
-            {templates.map((t) => (
-              <li key={t.id} className="kt-tpl-item">
-                <span className="kt-row-main">
-                  <b>{t.label}</b>
-                  <small>
-                    {hhmm(t.start_time)}〜{hhmm(t.end_time)} · 休憩 {fmtHM(t.break_min)} · {fmtH(workMinutes(t.start_time, t.end_time, t.break_min))}h
-                  </small>
-                </span>
-                <button type="button" className="kt-link-danger" onClick={() => onDeleteTemplate(t.id)}>削除</button>
-              </li>
-            ))}
-          </ul>
+          <p className="kt-plain kt-muted">{templates.map((t) => `${t.label}（${hhmm(t.start_time)}〜${hhmm(t.end_time)}）`).join("、")}</p>
         )}
       </section>
       <p className="kt-plain kt-muted">勤怠のデータは自分だけが見られます（つながっている相手には見えません）。</p>
