@@ -5,7 +5,7 @@ import "./globals.css";
 // 日本語フォントはファイル数がとても多く、next/font だとビルドで失敗することがあるため
 // Google Fonts から直接読み込む（--font-body / --font-display は globals.css で定義）
 const GOOGLE_FONTS_URL =
-  "https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700&family=Zen+Maru+Gothic:wght@500;700;900&display=swap";
+  "https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700;900&family=Manrope:wght@600;700;800&display=swap";
 
 export const metadata: Metadata = {
   title: "ShareCal",
@@ -31,7 +31,7 @@ export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   maximumScale: 1,
-  themeColor: "#f6f5f1",
+  themeColor: "#ffffff",
 };
 
 // Inline script — runs before React hydrates to prevent flash of light theme.

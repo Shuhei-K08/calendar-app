@@ -620,20 +620,20 @@ function EventImageField({
       />
       {imageUrl ? (
         <div className="space-y-2">
-          <div className="flex items-center gap-3 rounded-xl border border-[#e2dfd8] bg-[#f7f6f2] p-2">
+          <div className="flex items-center gap-3 rounded-xl border border-[#dfe4e2] bg-[var(--surface-alt)] p-2">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src={imageUrl} alt="添付画像" className="h-16 w-16 shrink-0 rounded-md object-cover" />
             <div className="flex flex-wrap gap-2">
               <button
                 type="button"
-                className="rounded-xl border border-[#e2dfd8] bg-[#f7f6f2] px-3 py-1.5 text-xs font-bold text-[#3a4440]"
+                className="rounded-xl border border-[#dfe4e2] bg-[var(--surface-alt)] px-3 py-1.5 text-xs font-bold text-[#3a4440]"
                 onClick={() => setShowOriginal(true)}
               >
                 元画像を表示
               </button>
               <button
                 type="button"
-                className="rounded-xl border border-[#e2dfd8] bg-[#f7f6f2] px-3 py-1.5 text-xs font-bold text-[#3a4440] disabled:opacity-60"
+                className="rounded-xl border border-[#dfe4e2] bg-[var(--surface-alt)] px-3 py-1.5 text-xs font-bold text-[#3a4440] disabled:opacity-60"
                 onClick={() => inputRef.current?.click()}
                 disabled={uploading || ocrRunning}
               >
@@ -651,7 +651,7 @@ function EventImageField({
           </div>
           <button
             type="button"
-            className="flex w-full items-center justify-center gap-2 rounded-lg bg-[#0f7a66] px-3 py-2 text-xs font-bold text-white disabled:opacity-70"
+            className="flex w-full items-center justify-center gap-2 rounded-lg bg-[var(--accent)] px-3 py-2 text-xs font-bold text-white disabled:opacity-70"
             onClick={runOcr}
             disabled={ocrRunning}
           >
@@ -671,7 +671,7 @@ function EventImageField({
       ) : (
         <button
           type="button"
-          className="w-full rounded-lg border border-dashed border-[#dad7cf] px-3 py-3 text-xs font-bold text-[#3a4440] disabled:opacity-60"
+          className="w-full rounded-lg border border-dashed border-[#d5dad8] px-3 py-3 text-xs font-bold text-[#3a4440] disabled:opacity-60"
           onClick={() => inputRef.current?.click()}
           disabled={uploading}
         >
@@ -739,9 +739,9 @@ const getDisplayStyle = (kind: EventDisplayKind) => {
     return { background: "var(--shared-event-bg)", text: "#5b21b6", border: "#6d3fd8" };
   }
   if (kind === "partner") {
-    return { background: "var(--partner-event-bg)", text: "#0b5e4f", border: "#0f7a66" };
+    return { background: "var(--partner-event-bg)", text: "var(--accent-strong)", border: "var(--accent)" };
   }
-  return { background: "var(--own-event-bg)", text: "#0b5e4f", border: "var(--uncategorized-event)" };
+  return { background: "var(--own-event-bg)", text: "var(--accent-strong)", border: "var(--uncategorized-event)" };
 };
 
 const addByRecurrence = (date: Date, rule: RecurrenceRule) => {
@@ -2541,13 +2541,13 @@ export default function Home() {
       value: "all" as CalendarFilter,
       label: "すべて",
       description: `${format(calendarDate, "M月", { locale: ja })} ${getFilterCount("all")}件`,
-      color: "#0f7a66",
+      color: "var(--accent)",
     },
     {
       value: "own" as CalendarFilter,
       label: "わたし",
       description: `${format(calendarDate, "M月", { locale: ja })} ${getFilterCount("own")}件`,
-      color: "#0f7a66",
+      color: "var(--accent)",
     },
     ...connections.flatMap((connection) => [
       {
@@ -2852,7 +2852,7 @@ export default function Home() {
 
   const filterKindColor = (value: CalendarFilter) =>
     value === "all" ? "var(--fg)"
-    : value === "own" ? "#0f7a66"
+    : value === "own" ? "var(--accent)"
     : value.startsWith("person:") ? "#c2410c"
     : "#6d3fd8";
 
@@ -2932,7 +2932,7 @@ export default function Home() {
         type="button"
       >
         <span className="day-event-time">{timeLabel}</span>
-        <span className="day-event-bar" style={{ backgroundColor: style.border === "var(--uncategorized-event)" ? "#0f7a66" : style.border }} />
+        <span className="day-event-bar" style={{ backgroundColor: style.border === "var(--uncategorized-event)" ? "var(--accent)" : style.border }} />
         <span className="min-w-0 flex-1">
           <span className="day-event-title">
             {event.hasUnread && <span className="unread-dot unread-dot-inline" aria-label="新しいひとことがあります" />}
@@ -3364,10 +3364,10 @@ export default function Home() {
           onClick={() => { setIsSearchOpen(false); setSearchQuery(""); }}
         >
           <div
-            className="flex max-h-[80vh] w-full max-w-lg flex-col overflow-hidden rounded-2xl border border-[#e2dfd8] bg-white shadow-2xl"
+            className="flex max-h-[80vh] w-full max-w-lg flex-col overflow-hidden rounded-2xl border border-[#dfe4e2] bg-white shadow-2xl"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="flex items-center gap-2 border-b border-[#ece9e2] p-3">
+            <div className="flex items-center gap-2 border-b border-[#e5e9e7] p-3">
               <span className="text-lg">🔍</span>
               <input
                 autoFocus
@@ -3378,7 +3378,7 @@ export default function Home() {
                 className="min-w-0 flex-1 bg-transparent text-base font-semibold text-[#1b2421] placeholder:text-[#8e958f] focus:outline-none"
               />
               <button
-                className="shrink-0 rounded-xl border border-[#e2dfd8] bg-[#f7f6f2] bg-[#f7f6f2] px-3 py-1.5 text-xs font-bold text-[#4d5753]"
+                className="shrink-0 rounded-xl border border-[#dfe4e2] bg-[var(--surface-alt)] bg-[var(--surface-alt)] px-3 py-1.5 text-xs font-bold text-[#4d5753]"
                 onClick={() => { setIsSearchOpen(false); setSearchQuery(""); }}
                 type="button"
               >
@@ -3395,7 +3395,7 @@ export default function Home() {
                   {searchResults.map((event) => (
                     <li key={`${event.id}-${event.start.toISOString()}`}>
                       <button
-                        className="flex w-full items-center gap-3 rounded-xl border border-transparent p-2.5 text-left transition hover:border-[#0f7a66] hover:bg-[#e1f1ec]"
+                        className="flex w-full items-center gap-3 rounded-xl border border-transparent p-2.5 text-left transition hover:border-[var(--accent)] hover:bg-[var(--accent-soft)]"
                         onClick={() => openSearchResult(event)}
                         type="button"
                       >
@@ -3437,7 +3437,7 @@ export default function Home() {
               <h2 className="add-sheet-title">新しい予定</h2>
               <div
                 key={dateMovedKey}
-                className={`relative ml-auto flex items-center gap-0.5 rounded-full bg-[#f3f1ec] p-0.5 ${dateMovedKey > 0 ? "date-moved-flash" : ""}`}
+                className={`relative ml-auto flex items-center gap-0.5 rounded-full bg-[#eef1f0] p-0.5 ${dateMovedKey > 0 ? "date-moved-flash" : ""}`}
               >
                 <button
                   className="flex h-9 w-9 items-center justify-center rounded-full text-[#1b2421] transition hover:bg-white active:scale-90"
@@ -3463,13 +3463,13 @@ export default function Home() {
                   </svg>
                 </button>
                 {showDateMoved && (
-                  <span className="date-moved-badge absolute left-1/2 top-full z-10 mt-1 -translate-x-1/2 whitespace-nowrap rounded-full bg-[#0f7a66] px-2.5 py-0.5 text-[11px] font-bold text-white shadow">
+                  <span className="date-moved-badge absolute left-1/2 top-full z-10 mt-1 -translate-x-1/2 whitespace-nowrap rounded-full bg-[var(--accent)] px-2.5 py-0.5 text-[11px] font-bold text-white shadow">
                     次の日に移動しました
                   </span>
                 )}
               </div>
               <button
-                className="hidden h-9 w-9 items-center justify-center rounded-full text-[#66706c] transition hover:bg-[#f3f1ec] sm:flex"
+                className="hidden h-9 w-9 items-center justify-center rounded-full text-[#66706c] transition hover:bg-[#eef1f0] sm:flex"
                 onClick={() => setIsEventModalOpen(false)}
                 aria-label="閉じる"
                 type="button"
@@ -3500,14 +3500,14 @@ export default function Home() {
               {patterns.length === 0 && (
                 <p className="text-sm text-[#66706c]">
                   「夜勤」「休み」などを
-                  <button type="button" className="mx-1 font-bold text-[#0f7a66] underline" onClick={() => router.push("/patterns")}>よく使う予定</button>
+                  <button type="button" className="mx-1 font-bold text-[var(--accent)] underline" onClick={() => router.push("/patterns")}>よく使う予定</button>
                   に登録すると、ここからすぐ入力できます。
                 </p>
               )}
               </div>
             </div>
 
-            <div className="grid gap-4 sm:grid-cols-2">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <label className="space-y-1.5 sm:col-span-2">
                 <span className="field-label">タイトル</span>
                 <input
@@ -3543,7 +3543,7 @@ export default function Home() {
                   </div>
                 </div>
               )}
-              <div className="flex items-center justify-between gap-3 rounded-2xl border border-[#e2dfd8] bg-[#f7f6f2] px-3 py-3 sm:col-span-2">
+              <div className="flex items-center justify-between gap-3 rounded-2xl border border-[#dfe4e2] bg-[var(--surface-alt)] px-3 py-3 sm:col-span-2">
                 <div>
                   <p className="text-sm font-bold text-[#1b2421]">終日の予定</p>
                   <p className="mt-1 text-xs text-[#66706c]">時間を指定しない予定として登録します。</p>
@@ -3557,14 +3557,14 @@ export default function Home() {
                       setEventForm((current) => ({ ...current, allDay: event.target.checked }))
                     }
                   />
-                  <span className="h-7 w-12 rounded-full bg-[#dad7cf] transition peer-checked:bg-[#0f7a66]" />
+                  <span className="h-7 w-12 rounded-full bg-[#d5dad8] transition peer-checked:bg-[var(--accent)]" />
                   <span className="absolute left-1 h-5 w-5 rounded-full bg-white shadow transition peer-checked:translate-x-5" />
                 </label>
               </div>
               <label className="space-y-1 sm:col-span-2">
                 <span className="text-xs font-semibold text-[#66706c]">分類</span>
                 <select
-                  className="h-11 w-full rounded-xl border border-[#e2dfd8] bg-[#f7f6f2] px-3 text-sm outline-none transition focus:border-[#0f7a66] focus:ring-2 focus:ring-[#bfe3d8]"
+                  className="h-11 w-full rounded-xl border border-[#dfe4e2] bg-[var(--surface-alt)] px-3 text-sm outline-none transition focus:border-[var(--accent)] focus:ring-2 focus:ring-[var(--accent-ring)]"
                   value={eventForm.categoryId}
                   onChange={(event) =>
                     setEventForm((current) => ({ ...current, categoryId: event.target.value }))
@@ -3581,7 +3581,7 @@ export default function Home() {
               <label className="space-y-1">
                 <span className="text-xs font-semibold text-[#66706c]">開始</span>
                 <input
-                  className="h-11 w-full rounded-xl border border-[#e2dfd8] bg-[#f7f6f2] px-3 text-sm outline-none transition focus:border-[#0f7a66] focus:ring-2 focus:ring-[#bfe3d8]"
+                  className="h-11 w-full rounded-xl border border-[#dfe4e2] bg-[var(--surface-alt)] px-3 text-sm outline-none transition focus:border-[var(--accent)] focus:ring-2 focus:ring-[var(--accent-ring)]"
                   type="datetime-local"
                   value={eventForm.start}
                   onChange={(event) => {
@@ -3600,7 +3600,7 @@ export default function Home() {
               <label className="space-y-1">
                 <span className="text-xs font-semibold text-[#66706c]">終了</span>
                 <input
-                  className="h-11 w-full rounded-xl border border-[#e2dfd8] bg-[#f7f6f2] px-3 text-sm outline-none transition focus:border-[#0f7a66] focus:ring-2 focus:ring-[#bfe3d8]"
+                  className="h-11 w-full rounded-xl border border-[#dfe4e2] bg-[var(--surface-alt)] px-3 text-sm outline-none transition focus:border-[var(--accent)] focus:ring-2 focus:ring-[var(--accent-ring)]"
                   type="datetime-local"
                   value={eventForm.end}
                   onChange={(event) =>
@@ -3608,7 +3608,7 @@ export default function Home() {
                   }
                 />
                 <button
-                  className="mt-2 rounded-xl border border-[#e2dfd8] bg-[#f7f6f2] px-3 py-2 text-xs font-bold text-[#3a4440]"
+                  className="mt-2 rounded-xl border border-[#dfe4e2] bg-[var(--surface-alt)] px-3 py-2 text-xs font-bold text-[#3a4440]"
                   type="button"
                   onClick={() => toggleEndNextDay("new")}
                 >
@@ -3618,7 +3618,7 @@ export default function Home() {
               {!(showMoreFields || eventForm.note || eventForm.imageUrl || eventForm.url) ? (
                 <button
                   type="button"
-                  className="flex items-center justify-center gap-2 rounded-xl border border-dashed border-[#dad7cf] py-3 text-sm font-bold text-[#4d5753] transition hover:border-[#0f7a66] hover:bg-[#e1f1ec] hover:text-[#0f7a66] sm:col-span-2"
+                  className="flex items-center justify-center gap-2 rounded-xl border border-dashed border-[#d5dad8] py-3 text-sm font-bold text-[#4d5753] transition hover:border-[var(--accent)] hover:bg-[var(--accent-soft)] hover:text-[var(--accent)] sm:col-span-2"
                   onClick={() => setShowMoreFields(true)}
                 >
                   <PlusIcon />
@@ -3629,7 +3629,7 @@ export default function Home() {
               <label className="space-y-1 sm:col-span-2">
                 <span className="text-xs font-semibold text-[#66706c]">メモ</span>
                 <textarea
-                  className="min-h-24 w-full rounded-xl border border-[#e2dfd8] bg-[#f7f6f2] p-3 text-sm outline-none transition focus:border-[#0f7a66] focus:ring-2 focus:ring-[#bfe3d8]"
+                  className="min-h-24 w-full rounded-xl border border-[#dfe4e2] bg-[var(--surface-alt)] p-3 text-sm outline-none transition focus:border-[var(--accent)] focus:ring-2 focus:ring-[var(--accent-ring)]"
                   value={eventForm.note}
                   onChange={(event) =>
                     setEventForm((current) => ({ ...current, note: event.target.value }))
@@ -3658,7 +3658,7 @@ export default function Home() {
                   <span className="text-xs font-semibold text-[#66706c]">URL（お店・予約ページなど）</span>
                   <button
                     type="button"
-                    className="rounded-xl border border-[#e2dfd8] bg-[#f7f6f2] px-2.5 py-1 text-xs font-bold text-[#0f7a66]"
+                    className="rounded-xl border border-[#dfe4e2] bg-[var(--surface-alt)] px-2.5 py-1 text-xs font-bold text-[var(--accent)]"
                     onClick={() => openLinkPicker("new")}
                   >
                     📍 スポットから選択
@@ -3667,7 +3667,7 @@ export default function Home() {
                 <input
                   type="text"
                   inputMode="url"
-                  className="w-full rounded-xl border border-[#e2dfd8] bg-[#f7f6f2] p-3 text-sm outline-none transition focus:border-[#0f7a66] focus:ring-2 focus:ring-[#bfe3d8]"
+                  className="w-full rounded-xl border border-[#dfe4e2] bg-[var(--surface-alt)] p-3 text-sm outline-none transition focus:border-[var(--accent)] focus:ring-2 focus:ring-[var(--accent-ring)]"
                   value={eventForm.url}
                   onChange={(event) =>
                     setEventForm((current) => ({ ...current, url: event.target.value }))
@@ -3733,8 +3733,8 @@ export default function Home() {
                       key={option.value}
                       className={`cursor-pointer rounded-2xl border p-3 transition ${
                         eventForm.shareType === option.value
-                          ? "border-[#0f7a66] bg-[#e1f1ec]"
-                          : "border-[#e2dfd8] bg-[#f7f6f2]"
+                          ? "border-[var(--accent)] bg-[var(--accent-soft)]"
+                          : "border-[#dfe4e2] bg-[var(--surface-alt)]"
                       }`}
                     >
                       <input
@@ -3762,12 +3762,12 @@ export default function Home() {
                     key={connection.id}
                     className={`flex cursor-pointer items-center gap-2 rounded-full border px-3 py-2 text-sm transition ${
                       eventForm.selectedUserIds.includes(connection.id)
-                        ? "border-[#0f7a66] bg-[#e1f1ec] text-[#0f7a66]"
-                        : "border-[#dad7cf] bg-white text-[#3a4440] hover:border-[#8e958f]"
+                        ? "border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--accent)]"
+                        : "border-[#d5dad8] bg-white text-[#3a4440] hover:border-[#8e958f]"
                     }`}
                   >
                     <input
-                      className="h-4 w-4 accent-[#0f7a66]"
+                      className="h-4 w-4 accent-[var(--accent)]"
                       type="checkbox"
                       checked={eventForm.selectedUserIds.includes(connection.id)}
                       onChange={(event) => {
@@ -3791,17 +3791,17 @@ export default function Home() {
             </div>
             )}
 
-            <div className="sticky -bottom-5 z-10 -mx-5 -mb-5 mt-6 border-t border-[#ece9e2] bg-white/95 px-5 py-3 pb-[max(12px,env(safe-area-inset-bottom))] backdrop-blur sm:-bottom-7 sm:-mx-7 sm:-mb-7 sm:px-7">
+            <div className="sticky -bottom-5 z-10 -mx-5 -mb-5 mt-6 border-t border-[#e5e9e7] bg-white/95 px-5 py-3 pb-[max(12px,env(safe-area-inset-bottom))] backdrop-blur sm:-bottom-7 sm:-mx-7 sm:-mb-7 sm:px-7">
               <div className="flex gap-2">
                 <button
-                  className="h-11 shrink-0 rounded-xl border border-[#e2dfd8] bg-[#f7f6f2] px-4 text-sm font-bold text-[#4d5753] transition hover:bg-[#f7f6f2]"
+                  className="h-11 shrink-0 rounded-xl border border-[#dfe4e2] bg-[var(--surface-alt)] px-4 text-sm font-bold text-[#4d5753] transition hover:bg-[var(--surface-alt)]"
                   onClick={() => setIsEventModalOpen(false)}
                   type="button"
                 >
                   キャンセル
                 </button>
                 <button
-                  className="h-12 flex-1 rounded-2xl bg-[#0f7a66] px-5 text-base font-bold text-white shadow-sm transition hover:bg-[#0b5e4f] disabled:cursor-not-allowed disabled:opacity-50"
+                  className="h-12 flex-1 rounded-2xl bg-[var(--accent)] px-5 text-base font-bold text-white shadow-sm transition hover:bg-[var(--accent-strong)] disabled:cursor-not-allowed disabled:opacity-50"
                   disabled={!eventForm.title.trim() || ocrBusy}
                   onClick={addEvent}
                   type="button"
@@ -3848,7 +3848,7 @@ export default function Home() {
               {detailEvent.canDelete && !isDetailEditing && (
                 <button
                   type="button"
-                  className="h-9 rounded-full border border-[#dad7cf] bg-white px-4 text-sm font-bold text-[#1b2421]"
+                  className="h-9 rounded-full border border-[#d5dad8] bg-white px-4 text-sm font-bold text-[#1b2421]"
                   onClick={() => { setShowEditMoreFields(false); setIsDetailEditing(true); }}
                 >
                   編集
@@ -3879,7 +3879,7 @@ export default function Home() {
                     }
                   />
                 </label>
-                <div className="flex items-center justify-between gap-3 rounded-2xl border border-[#e2dfd8] bg-[#f7f6f2] px-3 py-3 sm:col-span-2">
+                <div className="flex items-center justify-between gap-3 rounded-2xl border border-[#dfe4e2] bg-[var(--surface-alt)] px-3 py-3 sm:col-span-2">
                   <div>
                     <p className="text-sm font-bold text-[#1b2421]">終日の予定</p>
                     <p className="mt-1 text-xs text-[#66706c]">時間を指定しない予定として保存します。</p>
@@ -3893,14 +3893,14 @@ export default function Home() {
                         setEditForm((current) => ({ ...current, allDay: event.target.checked }))
                       }
                     />
-                    <span className="h-7 w-12 rounded-full bg-[#dad7cf] transition peer-checked:bg-[#0f7a66]" />
+                    <span className="h-7 w-12 rounded-full bg-[#d5dad8] transition peer-checked:bg-[var(--accent)]" />
                     <span className="absolute left-1 h-5 w-5 rounded-full bg-white shadow transition peer-checked:translate-x-5" />
                   </label>
                 </div>
                 <label className="space-y-1.5 sm:col-span-2">
                   <span className="field-label">分類</span>
                   <select
-                    className="h-11 w-full rounded-xl border border-[#e2dfd8] bg-[#f7f6f2] px-3 outline-none transition focus:border-[#0f7a66] focus:ring-2 focus:ring-[#bfe3d8]"
+                    className="h-11 w-full rounded-xl border border-[#dfe4e2] bg-[var(--surface-alt)] px-3 outline-none transition focus:border-[var(--accent)] focus:ring-2 focus:ring-[var(--accent-ring)]"
                     value={editForm.categoryId}
                     onChange={(event) =>
                       setEditForm((current) => ({ ...current, categoryId: event.target.value }))
@@ -3917,7 +3917,7 @@ export default function Home() {
                 <label className="space-y-1.5">
                   <span className="field-label">開始</span>
                   <input
-                    className="h-11 w-full rounded-xl border border-[#e2dfd8] bg-[#f7f6f2] px-3 outline-none transition focus:border-[#0f7a66] focus:ring-2 focus:ring-[#bfe3d8]"
+                    className="h-11 w-full rounded-xl border border-[#dfe4e2] bg-[var(--surface-alt)] px-3 outline-none transition focus:border-[var(--accent)] focus:ring-2 focus:ring-[var(--accent-ring)]"
                     type="datetime-local"
                     value={editForm.start}
                     onChange={(event) => {
@@ -3936,7 +3936,7 @@ export default function Home() {
                 <label className="space-y-1.5">
                   <span className="field-label">終了</span>
                   <input
-                    className="h-11 w-full rounded-xl border border-[#e2dfd8] bg-[#f7f6f2] px-3 outline-none transition focus:border-[#0f7a66] focus:ring-2 focus:ring-[#bfe3d8]"
+                    className="h-11 w-full rounded-xl border border-[#dfe4e2] bg-[var(--surface-alt)] px-3 outline-none transition focus:border-[var(--accent)] focus:ring-2 focus:ring-[var(--accent-ring)]"
                     type="datetime-local"
                     value={editForm.end}
                     onChange={(event) =>
@@ -3944,7 +3944,7 @@ export default function Home() {
                     }
                   />
                   <button
-                    className="mt-2 rounded-xl border border-[#e2dfd8] bg-[#f7f6f2] px-3 py-2 text-xs font-bold text-[#3a4440]"
+                    className="mt-2 rounded-xl border border-[#dfe4e2] bg-[var(--surface-alt)] px-3 py-2 text-xs font-bold text-[#3a4440]"
                     type="button"
                     onClick={() => toggleEndNextDay("edit")}
                   >
@@ -3954,7 +3954,7 @@ export default function Home() {
                 {!(showEditMoreFields || editForm.note || editForm.imageUrl || editForm.url) ? (
                   <button
                     type="button"
-                    className="flex items-center justify-center gap-2 rounded-xl border border-dashed border-[#dad7cf] py-3 text-sm font-bold text-[#4d5753] transition hover:border-[#0f7a66] hover:bg-[#e1f1ec] hover:text-[#0f7a66] sm:col-span-2"
+                    className="flex items-center justify-center gap-2 rounded-xl border border-dashed border-[#d5dad8] py-3 text-sm font-bold text-[#4d5753] transition hover:border-[var(--accent)] hover:bg-[var(--accent-soft)] hover:text-[var(--accent)] sm:col-span-2"
                     onClick={() => setShowEditMoreFields(true)}
                   >
                     <PlusIcon />
@@ -3965,7 +3965,7 @@ export default function Home() {
                 <label className="space-y-1.5 sm:col-span-2">
                   <span className="field-label">メモ</span>
                   <textarea
-                    className="min-h-24 w-full rounded-xl border border-[#e2dfd8] bg-[#f7f6f2] p-3 outline-none transition focus:border-[#0f7a66] focus:ring-2 focus:ring-[#bfe3d8]"
+                    className="min-h-24 w-full rounded-xl border border-[#dfe4e2] bg-[var(--surface-alt)] p-3 outline-none transition focus:border-[var(--accent)] focus:ring-2 focus:ring-[var(--accent-ring)]"
                     value={editForm.note}
                     onChange={(event) =>
                       setEditForm((current) => ({ ...current, note: event.target.value }))
@@ -3993,7 +3993,7 @@ export default function Home() {
                     <span className="field-label">URL（お店・予約ページなど）</span>
                     <button
                       type="button"
-                      className="rounded-xl border border-[#e2dfd8] bg-[#f7f6f2] px-2.5 py-1 text-xs font-bold text-[#0f7a66]"
+                      className="rounded-xl border border-[#dfe4e2] bg-[var(--surface-alt)] px-2.5 py-1 text-xs font-bold text-[var(--accent)]"
                       onClick={() => openLinkPicker("edit")}
                     >
                       📍 スポットから選択
@@ -4002,7 +4002,7 @@ export default function Home() {
                   <input
                     type="text"
                     inputMode="url"
-                    className="w-full rounded-xl border border-[#e2dfd8] bg-[#f7f6f2] p-3 text-sm outline-none transition focus:border-[#0f7a66] focus:ring-2 focus:ring-[#bfe3d8]"
+                    className="w-full rounded-xl border border-[#dfe4e2] bg-[var(--surface-alt)] p-3 text-sm outline-none transition focus:border-[var(--accent)] focus:ring-2 focus:ring-[var(--accent-ring)]"
                     value={editForm.url}
                     onChange={(event) =>
                       setEditForm((current) => ({ ...current, url: event.target.value }))
@@ -4043,7 +4043,7 @@ export default function Home() {
                         )}
                         {people.length > 0 && (
                           <span className="ml-auto flex">
-                            <span className="avatar" style={{ backgroundColor: "#0f7a66" }} title="わたし">わ</span>
+                            <span className="avatar" style={{ backgroundColor: "var(--accent)" }} title="わたし">わ</span>
                             {people.map((p) => (
                               <span key={p.id} className="avatar" style={{ backgroundColor: partnerColor(p.id) }} title={p.name}>
                                 {p.name.slice(0, 1)}
@@ -4075,7 +4075,7 @@ export default function Home() {
                   );
                 })()}
                 {detailEvent.imageUrl && (
-                  <div className="rounded-xl bg-[#f7f6f2] p-3">
+                  <div className="rounded-xl bg-[var(--surface-alt)] p-3">
                     <p className="text-xs font-semibold text-[#66706c]">画像</p>
                     <div className="mt-2 flex items-center gap-3">
                       <button
@@ -4093,7 +4093,7 @@ export default function Home() {
                       </button>
                       <button
                         type="button"
-                        className="rounded-xl border border-[#e2dfd8] bg-[#f7f6f2] px-3 py-1.5 text-xs font-bold text-[#3a4440]"
+                        className="rounded-xl border border-[#dfe4e2] bg-[var(--surface-alt)] px-3 py-1.5 text-xs font-bold text-[#3a4440]"
                         onClick={() => setDetailImageOpen(true)}
                       >
                         元画像を表示
@@ -4110,7 +4110,7 @@ export default function Home() {
                     href={normalizedUrl}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="block rounded-xl border border-[#ece9e2] bg-[#f7f6f2] p-3 transition hover:border-[#0f7a66] hover:bg-[#e1f1ec]"
+                    className="block rounded-xl border border-[#e5e9e7] bg-[var(--surface-alt)] p-3 transition hover:border-[var(--accent)] hover:bg-[var(--accent-soft)]"
                   >
                     {ogLoading && (
                       <div className="flex items-center gap-2 text-xs text-[#8e958f]">
@@ -4124,12 +4124,12 @@ export default function Home() {
                           {(ogData.main || (ogData.subs?.length ?? 0) > 0) && (
                             <div className="mb-1 flex flex-wrap items-center gap-1">
                               {ogData.main && (
-                                <span className="inline-flex items-center gap-1 rounded-full bg-[#0f7a66] px-2 py-0.5 text-[10px] font-bold text-white">
+                                <span className="inline-flex items-center gap-1 rounded-full bg-[var(--accent)] px-2 py-0.5 text-[10px] font-bold text-white">
                                   {ogData.main.emoji} {ogData.main.label}
                                 </span>
                               )}
                               {(ogData.subs ?? []).map((s) => (
-                                <span key={s.label} className="inline-flex items-center gap-1 rounded-full bg-[#e1f1ec] px-2 py-0.5 text-[10px] font-semibold text-[#0f7a66]">
+                                <span key={s.label} className="inline-flex items-center gap-1 rounded-full bg-[var(--accent-soft)] px-2 py-0.5 text-[10px] font-semibold text-[var(--accent)]">
                                   {s.emoji} {s.label}
                                 </span>
                               ))}
@@ -4141,14 +4141,14 @@ export default function Home() {
                           )}
                           <p className="mt-1 truncate text-[10px] text-[#8e958f]">{detailEvent.url}</p>
                         </div>
-                        <svg viewBox="0 0 24 24" className="h-4 w-4 shrink-0 text-[#0f7a66]" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <svg viewBox="0 0 24 24" className="h-4 w-4 shrink-0 text-[var(--accent)]" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                           <path d="M15 3h6v6M10 14 21 3M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>
                         </svg>
                       </div>
                     ) : !ogLoading && (
                       <div className="flex items-center justify-between gap-2">
-                        <p className="truncate text-sm font-semibold text-[#0f7a66]">{detailEvent.url}</p>
-                        <svg viewBox="0 0 24 24" className="h-4 w-4 shrink-0 text-[#0f7a66]" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <p className="truncate text-sm font-semibold text-[var(--accent)]">{detailEvent.url}</p>
+                        <svg viewBox="0 0 24 24" className="h-4 w-4 shrink-0 text-[var(--accent)]" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                           <path d="M15 3h6v6M10 14 21 3M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>
                         </svg>
                       </div>
@@ -4440,8 +4440,8 @@ export default function Home() {
                           key={option.value}
                           className={`cursor-pointer rounded-2xl border p-3 transition ${
                             editForm.shareType === option.value
-                              ? "border-[#0f7a66] bg-[#e1f1ec]"
-                              : "border-[#e2dfd8] bg-[#f7f6f2]"
+                              ? "border-[var(--accent)] bg-[var(--accent-soft)]"
+                              : "border-[#dfe4e2] bg-[var(--surface-alt)]"
                           }`}
                         >
                           <input
@@ -4469,12 +4469,12 @@ export default function Home() {
                         key={connection.id}
                         className={`flex cursor-pointer items-center gap-2 rounded-full border px-3 py-2 text-sm ${
                           shareDraftIds.includes(connection.id)
-                            ? "border-[#0f7a66] bg-[#e1f1ec] text-[#0f7a66]"
-                            : "border-[#dad7cf] text-[#3a4440]"
+                            ? "border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--accent)]"
+                            : "border-[#d5dad8] text-[#3a4440]"
                         }`}
                       >
                         <input
-                          className="h-4 w-4 accent-[#0f7a66]"
+                          className="h-4 w-4 accent-[var(--accent)]"
                           type="checkbox"
                           checked={shareDraftIds.includes(connection.id)}
                           onChange={(event) => {
@@ -4504,17 +4504,17 @@ export default function Home() {
                   この予定を削除
                 </button>
 
-                <div className="sticky -bottom-5 z-10 -mx-5 -mb-5 border-t border-[#ece9e2] bg-white/95 px-5 py-3 pb-[max(12px,env(safe-area-inset-bottom))] backdrop-blur sm:-bottom-7 sm:-mx-7 sm:-mb-7 sm:px-7">
+                <div className="sticky -bottom-5 z-10 -mx-5 -mb-5 border-t border-[#e5e9e7] bg-white/95 px-5 py-3 pb-[max(12px,env(safe-area-inset-bottom))] backdrop-blur sm:-bottom-7 sm:-mx-7 sm:-mb-7 sm:px-7">
                   <div className="flex gap-2">
                     <button
-                      className="h-12 shrink-0 rounded-2xl border border-[#dad7cf] bg-[#f7f6f2] px-4 text-sm font-bold text-[#4d5753] transition hover:bg-white"
+                      className="h-12 shrink-0 rounded-2xl border border-[#d5dad8] bg-[var(--surface-alt)] px-4 text-sm font-bold text-[#4d5753] transition hover:bg-white"
                       onClick={() => setIsDetailEditing(false)}
                       type="button"
                     >
                       キャンセル
                     </button>
                     <button
-                      className="h-12 flex-1 rounded-2xl bg-[#0f7a66] px-5 text-base font-bold text-white shadow-sm transition hover:bg-[#0b5e4f] disabled:cursor-not-allowed disabled:opacity-50"
+                      className="h-12 flex-1 rounded-2xl bg-[var(--accent)] px-5 text-base font-bold text-white shadow-sm transition hover:bg-[var(--accent-strong)] disabled:cursor-not-allowed disabled:opacity-50"
                       onClick={updateEvent}
                       disabled={ocrBusy || !editForm.title.trim()}
                       type="button"
@@ -4546,21 +4546,21 @@ export default function Home() {
               最初にここだけ覚えれば大丈夫
             </h2>
             <div className="mt-5 grid gap-3 text-sm text-[#4d5753]">
-              <div className="rounded-2xl bg-[#f7f6f2] p-3">
+              <div className="rounded-2xl bg-[var(--surface-alt)] p-3">
                 <p className="font-bold text-[#1b2421]">1. 日付を押して予定を確認・登録</p>
                 <p className="mt-1">日付や予定を押すと、その日の予定が下に出ます。予定の中身は下の一覧から開けます。登録は「＋」か、同じ日付をもう一度押すと開きます。</p>
               </div>
-              <div className="rounded-2xl bg-[#f7f6f2] p-3">
+              <div className="rounded-2xl bg-[var(--surface-alt)] p-3">
                 <p className="font-bold text-[#1b2421]">2. よく使う予定で時短</p>
                 <p className="mt-1">夜勤や休みはよく使う予定にしておくと、ワンタップで入力できます。</p>
               </div>
-              <div className="rounded-2xl bg-[#f7f6f2] p-3">
+              <div className="rounded-2xl bg-[var(--surface-alt)] p-3">
                 <p className="font-bold text-[#1b2421]">3. 必要な予定だけ共有</p>
                 <p className="mt-1">登録時や編集時に、共有する相手を選べます。</p>
               </div>
             </div>
             <button
-              className="mt-5 h-11 w-full rounded-xl bg-[#0f7a66] px-4 font-bold text-white"
+              className="mt-5 h-11 w-full rounded-xl bg-[var(--accent)] px-4 font-bold text-white"
               onClick={() => {
                 window.localStorage.setItem("calendar_tutorial_seen", "true");
                 setShowTutorial(false);
@@ -4589,7 +4589,7 @@ export default function Home() {
               </button>
             </div>
             <input
-              className="mt-3 w-full rounded-xl border border-[#e2dfd8] bg-[#f7f6f2] p-2.5 text-sm outline-none focus:border-[#0f7a66]"
+              className="mt-3 w-full rounded-xl border border-[#dfe4e2] bg-[var(--surface-alt)] p-2.5 text-sm outline-none focus:border-[var(--accent)]"
               placeholder="店名・URLで検索"
               value={linkPickerQuery}
               onChange={(e) => setLinkPickerQuery(e.target.value)}
@@ -4616,7 +4616,7 @@ export default function Home() {
                         chooseLink(opt.url);
                       }
                     }}
-                    className="flex w-full items-center gap-2 rounded-lg border border-[#ece9e2] p-2.5 text-left transition hover:border-[#0f7a66] hover:bg-[#e1f1ec]"
+                    className="flex w-full items-center gap-2 rounded-lg border border-[#e5e9e7] p-2.5 text-left transition hover:border-[var(--accent)] hover:bg-[var(--accent-soft)]"
                   >
                     <span className="text-base">{opt.isWish ? "📍" : opt.isFavorite ? "⭐" : "🔗"}</span>
                     <span className="min-w-0 flex-1">
@@ -4644,10 +4644,10 @@ export default function Home() {
             <div className="confirm-card" onClick={(e) => e.stopPropagation()}>
               <p className="text-xs font-bold uppercase tracking-[0.14em] text-[#66706c]">確認</p>
               <p className="mt-2 text-base font-black text-[#1b2421]">この内容で登録しますか？</p>
-              <dl className="mt-4 space-y-2 rounded-xl border border-[#ece9e2] bg-[#f7f6f2] p-3 text-sm">
+              <dl className="mt-4 space-y-2 rounded-xl border border-[#e5e9e7] bg-[var(--surface-alt)] p-3 text-sm">
                 <div className="flex gap-3">
                   <dt className="w-14 shrink-0 font-semibold text-[#66706c]">日付</dt>
-                  <dd className="text-lg font-black text-[#0f7a66]">
+                  <dd className="text-lg font-black text-[var(--accent)]">
                     {format(start, "M月d日(E)", { locale: ja })}
                   </dd>
                 </div>
@@ -4673,14 +4673,14 @@ export default function Home() {
               <p className="mt-2 text-xs text-[#66706c]">登録後は次の日の入力に進みます。</p>
               <div className="mt-5 grid grid-cols-2 gap-2">
                 <button
-                  className="h-11 rounded-xl border border-[#dad7cf] font-bold text-[#3a4440] transition hover:bg-[#f7f6f2] disabled:opacity-50"
+                  className="h-11 rounded-xl border border-[#d5dad8] font-bold text-[#3a4440] transition hover:bg-[var(--surface-alt)] disabled:opacity-50"
                   disabled={savingPattern}
                   onClick={() => setConfirmPattern(null)}
                 >
                   キャンセル
                 </button>
                 <button
-                  className="h-11 rounded-xl bg-[#0f7a66] font-bold text-white transition hover:bg-[#0b5e4f] disabled:opacity-60"
+                  className="h-11 rounded-xl bg-[var(--accent)] font-bold text-white transition hover:bg-[var(--accent-strong)] disabled:opacity-60"
                   disabled={savingPattern}
                   onClick={() => void applyPatternAndSave(confirmPattern)}
                 >
@@ -4709,7 +4709,7 @@ export default function Home() {
             )}
             <div className="mt-5 grid grid-cols-2 gap-2">
               <button
-                className="h-11 rounded-xl border border-[#dad7cf] font-bold text-[#3a4440] transition hover:bg-[#f7f6f2]"
+                className="h-11 rounded-xl border border-[#d5dad8] font-bold text-[#3a4440] transition hover:bg-[var(--surface-alt)]"
                 onClick={() => setConfirmDeleteEvent(null)}
               >
                 キャンセル

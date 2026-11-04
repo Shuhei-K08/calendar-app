@@ -274,7 +274,7 @@ export default function PatternsPage() {
   return (
     <main className="page-shell min-h-screen px-4 pb-28 pt-4 text-[var(--fg)] sm:px-6 sm:pb-6 lg:px-8">
       <div className="mx-auto flex max-w-5xl flex-col gap-5">
-        <header className="flex flex-col gap-4 rounded-2xl border border-[#e2dfd8] bg-white p-4 shadow-sm sm:flex-row sm:items-center sm:justify-between">
+        <header className="flex flex-col gap-4 rounded-2xl border border-[#dfe4e2] bg-white p-4 shadow-sm sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-3">
             <ShareCalLogo compact />
             <div>
@@ -284,7 +284,7 @@ export default function PatternsPage() {
           <DesktopNavigation />
         </header>
 
-        <section className="rounded-2xl border border-[#e2dfd8] bg-white p-4 shadow-sm">
+        <section className="rounded-2xl border border-[#dfe4e2] bg-white p-4 shadow-sm">
           {!schemaReady && (
             <div className="mb-4 rounded-xl border border-[#fde68a] bg-[#fffbeb] p-3 text-sm text-[#92400e]">
               Supabase SQLをまだ実行していないため、よく使う予定は使えません。
@@ -298,7 +298,7 @@ export default function PatternsPage() {
               </p>
             </div>
             <button
-              className="h-11 rounded-xl bg-[#0f7a66] px-5 text-sm font-black text-white shadow-sm transition hover:bg-[#0b5f59]"
+              className="h-11 rounded-xl bg-[var(--accent)] px-5 text-sm font-black text-white shadow-sm transition hover:bg-[#0b5f59]"
               onClick={openNewForm}
             >
               よく使う予定を追加
@@ -313,7 +313,7 @@ export default function PatternsPage() {
         >
           <div className="mb-4 flex items-start justify-between gap-3">
             <div>
-              <p className="text-xs font-black uppercase tracking-[0.14em] text-[#0f7a66]">
+              <p className="text-xs font-black uppercase tracking-[0.14em] text-[var(--accent)]">
                 {form.id ? "編集中" : "新しく登録"}
               </p>
               <h2 className="mt-1 text-xl font-black text-[#1b2421]">
@@ -321,7 +321,7 @@ export default function PatternsPage() {
               </h2>
             </div>
             <button
-              className="h-10 rounded-xl border border-[#dad7cf] px-4 text-sm font-bold text-[#3a4440]"
+              className="h-10 rounded-xl border border-[#d5dad8] px-4 text-sm font-bold text-[#3a4440]"
               onClick={() => {
                 setForm(blankForm);
                 setIsFormOpen(false);
@@ -335,7 +335,7 @@ export default function PatternsPage() {
             <label className="space-y-1 sm:col-span-2">
               <span className="text-xs font-semibold text-[#66706c]">予定名</span>
               <input
-                className="h-11 w-full rounded-lg border border-[#dad7cf] px-3 text-sm outline-none transition focus:border-[#0f7a66] focus:ring-2 focus:ring-[#bfe3d8]"
+                className="h-11 w-full rounded-lg border border-[#d5dad8] px-3 text-sm outline-none transition focus:border-[var(--accent)] focus:ring-2 focus:ring-[var(--accent-ring)]"
                 placeholder="例: 夜勤、休み、通院"
                 value={form.label}
                 onChange={(event) =>
@@ -350,7 +350,7 @@ export default function PatternsPage() {
             <label className="space-y-1 sm:col-span-2">
               <span className="text-xs font-semibold text-[#66706c]">分類</span>
               <select
-                className="h-11 w-full rounded-lg border border-[#dad7cf] px-3 text-sm outline-none transition focus:border-[#0f7a66] focus:ring-2 focus:ring-[#bfe3d8]"
+                className="h-11 w-full rounded-lg border border-[#d5dad8] px-3 text-sm outline-none transition focus:border-[var(--accent)] focus:ring-2 focus:ring-[var(--accent-ring)]"
                 value={form.category_id}
                 onChange={(event) =>
                   setForm((current) => ({ ...current, category_id: event.target.value }))
@@ -364,23 +364,23 @@ export default function PatternsPage() {
                 ))}
               </select>
             </label>
-            <div className="rounded-2xl border border-[#e2dfd8] bg-[#f7f6f2] p-3 sm:col-span-2">
+            <div className="rounded-2xl border border-[#dfe4e2] bg-[var(--surface-alt)] p-3 sm:col-span-2">
               <p className="text-xs font-bold text-[#66706c]">ここで分類も追加できます</p>
               <div className="mt-2 grid gap-2 sm:grid-cols-[minmax(0,1fr)_96px_96px] sm:items-end">
                 <input
-                  className="h-10 min-w-0 rounded-lg border border-[#dad7cf] bg-white px-3 text-sm outline-none transition focus:border-[#0f7a66] focus:ring-2 focus:ring-[#bfe3d8]"
+                  className="h-10 min-w-0 rounded-lg border border-[#d5dad8] bg-white px-3 text-sm outline-none transition focus:border-[var(--accent)] focus:ring-2 focus:ring-[var(--accent-ring)]"
                   placeholder="例: 勤務"
                   value={newCategoryName}
                   onChange={(event) => setNewCategoryName(event.target.value)}
                 />
                 <input
-                  className="h-10 w-full rounded-lg border border-[#dad7cf] bg-white px-2"
+                  className="h-10 w-full rounded-lg border border-[#d5dad8] bg-white px-2"
                   type="color"
                   value={newCategoryColor}
                   onChange={(event) => setNewCategoryColor(event.target.value)}
                 />
                 <button
-                  className="h-10 rounded-lg border border-[#0f7a66] bg-white px-4 text-sm font-bold text-[#0f7a66] transition hover:bg-[#e1f1ec]"
+                  className="h-10 rounded-lg border border-[var(--accent)] bg-white px-4 text-sm font-bold text-[var(--accent)] transition hover:bg-[var(--accent-soft)]"
                   onClick={addCategory}
                 >
                   分類追加
@@ -390,7 +390,7 @@ export default function PatternsPage() {
             <label className="space-y-1">
               <span className="text-xs font-semibold text-[#66706c]">開始</span>
               <input
-                className="h-11 w-full rounded-lg border border-[#dad7cf] px-3 text-sm outline-none transition focus:border-[#0f7a66] focus:ring-2 focus:ring-[#bfe3d8]"
+                className="h-11 w-full rounded-lg border border-[#d5dad8] px-3 text-sm outline-none transition focus:border-[var(--accent)] focus:ring-2 focus:ring-[var(--accent-ring)]"
                 type="time"
                 value={form.start_time}
                 onChange={(event) =>
@@ -401,7 +401,7 @@ export default function PatternsPage() {
             <label className="space-y-1">
               <span className="text-xs font-semibold text-[#66706c]">終了</span>
               <input
-                className="h-11 w-full rounded-lg border border-[#dad7cf] px-3 text-sm outline-none transition focus:border-[#0f7a66] focus:ring-2 focus:ring-[#bfe3d8]"
+                className="h-11 w-full rounded-lg border border-[#d5dad8] px-3 text-sm outline-none transition focus:border-[var(--accent)] focus:ring-2 focus:ring-[var(--accent-ring)]"
                 type="time"
                 value={form.end_time}
                 onChange={(event) =>
@@ -409,9 +409,9 @@ export default function PatternsPage() {
                 }
               />
             </label>
-            <label className="flex items-center gap-2 rounded-lg border border-[#dad7cf] px-3 py-3 text-sm text-[#3a4440] sm:col-span-2">
+            <label className="flex items-center gap-2 rounded-lg border border-[#d5dad8] px-3 py-3 text-sm text-[#3a4440] sm:col-span-2">
               <input
-                className="h-4 w-4 accent-[#0f7a66]"
+                className="h-4 w-4 accent-[var(--accent)]"
                 type="checkbox"
                 checked={form.next_day_end}
                 onChange={(event) =>
@@ -423,7 +423,7 @@ export default function PatternsPage() {
               />
               終了時刻を翌日にする
             </label>
-            <div className="space-y-3 rounded-2xl border border-[#e2dfd8] bg-[#f7f6f2] p-3 sm:col-span-2">
+            <div className="space-y-3 rounded-2xl border border-[#dfe4e2] bg-[var(--surface-alt)] p-3 sm:col-span-2">
               <div>
                 <p className="text-xs font-bold text-[#66706c]">共有する相手</p>
                 <div className="mt-2 flex flex-wrap gap-2">
@@ -432,12 +432,12 @@ export default function PatternsPage() {
                       key={connection.id}
                       className={`flex cursor-pointer items-center gap-2 rounded-full border px-3 py-2 text-sm transition ${
                         form.share_user_ids.includes(connection.id)
-                          ? "border-[#0f7a66] bg-[#e1f1ec] text-[#0f7a66]"
-                          : "border-[#dad7cf] bg-white text-[#3a4440]"
+                          ? "border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--accent)]"
+                          : "border-[#d5dad8] bg-white text-[#3a4440]"
                       }`}
                     >
                       <input
-                        className="h-4 w-4 accent-[#0f7a66]"
+                        className="h-4 w-4 accent-[var(--accent)]"
                         type="checkbox"
                         checked={form.share_user_ids.includes(connection.id)}
                         onChange={(event) =>
@@ -471,8 +471,8 @@ export default function PatternsPage() {
                       key={option.value}
                       className={`cursor-pointer rounded-2xl border p-3 text-sm font-bold ${
                         form.event_visibility === option.value
-                          ? "border-[#0f7a66] bg-[#e1f1ec] text-[#0f7a66]"
-                          : "border-[#e2dfd8] bg-white text-[#3a4440]"
+                          ? "border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--accent)]"
+                          : "border-[#dfe4e2] bg-white text-[#3a4440]"
                       }`}
                     >
                       <input
@@ -498,7 +498,7 @@ export default function PatternsPage() {
 
           <div className="mt-4 grid gap-2 sm:flex">
             <button
-              className="h-11 rounded-lg bg-[#0f7a66] px-5 text-sm font-semibold text-white disabled:opacity-50"
+              className="h-11 rounded-lg bg-[var(--accent)] px-5 text-sm font-semibold text-white disabled:opacity-50"
               disabled={saving}
               onClick={savePattern}
             >
@@ -506,7 +506,7 @@ export default function PatternsPage() {
             </button>
             {form.id && (
               <button
-              className="h-11 rounded-lg border border-[#dad7cf] px-5 text-sm font-semibold text-[#3a4440]"
+              className="h-11 rounded-lg border border-[#d5dad8] px-5 text-sm font-semibold text-[#3a4440]"
               onClick={() => {
                 setForm(blankForm);
                 setIsFormOpen(false);
@@ -519,17 +519,17 @@ export default function PatternsPage() {
         </section>
         )}
 
-        <section className="rounded-2xl border border-[#e2dfd8] bg-white p-4 shadow-sm">
+        <section className="rounded-2xl border border-[#dfe4e2] bg-white p-4 shadow-sm">
           <h2 className="mb-4 text-base font-semibold text-[#1b2421]">登録済み</h2>
           <div className="grid gap-3 sm:grid-cols-2">
             {patterns.map((pattern) => (
-              <div key={pattern.id} className="rounded-xl border border-[#e2dfd8] bg-[#f7f6f2] p-3">
+              <div key={pattern.id} className="rounded-xl border border-[#dfe4e2] bg-[var(--surface-alt)] p-3">
                 <div
                   className="mb-3 h-2 rounded-full"
                   style={{
                     backgroundColor:
                       categories.find((category) => category.id === pattern.category_id)?.color ??
-                      "#dad7cf",
+                      "#d5dad8",
                   }}
                 />
                 <div className="flex items-start justify-between gap-3">
@@ -547,7 +547,7 @@ export default function PatternsPage() {
                   </div>
                   <div className="flex gap-2">
                     <button
-                      className="rounded-lg border border-[#dad7cf] px-3 py-2 text-sm text-[#3a4440]"
+                      className="rounded-lg border border-[#d5dad8] px-3 py-2 text-sm text-[#3a4440]"
                       onClick={() => openEditForm(pattern)}
                     >
                       編集

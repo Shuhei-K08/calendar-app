@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import { DesktopNavigation, MobileNavigation, PENDING_CHANGED_EVENT, ShareCalLogo } from "@/app/components/AppNavigation";
 import { applySavedTheme } from "@/app/components/ThemeApplier";
+import { setKintaiEnabled, useKintaiEnabled } from "@/lib/features";
 import { DESIGN_THEMES, EVENT_COLOR_DEFAULTS, findDesignTheme, resolveEventColor } from "@/lib/theme";
 
 /* ── Toast ── */
@@ -24,7 +25,7 @@ function useToast() {
 /* ── Types ── */
 const defaultSettings = {
   designTheme: "clean",
-  background: "#f6f5f1",
+  background: "var(--background)",
   calendarWeekStart: "monday",
   ownEventBackground: EVENT_COLOR_DEFAULTS.ownEventBackground,
   partnerEventBackground: EVENT_COLOR_DEFAULTS.partnerEventBackground,
@@ -60,7 +61,7 @@ const PAGE_TITLES: Record<Page, string> = {
   partner: "ふたり（共有）",
   recurring: "くり返し予定",
   categories: "分類",
-  theme: "テーマと予定の色",
+  theme: "テーマカラーと予定の色",
   guide: "使い方",
 };
 const isPage = (v: string | null): v is Page => !!v && (PAGES as string[]).includes(v);
@@ -120,6 +121,7 @@ const Icons = {
   tag: <Svg d="M3 12V4a1 1 0 0 1 1-1h8l9 9-9 9-9-9Z"><circle cx="8" cy="8" r="1.5" /></Svg>,
   calendar: <Svg d="M8 3v4M16 3v4M3.5 10h17"><rect x="3.5" y="5" width="17" height="15" rx="3" /></Svg>,
   palette: <Svg d="M12 3a9 9 0 1 0 0 18c1.1 0 1.8-.8 1.8-1.8 0-.5-.2-.9-.5-1.3-.3-.3-.5-.8-.5-1.2 0-1 .8-1.7 1.8-1.7H17a4 4 0 0 0 4-4C21 6.5 17 3 12 3Z"><circle cx="7.5" cy="11" r="1" /><circle cx="10.5" cy="7" r="1" /><circle cx="15" cy="7.5" r="1" /></Svg>,
+  clock: <Svg d="M12 7v5l3 2"><circle cx="12" cy="12" r="9" /></Svg>,
   bell: <Svg d="M6 9a6 6 0 0 1 12 0c0 6 2.5 7.5 2.5 7.5h-17S6 15 6 9ZM10 20a2 2 0 0 0 4 0" />,
   help: <Svg d="M9.5 9a2.5 2.5 0 1 1 3.5 2.3c-.7.3-1 .9-1 1.7M12 17h.01"><circle cx="12" cy="12" r="9" /></Svg>,
   shield: <Svg d="M12 3 5 6v5c0 4.5 3 8 7 10 4-2 7-5.5 7-10V6l-7-3ZM9 12l2 2 4-5" />,
@@ -165,6 +167,7 @@ export default function SettingsPage() {
   const pushedRef = useRef(false);
   const [isAdmin, setIsAdmin] = useState(false);
   const [settings, setSettings] = useState<CalendarSettings>(defaultSettings);
+  const { enabled: kintaiEnabled } = useKintaiEnabled();
 
   // プロフィール
   const [email, setEmail] = useState("");
@@ -623,7 +626,7 @@ export default function SettingsPage() {
                     ))}
                   </div>
                 </div>
-                <Row icon={Icons.palette} tone="purple" title="テーマと予定の色" value={themeName} onClick={() => go("theme")} />
+                <Row icon={Icons.palette} tone="purple" title="テーマカラーと予定の色" value={themeName} onClick={() => go("theme")} />
                 <label className="st-row is-static">
                   <span className="st-icon tone-orange">{Icons.bell}</span>
                   <span className="st-row-text">
@@ -635,6 +638,25 @@ export default function SettingsPage() {
                     className="st-switch"
                     checked={settings.notificationsEnabled}
                     onChange={(e) => updateSettings({ notificationsEnabled: e.target.checked })}
+                  />
+                </label>
+              </Group>
+
+              <Group title="機能" note="勤怠は自分だけの機能です。オンにしても、つながっている相手には見えません。">
+                <label className="st-row is-static">
+                  <span className="st-icon tone-blue">{Icons.clock}</span>
+                  <span className="st-row-text">
+                    <span className="st-row-title">勤怠を使う</span>
+                    <span className="st-row-sub">稼働時間の記録・精算幅の見込み・Excelへの書き出し。オンにするとメニューに出ます</span>
+                  </span>
+                  <input
+                    type="checkbox"
+                    className="st-switch"
+                    checked={!!kintaiEnabled}
+                    onChange={(e) => {
+                      void setKintaiEnabled(e.target.checked);
+                      show(e.target.checked ? "メニューに「勤怠」を出しました" : "メニューから「勤怠」を消しました（記録は残っています）", "info");
+                    }}
                   />
                 </label>
               </Group>
@@ -947,18 +969,17 @@ export default function SettingsPage() {
           {/* ───────── テーマ ───────── */}
           {page === "theme" && (
             <>
-              <Group title="テーマ" note="変えるとすぐに反映されます。">
+              <Group title="テーマカラー" note="変えるとすぐに反映されます。予定の色もテーマに合わせた色に変わります。">
                 <div className="st-themes">
                   {DESIGN_THEMES.map((theme) => (
                     <button
                       key={theme.id}
                       type="button"
                       className="st-theme"
-                      aria-pressed={settings.designTheme === theme.id}
-                      onClick={() => updateSettings({ designTheme: theme.id, background: theme.background })}
+                      aria-pressed={findDesignTheme(settings.designTheme).id === theme.id}
+                      onClick={() => updateSettings({ designTheme: theme.id, background: theme.background, ...theme.events })}
                     >
-                      <span className="st-theme-swatch" style={{ background: theme.background }}>
-                        <i style={{ background: theme.accent }} />
+                      <span className="st-theme-swatch">
                         {theme.preview.map((c) => <i key={c} style={{ background: c }} />)}
                       </span>
                       <span className="st-row-title">{theme.name}</span>
@@ -981,11 +1002,11 @@ export default function SettingsPage() {
                 type="button"
                 className="st-text-btn"
                 onClick={() => {
-                  updateSettings({ ...EVENT_COLOR_DEFAULTS });
+                  updateSettings({ ...findDesignTheme(settings.designTheme).events });
                   show("予定の色を元に戻しました", "info");
                 }}
               >
-                予定の色を最初の色に戻す
+                予定の色をテーマの色に戻す
               </button>
             </>
           )}

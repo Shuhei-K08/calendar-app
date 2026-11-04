@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useKintaiEnabled } from "@/lib/features";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
@@ -15,7 +16,7 @@ export function ShareCalMark({ size = 36, className = "" }: { size?: number; cla
       viewBox="0 0 120 120"
       aria-hidden="true"
     >
-      <rect width="120" height="120" rx="28" fill="#0F7A66" />
+      <rect width="120" height="120" rx="28" style={{ fill: "var(--accent)" }} />
       <path
         d="M38 30h44a14 14 0 0 1 14 14v30a14 14 0 0 1-14 14H72l-12 12-4-12H38a14 14 0 0 1-14-14V44a14 14 0 0 1 14-14Z"
         fill="#FFFFFF"
@@ -23,7 +24,7 @@ export function ShareCalMark({ size = 36, className = "" }: { size?: number; cla
       <path d="M38 30h44a14 14 0 0 1 14 14v4H24v-4a14 14 0 0 1 14-14Z" fill="#CFE9E1" />
       <rect x="39" y="22" width="7" height="16" rx="3.5" fill="#FFFFFF" />
       <rect x="74" y="22" width="7" height="16" rx="3.5" fill="#FFFFFF" />
-      <circle cx="43" cy="67" r="6" fill="#0F7A66" />
+      <circle cx="43" cy="67" r="6" style={{ fill: "var(--accent)" }} />
       <circle cx="60" cy="67" r="6" fill="#6D3FD8" />
       <circle cx="77" cy="67" r="6" fill="#E0703A" />
     </svg>
@@ -53,6 +54,13 @@ const SpotIcon = () => (
   </svg>
 );
 
+const ClockIcon = () => (
+  <svg className="nav-svg" viewBox="0 0 24 24" aria-hidden="true">
+    <circle cx="12" cy="12" r="9" />
+    <path d="M12 7v5l3 2" />
+  </svg>
+);
+
 const SettingsIcon = () => (
   <svg className="nav-svg" viewBox="0 0 24 24" aria-hidden="true">
     <circle cx="12" cy="12" r="3" />
@@ -79,12 +87,19 @@ const PlusIcon = () => (
   </svg>
 );
 
-// メインのメニューは3つだけ（ふたり・よく使う予定・管理は設定の中）
+// メインのメニュー（ふたり・よく使う予定・管理は設定の中）
 const items = [
   { href: "/", label: "カレンダー", icon: <CalendarIcon /> },
   { href: "/links", label: "スポット", icon: <SpotIcon /> },
+  { href: "/kintai", label: "勤怠", icon: <ClockIcon /> },
   { href: "/settings", label: "設定", icon: <SettingsIcon /> },
 ];
+
+// 勤怠は設定でオンにした人だけに出す
+function useNavItems() {
+  const { enabled } = useKintaiEnabled();
+  return enabled ? items : items.filter((i) => i.href !== "/kintai");
+}
 
 const ADMIN_CACHE_KEY = "sharecal_is_admin";
 
@@ -152,6 +167,7 @@ const isActivePath = (pathname: string, href: string) => {
 
 export function DesktopNavigation() {
   const { pendingCount, isAdmin } = useNavigationMeta();
+  const navItems = useNavItems();
   const pathname = usePathname();
   const openAdd = useAddAction();
 
@@ -159,7 +175,7 @@ export function DesktopNavigation() {
     <>
       {/* タブレット幅: ヘッダー内の横並びメニュー */}
       <nav className="top-nav" aria-label="メニュー">
-        {items.map((item) => (
+        {navItems.map((item) => (
           <Link
             key={item.href}
             className="top-nav-link"
@@ -179,7 +195,7 @@ export function DesktopNavigation() {
           <ShareCalLogo />
         </Link>
         <nav className="side-nav-links">
-          {items.map((item) => (
+          {navItems.map((item) => (
             <Link
               key={item.href}
               className="side-nav-link"
@@ -215,10 +231,10 @@ export function DesktopNavigation() {
 
 export function MobileNavigation() {
   const { pendingCount } = useNavigationMeta();
+  const navItems = useNavItems();
   const pathname = usePathname();
   const openAdd = useAddAction();
-  const [left, right] = [items.slice(0, 2), items.slice(2)];
-  // 右側は「設定」だけなので、真ん中の＋がずれないよう右の2列ぶんを使う
+  const [left, right] = [navItems.slice(0, 2), navItems.slice(2)];
 
   const renderItem = (item: (typeof items)[number]) => (
     <Link
@@ -234,7 +250,7 @@ export function MobileNavigation() {
   );
 
   return (
-    <nav className="mobile-nav is-three sm:hidden" aria-label="メニュー">
+    <nav className={`mobile-nav sm:hidden ${navItems.length === 3 ? "is-three" : ""}`} aria-label="メニュー">
       {left.map(renderItem)}
       <button type="button" className="mobile-nav-add" onClick={openAdd} aria-label="予定を追加">
         <PlusIcon />

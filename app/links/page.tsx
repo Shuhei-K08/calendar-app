@@ -169,9 +169,9 @@ const mainEmoji = (name: string) => MAIN_EMOJI[name] ?? "📌";
 const GENRE_TILE: Record<string, string> = {
   "グルメ・飲食": "#fde8d7", "旅行・宿泊": "#dcebfa", "アウトドア": "#e3efd9", "スポーツ": "#dcebfa",
   "フィットネス": "#e3efd9", "ショッピング": "#ece6fb", "エンタメ": "#f9e0ec", "美容": "#f9e0ec",
-  "医療・クリニック": "#ddf0ea",
+  "医療・クリニック": "var(--accent-soft)",
 };
-const genreTile = (main: string) => GENRE_TILE[main] ?? "#ebe8e1";
+const genreTile = (main: string) => GENRE_TILE[main] ?? "#e5e9e7";
 
 // 保存されたジャンル名を「大きいジャンル＋細かいジャンル」に分ける
 // - 大きいジャンル名（例: グルメ・飲食）→ 細かいジャンルなし

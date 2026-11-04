@@ -14,20 +14,24 @@ export function applySavedTheme() {
   }
   const root = document.documentElement;
   const theme = findDesignTheme(settings.designTheme);
+  const t = theme.id;
   root.style.setProperty("--app-bg", theme.background);
   root.style.setProperty("--background", theme.background);
   root.style.setProperty("--app-accent", theme.accent);
   root.style.setProperty("--accent", theme.accent);
-  root.style.setProperty("--accent-strong", `color-mix(in srgb, ${theme.accent} 78%, #000)`);
-  root.style.setProperty("--accent-soft", `color-mix(in srgb, ${theme.accent} 12%, #fff)`);
-  root.style.setProperty("--own-event-bg", resolveEventColor("ownEventBackground", settings.ownEventBackground ?? settings.ownEvent));
+  root.style.setProperty("--accent-strong", theme.accentStrong);
+  root.style.setProperty("--accent-soft", theme.accentSoft);
+  root.style.setProperty("--accent-ring", `color-mix(in srgb, ${theme.accent} 22%, transparent)`);
+  root.style.setProperty("--plus-bg", theme.plusBg);
+  root.style.setProperty("--plus-ink", theme.plusInk);
+  root.style.setProperty("--own-event-bg", resolveEventColor("ownEventBackground", settings.ownEventBackground ?? settings.ownEvent, t));
   root.style.setProperty(
     "--partner-event-bg",
-    resolveEventColor("partnerEventBackground", settings.partnerEventBackground ?? settings.ownEventBackground),
+    resolveEventColor("partnerEventBackground", settings.partnerEventBackground ?? settings.ownEventBackground, t),
   );
-  root.style.setProperty("--incoming-event-bg", resolveEventColor("incomingEventBackground", settings.incomingEventBackground));
-  root.style.setProperty("--shared-event-bg", resolveEventColor("sharedEventBackground", settings.sharedEventBackground ?? settings.sharedEvent));
-  root.style.setProperty("--uncategorized-event", resolveEventColor("unclassifiedEvent", settings.unclassifiedEvent));
+  root.style.setProperty("--incoming-event-bg", resolveEventColor("incomingEventBackground", settings.incomingEventBackground, t));
+  root.style.setProperty("--shared-event-bg", resolveEventColor("sharedEventBackground", settings.sharedEventBackground ?? settings.sharedEvent, t));
+  root.style.setProperty("--uncategorized-event", resolveEventColor("unclassifiedEvent", settings.unclassifiedEvent, t));
 }
 
 export default function ThemeApplier() {
