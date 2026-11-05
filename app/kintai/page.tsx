@@ -3,8 +3,9 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
-import { DesktopNavigation, MobileNavigation, ShareCalLogo } from "@/app/components/AppNavigation";
+import { DesktopNavigation, MobileNavigation, OPEN_KINTAI_ENTRY, ShareCalLogo } from "@/app/components/AppNavigation";
 import {
+  parseYmd,
   buildMonth,
   buildSheet,
   defaultBreakFor,
@@ -350,7 +351,7 @@ export default function KintaiPage() {
   const [bulkMemo, setBulkMemo] = useState<string>(""); // まとめて入力で入れる作業内容（空＝そのまま）
   const [records, setRecords] = useState<Record<string, WorkDay>>({});
   const [planned, setPlanned] = useState<Record<string, PlannedDay>>({});
-  const [view, setView] = useState<"list" | "calendar">("list");
+  const [view, setView] = useState<"list" | "calendar">("calendar");
   const [page, setPage] = useState<"main" | "projects" | "templates">("main");
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
   const [sheetOpen, setSheetOpen] = useState(false);
@@ -478,6 +479,20 @@ export default function KintaiPage() {
   const pay = useMemo(() => monthlyPay(project, sum.projectedMin), [project, sum.projectedMin]);
   const step = project?.rounding_min || 15;
   const isThisMonth = ymKey(month) === todayKey.slice(0, 7);
+
+  // スマホの下の＋（勤怠画面では「今日の勤怠を記入」）
+  useEffect(() => {
+    const open = () => {
+      const today = parseYmd(todayKey);
+      setPage("main");
+      setBulkTpl(null);
+      setMonth((m) => (ymKey(m) === todayKey.slice(0, 7) ? m : new Date(today.getFullYear(), today.getMonth(), 1)));
+      setSelectedKey(todayKey);
+      setSheetOpen(true);
+    };
+    window.addEventListener(OPEN_KINTAI_ENTRY, open);
+    return () => window.removeEventListener(OPEN_KINTAI_ENTRY, open);
+  }, [todayKey]);
   const selected = days.find((d) => d.key === selectedKey) ?? days.find((d) => d.key === todayKey) ?? days[0];
 
   /* 保存まわり */

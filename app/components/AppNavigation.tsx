@@ -105,6 +105,8 @@ const ADMIN_CACHE_KEY = "sharecal_is_admin";
 
 // 予定追加イベント: カレンダー画面ならその場で追加画面を開き、他の画面ならカレンダーへ移動して開く
 export const OPEN_ADD_EVENT = "sharecal:add";
+// 勤怠画面の＋: 今日の勤怠を記入する
+export const OPEN_KINTAI_ENTRY = "sharecal:kintai-entry";
 // つながり申請を承認・却下したら、メニューの印を数え直す
 export const PENDING_CHANGED_EVENT = "sharecal:pending-changed";
 
@@ -252,7 +254,12 @@ export function MobileNavigation() {
   return (
     <nav className={`mobile-nav sm:hidden ${navItems.length === 3 ? "is-three" : ""}`} aria-label="メニュー">
       {left.map(renderItem)}
-      <button type="button" className="mobile-nav-add" onClick={openAdd} aria-label="予定を追加">
+      <button
+        type="button"
+        className="mobile-nav-add"
+        onClick={() => (pathname.startsWith("/kintai") ? window.dispatchEvent(new window.Event(OPEN_KINTAI_ENTRY)) : openAdd())}
+        aria-label={pathname.startsWith("/kintai") ? "今日の勤怠を記入" : "予定を追加"}
+      >
         <PlusIcon />
       </button>
       {right.map(renderItem)}
