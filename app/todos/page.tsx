@@ -54,6 +54,26 @@ const BellIcon = () => (
   </svg>
 );
 
+const CalIcon = () => (
+  <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
+    <rect x="4" y="5" width="16" height="15" rx="3" />
+    <path d="M8 3v4M16 3v4M4 10h16" />
+  </svg>
+);
+const LockIcon = () => (
+  <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
+    <rect x="5" y="11" width="14" height="9" rx="2" />
+    <path d="M8 11V8a4 4 0 0 1 8 0v3" />
+  </svg>
+);
+const PeopleIcon = () => (
+  <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
+    <circle cx="9" cy="9" r="3" />
+    <circle cx="17" cy="10" r="2.5" />
+    <path d="M3.5 19a5.5 5.5 0 0 1 11 0M14.5 18.5a4 4 0 0 1 6.5-2.5" />
+  </svg>
+);
+
 export default function TodosPage() {
   const router = useRouter();
   const [userId, setUserId] = useState("");
@@ -65,12 +85,8 @@ export default function TodosPage() {
   const [showDone, setShowDone] = useState(false);
   const [editing, setEditing] = useState<Todo | "new" | null>(null); // "new" は新しく追加
   const [newTitle, setNewTitle] = useState("");
-  const [quick, setQuick] = useState("");
-  const [quickShared, setQuickShared] = useState(true);
-  const [adding, setAdding] = useState(false);
   const [confirmClear, setConfirmClear] = useState(false);
   const [toasts, setToasts] = useState<Toast[]>([]);
-  const quickRef = useRef<HTMLInputElement>(null);
   const todayKey = useMemo(() => ymd(now()), []);
 
   const show = useCallback((message: string, tone: Toast["tone"] = "success") => {
@@ -161,25 +177,6 @@ export default function TodosPage() {
     { key: "none", title: "期限なし", tone: "", list: open.filter((t) => !t.due_date).sort(byDue) },
   ].filter((s) => s.list.length > 0);
 
-  const addQuick = async () => {
-    const title = quick.trim();
-    if (!title || adding) return;
-    setAdding(true);
-    const { data, error } = await supabase
-      .from("todo_items")
-      .insert({ title, is_shared: !!partner && quickShared })
-      .select(COLS)
-      .single();
-    setAdding(false);
-    if (error || !data) {
-      show("追加できませんでした", "error");
-      return;
-    }
-    setItems((p) => [data as Todo, ...p]);
-    setQuick("");
-    quickRef.current?.focus();
-  };
-
   const toggleDone = async (t: Todo) => {
     const patch = t.done_at ? { done_at: null, done_by: null } : { done_at: now().toISOString(), done_by: userId };
     setItems((p) => p.map((x) => (x.id === t.id ? { ...x, ...patch } : x)));
@@ -229,148 +226,169 @@ export default function TodosPage() {
     );
   }
 
-  const filters: { key: Filter; label: string; dot?: string }[] = partner
+  const lateCount = open.filter((t) => t.due_date && t.due_date < todayKey).length;
+  const todayCount = open.filter((t) => t.due_date === todayKey).length;
+  const openAll = items.filter((t) => !t.done_at);
+  const countOf = (f: Filter) =>
+    openAll.filter((t) =>
+      f === "shared"
+        ? t.is_shared && !!partner
+        : f === "mine"
+          ? !t.is_shared || !partner
+          : f === "assigned"
+            ? t.assignee_id === userId || ((!t.is_shared || !partner) && t.owner_id === userId)
+            : true,
+    ).length;
+  const filters: { key: Filter; label: string }[] = partner
     ? [
         { key: "all", label: "すべて" },
-        { key: "shared", label: "ふたり", dot: "#6d3fd8" },
-        { key: "mine", label: "自分だけ", dot: "var(--accent)" },
+        { key: "shared", label: "ふたり" },
+        { key: "mine", label: "自分だけ" },
         { key: "assigned", label: "自分の担当" },
       ]
     : [];
+  const openNew = () => {
+    setNewTitle("");
+    setEditing("new");
+  };
 
-  const renderItem = (t: Todo, late = false) => (
-    <li key={t.id} className={`td-item ${late ? "is-late" : ""} ${t.done_at ? "is-done" : ""}`}>
-      <button
-        type="button"
-        className="td-check"
-        aria-pressed={!!t.done_at}
-        aria-label={t.done_at ? `${t.title}を未完了に戻す` : `${t.title}を完了にする`}
-        onClick={() => void toggleDone(t)}
-      >
-        {t.done_at ? "✓" : ""}
-      </button>
-      <button type="button" className="td-body" onClick={() => setEditing(t)}>
-        <span className="td-title">{t.title}</span>
-        {t.memo && !t.done_at && <span className="td-memo">{t.memo}</span>}
-        <span className="td-tags">
-          {t.due_date && (
-            <span className={`td-tag ${late ? "is-danger" : ""}`}>
-              {t.due_date === todayKey ? "今日" : late ? `${mdw(t.due_date)}まで` : mdw(t.due_date)}
+  // 右端の「だれの」印
+  const whoBadge = (t: Todo) => {
+    if (!partner) return null;
+    if (!t.is_shared) return <span className="td-who-badge is-mine" title="自分だけ" aria-label="自分だけ"><LockIcon /></span>;
+    if (!t.assignee_id) return <span className="td-who-badge is-both" title="ふたり・どちらでも" aria-label="ふたり・どちらでも"><PeopleIcon /></span>;
+    const me = t.assignee_id === userId;
+    return (
+      <span className={`td-who-badge ${me ? "is-me" : "is-partner"}`} title={`担当：${me ? "自分" : partner.name}`} aria-label={`担当：${me ? "自分" : partner.name}`}>
+        {me ? "自" : partner.name.slice(0, 1)}
+      </span>
+    );
+  };
+
+  const renderItem = (t: Todo, late = false) => {
+    const isToday = t.due_date === todayKey;
+    return (
+      <li key={t.id} className={`td-card ${late ? "is-late" : ""} ${t.done_at ? "is-done" : ""}`}>
+        <button
+          type="button"
+          className="td-circle"
+          aria-pressed={!!t.done_at}
+          aria-label={t.done_at ? `${t.title}を未完了に戻す` : `${t.title}を完了にする`}
+          onClick={() => void toggleDone(t)}
+        >
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <path d="m6 12.5 4 4 8-9" />
+          </svg>
+        </button>
+        <button type="button" className="td-card-body" onClick={() => setEditing(t)}>
+          <span className="td-card-title">{t.title}</span>
+          {t.memo && !t.done_at && <span className="td-card-memo">{t.memo}</span>}
+          {(t.due_date || (t.remind_at && !t.done_at)) && (
+            <span className="td-card-meta">
+              {t.due_date && (
+                <span className={`td-meta ${late ? "is-danger" : isToday ? "is-today" : ""}`}>
+                  <CalIcon />
+                  {isToday ? "今日まで" : late ? `${mdw(t.due_date)}まで` : mdw(t.due_date)}
+                </span>
+              )}
+              {t.remind_at && !t.done_at && (
+                <span className="td-meta is-remind">
+                  <BellIcon />
+                  {remindLabel(t.remind_at)}
+                </span>
+              )}
             </span>
           )}
-          {t.remind_at && !t.done_at && (
-            <span className="td-tag is-remind">
-              <BellIcon />
-              {remindLabel(t.remind_at)}
-            </span>
-          )}
-          {partner && <span className={`td-tag ${t.is_shared ? "is-shared" : "is-mine"}`}>{whoLabel(t)}</span>}
-        </span>
-      </button>
-    </li>
-  );
+        </button>
+        {whoBadge(t)}
+      </li>
+    );
+  };
 
   return (
     <main className="page-shell min-h-screen px-4 pb-28 pt-4 text-[var(--fg)] sm:px-6 sm:pb-6">
       <div className="mx-auto flex max-w-3xl flex-col gap-4">
         {header}
 
-        <section className="td-head">
-          {filters.length > 0 && (
-            <div className="td-filters" role="radiogroup" aria-label="絞り込み">
-              {filters.map((f) => (
-                <button
-                  key={f.key}
-                  type="button"
-                  role="radio"
-                  aria-checked={filter === f.key}
-                  className={`kt-chip ${filter === f.key ? "is-on" : ""}`}
-                  onClick={() => setFilter(f.key)}
-                >
-                  {f.dot && <i className="td-dot" style={{ background: f.dot }} aria-hidden="true" />}
-                  {f.label}
-                </button>
-              ))}
+        {!loading && (
+          <section className="td-hero" aria-label="やることのまとめ">
+            <div className="td-hero-main">
+              <span className="td-hero-label">残りのやること</span>
+              <b className="td-hero-num">
+                {openAll.length}
+                <small>件</small>
+              </b>
             </div>
-          )}
+            <div className="td-hero-stats">
+              <span className={`td-stat ${lateCount ? "is-danger" : ""}`}>
+                <b>{lateCount}</b>期限切れ
+              </span>
+              <span className={`td-stat ${todayCount ? "is-today" : ""}`}>
+                <b>{todayCount}</b>今日まで
+              </span>
+              <span className="td-stat">
+                <b>{items.length - openAll.length}</b>完了
+              </span>
+            </div>
+            <button type="button" className="td-hero-add" onClick={openNew}>
+              ＋ やることを追加
+            </button>
+          </section>
+        )}
 
-          <form
-            className="td-quick"
-            onSubmit={(e) => {
-              e.preventDefault();
-              void addQuick();
-            }}
-          >
-            <span className="td-quick-plus" aria-hidden="true">＋</span>
-            <input
-              ref={quickRef}
-              className="td-quick-input"
-              value={quick}
-              onChange={(e) => setQuick(e.target.value)}
-              placeholder="やることを追加（例：洗剤を買う）"
-              aria-label="やることを追加"
-              maxLength={200}
-              enterKeyHint="done"
-            />
-            {partner && (
-              <button
-                type="button"
-                className={`td-quick-who ${quickShared ? "is-shared" : "is-mine"}`}
-                onClick={() => setQuickShared((v) => !v)}
-                aria-label={quickShared ? "ふたりのやることとして追加（押すと自分だけ）" : "自分だけのやることとして追加（押すとふたり）"}
-              >
-                {quickShared ? "ふたり" : "自分だけ"}
+        {filters.length > 0 && (
+          <div className="td-tabs" role="radiogroup" aria-label="絞り込み">
+            {filters.map((f) => (
+              <button key={f.key} type="button" role="radio" aria-checked={filter === f.key} onClick={() => setFilter(f.key)}>
+                {f.label}
+                <span>{countOf(f.key)}</span>
               </button>
-            )}
-            <button type="submit" className="td-quick-add" disabled={!quick.trim() || adding}>
-              追加
-            </button>
-            <button
-              type="button"
-              className="td-quick-more"
-              onClick={() => {
-                setNewTitle(quick.trim());
-                setEditing("new");
-              }}
-              aria-label="期限やリマインドも決めて追加"
-              title="期限やリマインドも決めて追加"
-            >
-              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
-                <path d="M4 7h10M4 12h16M4 17h7" />
-                <circle cx="17" cy="7" r="2" />
-                <circle cx="14" cy="17" r="2" />
-              </svg>
-            </button>
-          </form>
-          {!partner && !loading && (
-            <p className="kt-muted td-hint">相手とつながると、「ふたり」のやることを共有できます（設定 › ふたり）。</p>
-          )}
-        </section>
+            ))}
+          </div>
+        )}
+        {!partner && !loading && <p className="kt-muted td-hint">相手とつながると、「ふたり」のやることを共有できます（設定 › ふたり）。</p>}
 
         {loading ? (
           <p className="kt-muted">読み込み中…</p>
         ) : sections.length === 0 && done.length === 0 ? (
-          <div className="kt-card td-empty">
+          <div className="td-empty-card">
+            <span className="td-empty-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                <rect x="4" y="4" width="16" height="16" rx="4" />
+                <path d="m8.5 12 2.5 2.5 4.5-5" />
+              </svg>
+            </span>
             <b>やることはありません</b>
-            <p className="kt-muted">上の欄に書いて「追加」を押すと、ここに並びます。</p>
+            <p>＋ボタンから、ふたりのやることや自分のやることを追加できます。</p>
+            <button type="button" className="kt-btn is-primary" onClick={openNew}>
+              ＋ やることを追加
+            </button>
           </div>
         ) : (
           <>
-            {sections.length === 0 && <p className="kt-muted td-allclear">残っているやることはありません。</p>}
+            {sections.length === 0 && (
+              <div className="td-allclear">
+                <b>すべて完了しました</b>
+                <span>残っているやることはありません。</span>
+              </div>
+            )}
             {sections.map((s) => (
               <section key={s.key} className="td-section">
-                <h2 className={`td-section-title ${s.tone === "danger" ? "is-danger" : ""}`}>
+                <h2 className={`td-section-title is-${s.key}`}>
                   {s.title}
-                  <span>{s.list.length}</span>
+                  <span className="td-count">{s.list.length}</span>
                 </h2>
                 <ul className="td-list">{s.list.map((t) => renderItem(t, s.key === "late"))}</ul>
               </section>
             ))}
 
             {done.length > 0 && (
-              <section className="td-section">
+              <section className="td-done">
                 <button type="button" className="td-done-toggle" aria-expanded={showDone} onClick={() => setShowDone((v) => !v)}>
-                  完了した {done.length}件 {showDone ? "▲" : "›"}
+                  <span>
+                    完了した<span className="td-count">{done.length}</span>
+                  </span>
+                  <span aria-hidden="true" className={`td-chev ${showDone ? "is-open" : ""}`}>›</span>
                 </button>
                 {showDone && (
                   <>
@@ -398,13 +416,12 @@ export default function TodosPage() {
         <TodoSheet
           todo={editing === "new" ? null : editing}
           initialTitle={newTitle}
-          defaultShared={quickShared}
+          defaultShared={true}
           userId={userId}
           partner={partner}
           onClose={() => setEditing(null)}
           onSaved={(t, isNew) => {
             setItems((p) => (isNew ? [t, ...p] : p.map((x) => (x.id === t.id ? t : x))));
-            if (isNew && newTitle) setQuick("");
             setEditing(null);
             show(isNew ? "追加しました" : "保存しました");
           }}

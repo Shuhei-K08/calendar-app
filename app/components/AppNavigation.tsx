@@ -220,9 +220,13 @@ export function DesktopNavigation() {
             </Link>
           ))}
         </nav>
-        <button type="button" className="side-nav-add" onClick={openAdd}>
+        <button
+          type="button"
+          className="side-nav-add"
+          onClick={() => (pathname.startsWith("/todos") ? window.dispatchEvent(new window.Event(OPEN_TODO_ADD)) : openAdd())}
+        >
           <PlusIcon />
-          予定を追加
+          {pathname.startsWith("/todos") ? "やることを追加" : "予定を追加"}
         </button>
         <div className="side-nav-sub">
           <Link className="side-nav-sublink" href="/patterns" data-active={isActivePath(pathname, "/patterns") ? "true" : undefined}>
