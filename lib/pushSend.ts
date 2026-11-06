@@ -4,7 +4,27 @@ import type { createSupabaseAdmin } from "@/lib/supabaseAdmin";
 
 export type Admin = NonNullable<ReturnType<typeof createSupabaseAdmin>>;
 export type Payload = { title: string; body: string; url: string; tag: string };
-export type Message = { userId: string; payload: Payload };
+/** 通知の種類（設定でオン／オフできる単位。notification_prefs の列名と同じ） */
+export type NoticeKind = "todo_remind" | "event_remind" | "share" | "comment" | "reaction";
+export type Message = { userId: string; payload: Payload; kind: NoticeKind };
+export const NOTICE_KINDS: NoticeKind[] = ["todo_remind", "event_remind", "share", "comment", "reaction"];
+
+/** データベースがためたお知らせの種類は、tag の頭で見分ける */
+const kindOfTag = (tag: string | null): NoticeKind =>
+  tag?.startsWith("comment-") ? "comment" : tag?.startsWith("react-") ? "reaction" : "share";
+
+/** 本人が「受け取らない」にした種類を外す（設定の表が無い・読めないときは全部送る） */
+async function filterByPrefs(admin: Admin, messages: Message[], problems: string[]) {
+  const userIds = [...new Set(messages.map((m) => m.userId))];
+  const { data, error } = await admin.from("notification_prefs").select("*").in("user_id", userIds);
+  if (error) {
+    // 表がまだ無いとき（SQL 未実行）は黙って全部送る。それ以外は原因を残す
+    if (error.code !== "42P01" && error.code !== "PGRST205") problems.push(`notification_prefs: ${error.message}`);
+    return messages;
+  }
+  const prefs = new Map(((data ?? []) as Record<string, unknown>[]).map((p) => [p.user_id as string, p]));
+  return messages.filter((m) => prefs.get(m.userId)?.[m.kind] !== false);
+}
 type Sub = { id: string; user_id: string; endpoint: string; p256dh: string; auth: string };
 
 const BATCH = 100;
@@ -25,6 +45,8 @@ export function setupVapid(): { ok: true } | { ok: false; reason: string } {
 
 /** 届け先ごとの通知を、その人の端末すべてに送る */
 export async function deliver(admin: Admin, messages: Message[], problems: string[] = []) {
+  if (!messages.length) return { sent: 0, removed: 0 };
+  messages = await filterByPrefs(admin, messages, problems);
   if (!messages.length) return { sent: 0, removed: 0 };
   const userIds = [...new Set(messages.map((m) => m.userId))];
   const { data, error } = await admin.from("push_subscriptions").select("id, user_id, endpoint, p256dh, auth").in("user_id", userIds);
@@ -75,5 +97,9 @@ export async function queuedMessages(admin: Admin, nowIso: string, staleIso: str
   const ids = new Set((claimed ?? []).map((r: { id: string }) => r.id));
   return (data as Q[])
     .filter((q) => ids.has(q.id))
-    .map((q) => ({ userId: q.user_id, payload: { title: q.title, body: q.body, url: q.url || "/", tag: q.tag || `q-${q.id}` } }));
+    .map((q) => ({
+      userId: q.user_id,
+      kind: kindOfTag(q.tag),
+      payload: { title: q.title, body: q.body, url: q.url || "/", tag: q.tag || `q-${q.id}` },
+    }));
 }

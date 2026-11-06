@@ -640,8 +640,8 @@ export default function SettingsPage() {
                 <label className="st-row is-static">
                   <span className="st-icon tone-orange">{Icons.bell}</span>
                   <span className="st-row-text">
-                    <span className="st-row-title">通知</span>
-                    <span className="st-row-sub">共有された予定をブラウザで知らせる</span>
+                    <span className="st-row-title">画面内のお知らせ</span>
+                    <span className="st-row-sub">アプリを開いているとき、共有された予定を画面の上に出す</span>
                   </span>
                   <input
                     type="checkbox"
@@ -652,7 +652,7 @@ export default function SettingsPage() {
                 </label>
               </Group>
 
-              <Group title="通知" note="通知の設定は端末ごとです。スマホとPCの両方で受け取るなら、それぞれでオンにしてください。">
+              <Group title="通知" note="「この端末で受け取る」は端末ごとです（スマホとPCの両方で受け取るなら、それぞれでオン）。種類ごとのオン・オフは、すべての端末に効きます。">
                 <PushSetting show={show} />
               </Group>
 

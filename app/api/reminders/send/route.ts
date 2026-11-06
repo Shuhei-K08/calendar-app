@@ -4,7 +4,7 @@
 //  3) データベースがためたお知らせ（予定の共有・コメント・スタンプ）
 import { NextResponse } from "next/server";
 import { createSupabaseAdmin } from "@/lib/supabaseAdmin";
-import { deliver as deliverTo, queuedMessages as queuedFrom, setupVapid, type Admin, type Payload } from "@/lib/pushSend";
+import { deliver as deliverTo, queuedMessages as queuedFrom, setupVapid, type Admin, type Message, type Payload } from "@/lib/pushSend";
 
 const BATCH = 100;
 // 途中で起きたエラー（呼び出し結果に入れて、原因を見つけやすくする）
@@ -19,10 +19,10 @@ const jstLabel = (iso: string, allDay: boolean) => {
   return allDay ? md : `${md} ${d.getUTCHours()}:${String(d.getUTCMinutes()).padStart(2, "0")}`;
 };
 
-const deliver = (admin: Admin, messages: { userId: string; payload: Payload }[]) => deliverTo(admin, messages, problems);
+const deliver = (admin: Admin, messages: Message[]) => deliverTo(admin, messages, problems);
 
 /** 1) やること */
-async function todoMessages(admin: Admin, nowIso: string, staleIso: string) {
+async function todoMessages(admin: Admin, nowIso: string, staleIso: string): Promise<Message[]> {
   type Todo = { id: string; owner_id: string; title: string; is_shared: boolean; assignee_id: string | null; due_date: string | null };
   const { data, error } = await admin
     .from("todo_items")
@@ -72,12 +72,12 @@ async function todoMessages(admin: Admin, nowIso: string, staleIso: string) {
       url: "/todos",
       tag: `todo-${t.id}`,
     };
-    return [...new Set(to)].map((userId) => ({ userId, payload }));
+    return [...new Set(to)].map((userId) => ({ userId, payload, kind: "todo_remind" as const }));
   });
 }
 
 /** 2) 予定の前のリマインド */
-async function eventMessages(admin: Admin, nowIso: string, staleIso: string) {
+async function eventMessages(admin: Admin, nowIso: string, staleIso: string): Promise<Message[]> {
   type Rem = { event_id: string; user_id: string };
   const { data, error } = await admin
     .from("event_reminders")
@@ -125,7 +125,7 @@ async function eventMessages(admin: Admin, nowIso: string, staleIso: string) {
       url: "/",
       tag: `event-${e.id}`,
     };
-    return [{ userId: r.user_id, payload }];
+    return [{ userId: r.user_id, payload, kind: "event_remind" as const }];
   });
 }
 
