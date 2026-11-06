@@ -189,8 +189,28 @@ export async function POST(request: Request) {
   if (!publicKey || !privateKey || !admin) {
     return NextResponse.json({ error: "サーバーの設定（VAPIDの鍵・管理用の鍵）が足りません" }, { status: 500 });
   }
-  webpush.setVapidDetails(subject, publicKey, privateKey);
+  try {
+    webpush.setVapidDetails(subject, publicKey, privateKey);
+  } catch (e) {
+    // 鍵の形が正しくないとき（< > が付いたまま・公開鍵と秘密鍵が逆・mailto: が無い など）。鍵の値は返さない
+    return NextResponse.json(
+      {
+        error: "VAPID の設定が正しくありません",
+        reason: e instanceof Error ? e.message : String(e),
+        hint: "NEXT_PUBLIC_VAPID_PUBLIC_KEY（B で始まる長い方）・VAPID_PRIVATE_KEY・VAPID_SUBJECT（mailto:メールアドレス）を確認して Redeploy してください",
+      },
+      { status: 500 },
+    );
+  }
 
+  try {
+    return await run(admin);
+  } catch (e) {
+    return NextResponse.json({ error: "送信中にエラーが起きました", reason: e instanceof Error ? e.message : String(e) }, { status: 500 });
+  }
+}
+
+async function run(admin: Admin) {
   const now = Date.now();
   const nowIso = new Date(now).toISOString();
   const staleIso = new Date(now - STALE_MS).toISOString();
