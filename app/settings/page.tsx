@@ -171,12 +171,13 @@ export default function SettingsPage() {
   const [isAdmin, setIsAdmin] = useState(false);
   const [settings, setSettings] = useState<CalendarSettings>(defaultSettings);
   const { enabled: kintaiEnabled } = useKintaiEnabled();
-  // 期間限定のデザイン（期間中・これからのときだけテーマ画面に出す）
+  // 期間限定のデザイン（期間中だけテーマ画面に出す）
   const [season, setSeason] = useState<{ period: SeasonPeriod; active: boolean } | null>(null);
   useEffect(() => {
     const read = () => {
       const p = readCachedSeason();
-      setSeason(p && p.end >= jstToday() ? { period: p, active: isSeasonActive(p) } : null);
+      // 期間中だけ出す（期間外は選べない）
+      setSeason(p && isSeasonActive(p, jstToday()) ? { period: p, active: true } : null);
     };
     read();
     void fetchSeason().then(read, () => undefined);

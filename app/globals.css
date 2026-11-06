@@ -3010,45 +3010,110 @@ h1, h2, h3, .font-display { font-weight: 800; letter-spacing: -0.01em; }
 .td-allclear { display: flex; flex-direction: column; gap: 2px; padding: 16px; border-radius: 14px; background: var(--accent-soft); color: var(--accent-strong); font-size: 13px; }
 
 /* ── 期間限定：クリスマス（html に data-season="xmas" が付いている間だけ） ── */
-:root[data-season="xmas"] {
-  --xmas-pine: #1f4d3a;
-  --xmas-gold: #c99a2e;
-}
-/* カレンダーの上に下がるガーランド */
-:root[data-season="xmas"] .calendar-card { position: relative; padding-top: 16px; }
-:root[data-season="xmas"] .calendar-card::before {
-  content: ""; position: absolute; left: 10px; right: 10px; top: 0; height: 18px; pointer-events: none; z-index: 1;
-  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='98' height='18' viewBox='0 0 98 18'%3E%3Cpath d='M0 2 Q24.5 16 49 2 Q73.5 16 98 2' fill='none' stroke='%232f6b4f' stroke-width='3.5' stroke-linecap='round'/%3E%3Cpath d='M0 2 Q24.5 16 49 2 Q73.5 16 98 2' fill='none' stroke='%234f9a73' stroke-width='1.2' stroke-dasharray='2 4'/%3E%3Ccircle cx='24.5' cy='11' r='3.6' fill='%23a3283a'/%3E%3Ccircle cx='73.5' cy='11' r='3.6' fill='%23e0b552'/%3E%3C/svg%3E") repeat-x;
-  background-size: 98px 18px;
-}
-/* 月の名前の横に星 */
-:root[data-season="xmas"] .cal-toolbar-month::after {
-  content: ""; display: inline-block; width: 15px; height: 15px; margin-left: 4px; vertical-align: 2px;
-  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M12 2.5l2.6 5.6 6.1.7-4.5 4.2 1.2 6-5.4-3-5.4 3 1.2-6L3.3 8.8l6.1-.7z' fill='%23c99a2e'/%3E%3C/svg%3E") no-repeat center / contain;
-}
-/* 12/24・12/25 に星と、うすい色 */
-:root[data-season="xmas"] .rbc-day-bg.is-xmas-day { background-color: #fdf3f4; position: relative; }
-:root[data-season="xmas"] .rbc-day-bg.is-xmas-day::after {
-  content: ""; position: absolute; right: 4px; bottom: 4px; width: 12px; height: 12px; pointer-events: none;
-  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M12 2.5l2.6 5.6 6.1.7-4.5 4.2 1.2 6-5.4-3-5.4 3 1.2-6L3.3 8.8l6.1-.7z' fill='%23c99a2e'/%3E%3C/svg%3E") no-repeat center / contain;
-}
-/* ふわっと降る雪（操作のじゃまをしない・動きを減らす設定の人には出さない） */
-.season-snow { position: fixed; inset: 0; pointer-events: none; z-index: 30; overflow: hidden; }
+:root[data-season="xmas"] { --xmas-pine: #1f4d3a; --xmas-gold: #c99a2e; }
+
+/* 雪は画面のいちばん奥（カードや文字の後ろ）を降らせる */
+:root[data-season="xmas"] body { background: transparent; }
+:root[data-season="xmas"] .page-shell { background: transparent; }
+.season-snow { position: fixed; inset: 0; pointer-events: none; z-index: -1; overflow: hidden; }
 .season-snow i {
-  position: absolute; top: -12px; border-radius: 50%; background: #b8cad6; opacity: 0.75;
+  position: absolute; top: -12px; border-radius: 50%; background: #b8cad6; opacity: 0.8;
   animation-name: season-snow-fall; animation-timing-function: linear; animation-iteration-count: infinite;
 }
 @keyframes season-snow-fall {
   0% { transform: translate3d(0, -12px, 0); }
   100% { transform: translate3d(var(--drift, 12px), 105vh, 0); }
 }
-@media (prefers-reduced-motion: reduce) { .season-snow { display: none; } }
+
+/* カレンダーの上：夜空をソリが横切り、その下にガーランド */
+:root[data-season="xmas"] .calendar-card { position: relative; padding-top: 38px; }
+:root[data-season="xmas"] .calendar-section-mobile { padding-top: 38px; }
+:root[data-season="xmas"] .calendar-card::before {
+  content: ""; position: absolute; left: 10px; right: 10px; top: 20px; height: 18px; pointer-events: none; z-index: 2;
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='98' height='18' viewBox='0 0 98 18'%3E %3Cpath d='M0 2 Q24.5 16 49 2 Q73.5 16 98 2' fill='none' stroke='%232f6b4f' stroke-width='3.5' stroke-linecap='round'/%3E %3Cpath d='M0 2 Q24.5 16 49 2 Q73.5 16 98 2' fill='none' stroke='%234f9a73' stroke-width='1.2' stroke-dasharray='2 4'/%3E %3Ccircle cx='24.5' cy='11' r='3.6' fill='%23a3283a'/%3E%3Ccircle cx='73.5' cy='11' r='3.6' fill='%23e0b552'/%3E%3C/svg%3E") repeat-x; background-size: 98px 18px;
+}
+:root[data-season="xmas"] .calendar-card::after {
+  content: ""; position: absolute; left: 10px; right: 10px; top: 0; height: 30px; pointer-events: none; z-index: 1;
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='30' viewBox='0 0 120 30'%3E %3Cpath d='M2 26 h40 q6 0 8 -5' fill='none' stroke='%23c99a2e' stroke-width='2' stroke-linecap='round'/%3E %3Cpath d='M12 22 v4 M34 22 v4' stroke='%23c99a2e' stroke-width='1.6'/%3E %3Cpath d='M8 12 h30 q8 0 8 8 v2 h-34 q-4 0 -4 -4 z' fill='%23a3283a'/%3E %3Crect x='31' y='6' width='9' height='7' rx='1' fill='%232f6b4f'/%3E%3Cpath d='M35.5 6 v7' stroke='%23e8c46a' stroke-width='1.4'/%3E %3Ccircle cx='22' cy='11' r='5' fill='%23c8323f'/%3E%3Cellipse cx='22' cy='8' rx='3' ry='2.2' fill='%23fff'/%3E %3Ccircle cx='22' cy='5' r='2.8' fill='%23f3cfb3'/%3E%3Cpath d='M19 4 Q22 -1 27 2 L25 4 Z' fill='%23c8323f'/%3E%3Ccircle cx='27' cy='2' r='1.3' fill='%23fff'/%3E %3Cpath d='M46 17 L84 15' stroke='%23c99a2e' stroke-width='1.2'/%3E %3Cg transform='translate(72 0)'%3E %3Cellipse cx='22' cy='16' rx='11' ry='5' fill='%238a5a33'/%3E %3Cpath d='M30 14 L35 9' stroke='%238a5a33' stroke-width='3.4' stroke-linecap='round'/%3E %3Ccircle cx='36' cy='8' r='3.4' fill='%238a5a33'/%3E%3Ccircle cx='39.6' cy='8.6' r='1.6' fill='%23e23b3b'/%3E %3Cpath d='M35 5 L33 1 M37 4.5 L40 1 M33.8 2.8 L31.5 2' stroke='%238a5a33' stroke-width='1.3' stroke-linecap='round'/%3E %3Cpath d='M15 20 L11 27 M19 20 L17 27 M27 20 L31 27 M30 19 L35 25' stroke='%238a5a33' stroke-width='2' stroke-linecap='round'/%3E %3C/g%3E%3C/svg%3E") no-repeat, url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='20' viewBox='0 0 140 20'%3E%3Ccircle cx='12' cy='5' r='1' fill='%23c99a2e'/%3E%3Ccircle cx='58' cy='12' r='0.9' fill='%239fb6c6'/%3E%3Ccircle cx='96' cy='4' r='1.1' fill='%23c99a2e'/%3E%3Ccircle cx='126' cy='14' r='0.9' fill='%239fb6c6'/%3E%3C/svg%3E") repeat-x;
+  background-size: 96px 24px, 140px 20px; background-position: -110px 3px, 0 2px;
+  animation: season-sleigh 16s linear infinite;
+}
+@keyframes season-sleigh {
+  0% { background-position: -110px 6px, 0 2px; }
+  12% { background-position: calc(25% - 48px) 1px, 0 2px; }
+  24% { background-position: calc(50% - 48px) 6px, 0 2px; }
+  36% { background-position: calc(75% - 48px) 1px, 0 2px; }
+  48%, 100% { background-position: calc(100% + 110px) 6px, 0 2px; }
+}
+
+/* 月の名前の横に星 */
+:root[data-season="xmas"] .cal-toolbar-month::after {
+  content: ""; display: inline-block; width: 15px; height: 15px; margin-left: 4px; vertical-align: 2px;
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M12 2.5l2.6 5.6 6.1.7-4.5 4.2 1.2 6-5.4-3-5.4 3 1.2-6L3.3 8.8l6.1-.7z' fill='%23c99a2e'/%3E%3C/svg%3E") no-repeat center / contain;
+}
+
+/* 今日の日付にサンタの帽子 */
+:root[data-season="xmas"] .calendar-shell .rbc-now .calendar-date-button { position: relative; overflow: visible; }
+:root[data-season="xmas"] .calendar-shell .rbc-now .calendar-date-button::before {
+  content: ""; position: absolute; right: -14px; top: -6px; width: 20px; height: 17px; pointer-events: none; z-index: 1;
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='20' viewBox='0 0 24 20'%3E%3Cpath d='M3 14 C4 6 9 1.5 16 2.5 C20 3.3 21.5 7.5 20.5 11 C18.5 8 15.5 7.5 14 10 L15 14 Z' fill='%23d42f3f'/%3E%3Crect x='1' y='12.5' width='16' height='5.5' rx='2.75' fill='%23fff' stroke='%23e9dede' stroke-width='0.6'/%3E%3Ccircle cx='20.6' cy='12.2' r='2.6' fill='%23fff' stroke='%23e9dede' stroke-width='0.6'/%3E%3C/svg%3E") no-repeat center / contain; transform: rotate(28deg);
+}
+
+/* 12/24・12/25 に星と、うすい色 */
+:root[data-season="xmas"] .rbc-day-bg.is-xmas-day { background-color: #fdf3f4; position: relative; }
+:root[data-season="xmas"] .rbc-day-bg.is-xmas-day::after {
+  content: ""; position: absolute; right: 4px; bottom: 4px; width: 12px; height: 12px; pointer-events: none;
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M12 2.5l2.6 5.6 6.1.7-4.5 4.2 1.2 6-5.4-3-5.4 3 1.2-6L3.3 8.8l6.1-.7z' fill='%23c99a2e'/%3E%3C/svg%3E") no-repeat center / contain;
+}
+
+/* 予定の文字色（緑の予定に赤い文字にならないように） */
+:root[data-season="xmas"] .calendar-shell .rbc-event.own-event,
+:root[data-season="xmas"] .calendar-shell .rbc-event.partner-event { color: #1f4d3a !important; }
+
+/* 各画面の見出し：右にツリーとプレゼント */
+@media (max-width: 639px) {
+  :root[data-season="xmas"] .page-header:not(.home-header) { position: relative; }
+  :root[data-season="xmas"] .page-header:not(.home-header)::after {
+    content: ""; position: absolute; right: 18px; bottom: 8px; width: 54px; height: 57px; pointer-events: none;
+    background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='80' height='84' viewBox='0 0 80 84'%3E %3Crect x='28' y='70' width='8' height='9' rx='1' fill='%237a5a2e'/%3E %3Cpath d='M32 8 L50 34 H41 L55 54 H45 L61 72 H3 L19 54 H9 L23 34 H14 Z' fill='%232f6b4f'/%3E %3Cpath d='M32 0.5l2.1 4.5 4.9.6-3.6 3.3 1 4.8-4.4-2.4-4.4 2.4 1-4.8-3.6-3.3 4.9-.6z' fill='%23e8c46a'/%3E %3Ccircle cx='27' cy='30' r='3' fill='%23e8c46a'/%3E%3Ccircle cx='38' cy='44' r='3' fill='%23ff8a9a'/%3E%3Ccircle cx='21' cy='52' r='3' fill='%23e8c46a'/%3E%3Ccircle cx='43' cy='62' r='3' fill='%23e8c46a'/%3E%3Ccircle cx='16' cy='66' r='2.6' fill='%23ff8a9a'/%3E %3Crect x='60' y='62' width='16' height='16' rx='2' fill='%23e8c46a'/%3E%3Cpath d='M68 62 v16 M60 70 h16' stroke='%23fff' stroke-width='2'/%3E %3C/svg%3E") no-repeat center / contain;
+  }
+}
+
+/* やることの上のまとめ：赤のグラデーションと、下にガーランド */
+:root[data-season="xmas"] .td-hero {
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='98' height='18' viewBox='0 0 98 18'%3E %3Cpath d='M0 2 Q24.5 16 49 2 Q73.5 16 98 2' fill='none' stroke='%232f6b4f' stroke-width='3.5' stroke-linecap='round'/%3E %3Cpath d='M0 2 Q24.5 16 49 2 Q73.5 16 98 2' fill='none' stroke='%234f9a73' stroke-width='1.2' stroke-dasharray='2 4'/%3E %3Ccircle cx='24.5' cy='11' r='3.6' fill='%23a3283a'/%3E%3Ccircle cx='73.5' cy='11' r='3.6' fill='%23e0b552'/%3E%3C/svg%3E") repeat-x left 0 bottom -2px / 98px 18px, linear-gradient(135deg, #a3283a, #7e1a2b);
+  padding-bottom: 26px;
+}
+
+/* ＋ボタンはプレゼントの箱に */
+:root[data-season="xmas"] .mobile-nav-add,
+:root[data-season="xmas"] .mobile-fab,
+:root[data-season="xmas"] .side-nav-add {
+  position: relative; overflow: visible;
+  background:
+    linear-gradient(90deg, transparent calc(50% - 4px), #e8c46a calc(50% - 4px) calc(50% + 4px), transparent calc(50% + 4px)),
+    linear-gradient(0deg, transparent calc(50% - 4px), #e8c46a calc(50% - 4px) calc(50% + 4px), transparent calc(50% + 4px)),
+    #a3283a;
+}
+:root[data-season="xmas"] .side-nav-add { background: #a3283a; }
+:root[data-season="xmas"] .mobile-nav-add svg,
+:root[data-season="xmas"] .mobile-fab svg { stroke: #fff; filter: drop-shadow(0 1px 1px rgba(80, 20, 30, 0.45)); }
+:root[data-season="xmas"] .mobile-nav-add::after,
+:root[data-season="xmas"] .mobile-fab::after {
+  content: ""; position: absolute; left: 50%; top: -9px; width: 28px; height: 14px; margin-left: -14px; pointer-events: none;
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='28' height='14' viewBox='0 0 28 14'%3E %3Cpath d='M14 8 C8 0 2 2 4 7 C5 10 10 10 14 8 Z' fill='%23e8c46a'/%3E%3Cpath d='M14 8 C20 0 26 2 24 7 C23 10 18 10 14 8 Z' fill='%23e8c46a'/%3E %3Cpath d='M14 8 L9 14 M14 8 L19 14' stroke='%23e8c46a' stroke-width='2.4' stroke-linecap='round'/%3E %3Ccircle cx='14' cy='8' r='2.6' fill='%23d9ac43'/%3E%3C/svg%3E") no-repeat center / contain;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .season-snow { display: none; }
+  :root[data-season="xmas"] .calendar-card::after { animation: none; background-position: 70% 3px, 0 2px; }
+}
 
 /* 設定 › テーマ の期間限定カード */
 .st-season-banner {
-  position: relative; height: 84px; background: #1f4d3a; overflow: hidden;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='98' height='18' viewBox='0 0 98 18'%3E%3Cpath d='M0 2 Q24.5 16 49 2 Q73.5 16 98 2' fill='none' stroke='%233f8462' stroke-width='3.5' stroke-linecap='round'/%3E%3Ccircle cx='24.5' cy='11' r='3.6' fill='%23d9485c'/%3E%3Ccircle cx='73.5' cy='11' r='3.6' fill='%23e8c46a'/%3E%3C/svg%3E");
-  background-repeat: repeat-x; background-position: 0 58px; background-size: 98px 18px;
+  position: relative; height: 84px; background-color: #1f4d3a; overflow: hidden;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='30' viewBox='0 0 120 30'%3E %3Cpath d='M2 26 h40 q6 0 8 -5' fill='none' stroke='%23c99a2e' stroke-width='2' stroke-linecap='round'/%3E %3Cpath d='M12 22 v4 M34 22 v4' stroke='%23c99a2e' stroke-width='1.6'/%3E %3Cpath d='M8 12 h30 q8 0 8 8 v2 h-34 q-4 0 -4 -4 z' fill='%23a3283a'/%3E %3Crect x='31' y='6' width='9' height='7' rx='1' fill='%232f6b4f'/%3E%3Cpath d='M35.5 6 v7' stroke='%23e8c46a' stroke-width='1.4'/%3E %3Ccircle cx='22' cy='11' r='5' fill='%23c8323f'/%3E%3Cellipse cx='22' cy='8' rx='3' ry='2.2' fill='%23fff'/%3E %3Ccircle cx='22' cy='5' r='2.8' fill='%23f3cfb3'/%3E%3Cpath d='M19 4 Q22 -1 27 2 L25 4 Z' fill='%23c8323f'/%3E%3Ccircle cx='27' cy='2' r='1.3' fill='%23fff'/%3E %3Cpath d='M46 17 L84 15' stroke='%23c99a2e' stroke-width='1.2'/%3E %3Cg transform='translate(72 0)'%3E %3Cellipse cx='22' cy='16' rx='11' ry='5' fill='%238a5a33'/%3E %3Cpath d='M30 14 L35 9' stroke='%238a5a33' stroke-width='3.4' stroke-linecap='round'/%3E %3Ccircle cx='36' cy='8' r='3.4' fill='%238a5a33'/%3E%3Ccircle cx='39.6' cy='8.6' r='1.6' fill='%23e23b3b'/%3E %3Cpath d='M35 5 L33 1 M37 4.5 L40 1 M33.8 2.8 L31.5 2' stroke='%238a5a33' stroke-width='1.3' stroke-linecap='round'/%3E %3Cpath d='M15 20 L11 27 M19 20 L17 27 M27 20 L31 27 M30 19 L35 25' stroke='%238a5a33' stroke-width='2' stroke-linecap='round'/%3E %3C/g%3E%3C/svg%3E"), url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='98' height='18' viewBox='0 0 98 18'%3E %3Cpath d='M0 2 Q24.5 16 49 2 Q73.5 16 98 2' fill='none' stroke='%233f8462' stroke-width='3.5' stroke-linecap='round'/%3E %3Cpath d='M0 2 Q24.5 16 49 2 Q73.5 16 98 2' fill='none' stroke='%234f9a73' stroke-width='1.2' stroke-dasharray='2 4'/%3E %3Ccircle cx='24.5' cy='11' r='3.6' fill='%23a3283a'/%3E%3Ccircle cx='73.5' cy='11' r='3.6' fill='%23e0b552'/%3E%3C/svg%3E");
+  background-repeat: no-repeat, repeat-x; background-position: 62% 18px, 0 58px; background-size: 112px 28px, 98px 18px;
 }
 .st-season-dots { position: absolute; left: 16px; top: 16px; display: flex; gap: 6px; }
 .st-season-dots i { width: 22px; height: 22px; border-radius: 999px; border: 2px solid #fff; }
