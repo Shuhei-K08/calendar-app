@@ -135,3 +135,8 @@ grant select, insert, update, delete on public.work_memo_templates to authentica
 drop policy if exists "own work memo templates" on public.work_memo_templates;
 create policy "own work memo templates" on public.work_memo_templates
   for all to authenticated using (user_id = auth.uid()) with check (user_id = auth.uid());
+
+-- ── 案件の金額が「税抜」か「税込」か（初期値は税抜） ──
+alter table public.work_projects
+  add column if not exists price_tax text not null default 'excluded'
+  check (price_tax in ('excluded', 'included'));

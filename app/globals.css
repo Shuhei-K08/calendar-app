@@ -2824,3 +2824,5 @@ h1, h2, h3, .font-display { font-weight: 800; letter-spacing: -0.01em; }
 
 /* 重なる画面の中をスクロールしきっても、後ろの画面に伝わらないように */
 .kt-overlay, .kt-sheet, .confirm-overlay, .add-sheet-overlay, .add-sheet, .fixed.inset-0 { overscroll-behavior: contain; }
+.kt-tax-toggle { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 4px 0 8px; }
+.kt-tax-toggle small { flex-basis: 100%; }

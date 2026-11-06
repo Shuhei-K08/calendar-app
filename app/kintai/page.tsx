@@ -43,6 +43,9 @@ const planKey = (p?: PlannedDay) => (!p ? "" : "off" in p ? "off" : `${p.start}-
 
 const PROJECT_COLS =
   "id, name, start_month, end_month, range_min, range_max, rounding_min, default_start, default_end, default_break_min, monthly_rate, deduction_rate, excess_rate";
+// 税込・税抜の列（SQL を実行するまでは無いので、無ければ外して読み書きする）
+const PROJECT_COLS_TAX = `${PROJECT_COLS}, price_tax`;
+const isMissingColumn = (code?: string) => code === "42703" || code === "PGRST204";
 
 type ProjectDraft = {
   id?: string;
@@ -58,6 +61,7 @@ type ProjectDraft = {
   monthlyRate: string;
   deductionRate: string;
   excessRate: string;
+  priceTax: "excluded" | "included";
 };
 
 const blankProject = (month: Date, prev?: WorkProject | null): ProjectDraft => ({
@@ -73,6 +77,7 @@ const blankProject = (month: Date, prev?: WorkProject | null): ProjectDraft => (
   monthlyRate: prev?.monthly_rate ? String(prev.monthly_rate) : "",
   deductionRate: prev?.deduction_rate ? String(prev.deduction_rate) : "",
   excessRate: prev?.excess_rate ? String(prev.excess_rate) : "",
+  priceTax: prev?.price_tax === "included" ? "included" : "excluded",
 });
 
 const draftFromProject = (p: WorkProject): ProjectDraft => ({
@@ -89,6 +94,7 @@ const draftFromProject = (p: WorkProject): ProjectDraft => ({
   monthlyRate: p.monthly_rate ? String(p.monthly_rate) : "",
   deductionRate: p.deduction_rate ? String(p.deduction_rate) : "",
   excessRate: p.excess_rate ? String(p.excess_rate) : "",
+  priceTax: p.price_tax === "included" ? "included" : "excluded",
 });
 
 const numOrNull = (s: string) => {
@@ -372,8 +378,14 @@ export default function KintaiPage() {
       return null;
     }
     setUserId(user.id);
+    const loadProjects = async () => {
+      const r = await supabase.from("work_projects").select(PROJECT_COLS_TAX).order("start_month", { ascending: false });
+      return isMissingColumn(r.error?.code)
+        ? await supabase.from("work_projects").select(PROJECT_COLS).order("start_month", { ascending: false })
+        : r;
+    };
     const [proj, tpl, prof] = await Promise.all([
-      supabase.from("work_projects").select(PROJECT_COLS).order("start_month", { ascending: false }),
+      loadProjects(),
       supabase.from("work_templates").select("id, label, start_time, end_time, break_min, sort_order").order("sort_order").order("created_at"),
       supabase.from("profiles").select("username").eq("id", user.id).maybeSingle(),
     ]);
@@ -873,8 +885,11 @@ export default function KintaiPage() {
                   </div>
                   {pay && (
                     <div className="kt-card kt-mini is-soft">
-                      <span className="kt-label">見込み月給</span>
+                      <span className="kt-label">見込み月給（税込）</span>
                       <b className={pay.deduction ? "is-danger" : "is-accent"}>{yen(pay.total)}</b>
+                      <small>
+                        税抜 {yen(pay.totalExcl)} ＋ 消費税 {yen(pay.tax)}
+                      </small>
                       <small>
                         {pay.deduction
                           ? `控除 −${yen(pay.deduction)}（${fmtH(Math.round(pay.shortHours * 60))}h不足）`
@@ -1452,17 +1467,28 @@ function ProjectsView({
       monthly_rate: numOrNull(draft.monthlyRate),
       deduction_rate: numOrNull(draft.deductionRate),
       excess_rate: numOrNull(draft.excessRate),
+      price_tax: draft.priceTax,
     };
     setSaving(true);
-    const res = draft.id
-      ? await supabase.from("work_projects").update(payload).eq("id", draft.id).select(PROJECT_COLS).single()
-      : await supabase.from("work_projects").insert(payload).select(PROJECT_COLS).single();
+    const write = (body: Record<string, unknown>, cols: string) =>
+      draft.id
+        ? supabase.from("work_projects").update(body).eq("id", draft.id).select(cols).single()
+        : supabase.from("work_projects").insert(body).select(cols).single();
+    let res = await write(payload, PROJECT_COLS_TAX);
+    if (isMissingColumn(res.error?.code)) {
+      // まだ SQL を実行していない：税込・税抜以外を保存して知らせる
+      const { price_tax: _omit, ...rest } = payload;
+      void _omit;
+      res = await write(rest, PROJECT_COLS);
+      if (!res.error) show("税込・税抜の設定は supabase-kintai-tax.sql を実行すると保存されます", "info");
+    }
     setSaving(false);
     if (res.error) {
       show("保存できませんでした", "error");
       return;
     }
-    const saved = { ...(res.data as WorkProject), range_min: Number(res.data.range_min), range_max: Number(res.data.range_max) };
+    const row = res.data as unknown as WorkProject;
+    const saved = { ...row, range_min: Number(row.range_min), range_max: Number(row.range_max) };
     const list = draft.id ? projects.map((p) => (p.id === saved.id ? saved : p)) : [saved, ...projects];
     onChanged(list.sort((a, b) => (a.start_month < b.start_month ? 1 : -1)));
     // はじめての案件なら、いつもの時間を「通常」テンプレートにしておく
@@ -1556,17 +1582,32 @@ function ProjectsView({
 
           <div className="kt-money">
             <span className="kt-label">お金（任意）</span>
+            <div className="kt-tax-toggle" role="radiogroup" aria-label="金額は税抜か税込か">
+              {(["excluded", "included"] as const).map((t) => (
+                <button
+                  key={t}
+                  type="button"
+                  role="radio"
+                  aria-checked={draft.priceTax === t}
+                  className={`kt-chip ${draft.priceTax === t ? "is-on" : ""}`}
+                  onClick={() => set({ priceTax: t })}
+                >
+                  {t === "excluded" ? "税抜で入力" : "税込で入力"}
+                </button>
+              ))}
+              <small className="kt-muted">注文書・契約書に書いてある方を選んでください。消費税は10%・円未満切り捨てで計算します。</small>
+            </div>
             <div className="kt-three">
               <label className="kt-field">
-                <small>月額単価（円）</small>
+                <small>月額単価（{draft.priceTax === "included" ? "税込" : "税抜"}）</small>
                 <input className="kt-input" inputMode="numeric" value={draft.monthlyRate} onChange={(e) => set({ monthlyRate: e.target.value })} placeholder="650000" />
               </label>
               <label className="kt-field">
-                <small>控除（円/h）</small>
+                <small>控除/h（{draft.priceTax === "included" ? "税込" : "税抜"}）</small>
                 <input className="kt-input" inputMode="numeric" value={draft.deductionRate} onChange={(e) => set({ deductionRate: e.target.value })} placeholder="なし" />
               </label>
               <label className="kt-field">
-                <small>超過（円/h）</small>
+                <small>超過/h（{draft.priceTax === "included" ? "税込" : "税抜"}）</small>
                 <input className="kt-input" inputMode="numeric" value={draft.excessRate} onChange={(e) => set({ excessRate: e.target.value })} placeholder="なし" />
               </label>
             </div>
@@ -1578,7 +1619,8 @@ function ProjectsView({
                   const rate = numOrNull(draft.monthlyRate) ?? 0;
                   const min = numOrNull(draft.rangeMin) ?? 1;
                   const max = numOrNull(draft.rangeMax) ?? 1;
-                  set({ deductionRate: String(Math.floor(rate / min / 10) * 10), excessRate: String(Math.floor(rate / max / 10) * 10) });
+                  // 1円未満は切り捨て（例：550,000 ÷ 150h = 3,666円）
+                  set({ deductionRate: String(Math.floor(rate / min)), excessRate: String(Math.floor(rate / max)) });
                 }}
               >
                 控除・超過を「単価 ÷ 下限・上限」で計算する

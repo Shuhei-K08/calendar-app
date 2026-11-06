@@ -15,6 +15,7 @@ export type WorkProject = {
   monthly_rate: number | null;
   deduction_rate: number | null;
   excess_rate: number | null;
+  price_tax?: "excluded" | "included" | null; // 単価・控除・超過が 税抜 か 税込 か（未設定は税抜）
 };
 
 export type WorkTemplate = {
@@ -190,7 +191,10 @@ export const summarize = (days: DayInfo[], todayKey: string, project: WorkProjec
   };
 };
 
-/** 月給の見込み（単価が入っているときだけ） */
+export const TAX_RATE = 0.1;
+
+/** 月給の見込み（単価が入っているときだけ）。
+ *  total は税込。消費税は円未満切り捨て（税抜で入れた場合）。 */
 export const monthlyPay = (project: WorkProject | null, minutes: number) => {
   if (!project?.monthly_rate) return null;
   const hours = minutes / 60;
@@ -202,11 +206,19 @@ export const monthlyPay = (project: WorkProject | null, minutes: number) => {
   if (hours > project.range_max && project.excess_rate) {
     excess = (hours - project.range_max) * project.excess_rate;
   }
+  const subtotal = Math.round(project.monthly_rate - deduction + excess); // 入れた金額のまま（税抜 or 税込）
+  const included = project.price_tax === "included";
+  // 税抜で入れた → 消費税を足す（切り捨て）／税込で入れた → 税抜をおおよそ逆算
+  const totalExcl = included ? Math.round(subtotal / (1 + TAX_RATE)) : subtotal;
+  const tax = included ? subtotal - totalExcl : Math.floor(subtotal * TAX_RATE);
   return {
     base: project.monthly_rate,
     deduction: Math.round(deduction),
     excess: Math.round(excess),
-    total: Math.round(project.monthly_rate - deduction + excess),
+    included,
+    totalExcl,
+    tax,
+    total: totalExcl + tax, // 税込
     shortHours: Math.max(0, project.range_min - hours),
     overHours: Math.max(0, hours - project.range_max),
   };
@@ -254,15 +266,16 @@ export const buildSheet = (
   if (opts.includeMoney) {
     const pay = monthlyPay(project, total);
     if (pay) {
+      const tag = pay.included ? "税込" : "税抜";
       footer.push([
         "金額",
-        `月額単価 ${pay.base.toLocaleString("ja-JP")}円`,
+        `月額単価 ${pay.base.toLocaleString("ja-JP")}円（${tag}）`,
         pay.deduction ? `控除 −${pay.deduction.toLocaleString("ja-JP")}円` : "",
         pay.excess ? `超過 +${pay.excess.toLocaleString("ja-JP")}円` : "",
-        "",
-        "",
+        `税抜 ${pay.totalExcl.toLocaleString("ja-JP")}円`,
+        `消費税 ${pay.tax.toLocaleString("ja-JP")}円`,
         pay.total,
-        "",
+        "税込",
       ]);
     }
   }
