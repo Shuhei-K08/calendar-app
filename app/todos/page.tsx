@@ -4,6 +4,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
+import { useLiveRefresh } from "@/lib/useLiveRefresh";
 import { DesktopNavigation, MobileNavigation, OPEN_TODO_ADD, ShareCalLogo } from "@/app/components/AppNavigation";
 
 type Todo = {
@@ -133,17 +134,9 @@ export default function TodosPage() {
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     void load();
-    // 相手が追加・チェックしたものを、画面に戻ったときに反映
-    const onVisible = () => {
-      if (document.visibilityState === "visible") void load();
-    };
-    document.addEventListener("visibilitychange", onVisible);
-    window.addEventListener("focus", onVisible);
-    return () => {
-      document.removeEventListener("visibilitychange", onVisible);
-      window.removeEventListener("focus", onVisible);
-    };
   }, [load]);
+  // 相手が追加・チェックしたものを、開いている画面にもすぐ反映する
+  useLiveRefresh("todos", ["todo_items", "connections"], load);
 
   // スマホの＋（やることを追加）→ 追加の画面を開く
   useEffect(() => {

@@ -10,6 +10,7 @@ import "react-big-calendar/lib/css/react-big-calendar.css";
 import "react-big-calendar/lib/addons/dragAndDrop/styles.css";
 import { supabase } from "@/lib/supabase";
 import { authFetch } from "@/lib/authFetch";
+import { useLiveRefresh } from "@/lib/useLiveRefresh";
 import StoredImage from "@/app/components/StoredImage";
 import { DesktopNavigation, MobileNavigation, OPEN_ADD_EVENT, ShareCalLogo, ShareCalMark } from "@/app/components/AppNavigation";
 import * as HolidayJp from "@holiday-jp/holiday_jp";
@@ -1060,11 +1061,7 @@ export default function Home() {
 
     window.setTimeout(() => setSharedNotification(null), 6000);
 
-    if ("Notification" in window && Notification.permission === "granted") {
-      new Notification("予定が共有されました", {
-        body: `${newest.ownerName}さんから「${newest.title}」が共有されました`,
-      });
-    }
+    // スマホへの通知はサーバーから届くので、ここでは画面の中のお知らせだけにする（二重に鳴らさない）
   }, [notificationsEnabled]);
 
   const fetchEvents = useCallback(async () => {
@@ -1522,6 +1519,10 @@ export default function Home() {
 
     return () => window.clearInterval(intervalId);
   }, [fetchCategories, fetchCommentActivity, fetchConnections, fetchEvents, fetchPatterns, router]);
+
+  // 相手が予定を追加・変更・共有したら、開いている画面にもすぐ反映する
+  useLiveRefresh("calendar-events", ["events", "event_shares", "recurring_events", "recurring_event_shares"], fetchEvents);
+  useLiveRefresh("calendar-comments", ["event_comments"], fetchCommentActivity);
 
   const requestNotificationPermission = async () => {
     if (typeof window === "undefined" || !("Notification" in window)) {
