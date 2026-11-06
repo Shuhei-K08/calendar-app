@@ -1,14 +1,10 @@
-// 通知の送信。Supabase から5分ごとに呼ばれ、次の3つをスマホ（登録した端末）に届ける
+// 通知の送信。Supabase から10分ごとに呼ばれ、次の3つをスマホ（登録した端末）に届ける
 //  1) やることのリマインド（担当者へ。どちらでもならふたりへ）
 //  2) 予定の前のリマインド（設定した本人へ）
-//  3) 相手が予定を共有したお知らせ
+//  3) データベースがためたお知らせ（予定の共有・コメント・スタンプ）
 import { NextResponse } from "next/server";
-import webpush from "web-push";
 import { createSupabaseAdmin } from "@/lib/supabaseAdmin";
-
-type Admin = NonNullable<ReturnType<typeof createSupabaseAdmin>>;
-type Payload = { title: string; body: string; url: string; tag: string };
-type Sub = { id: string; user_id: string; endpoint: string; p256dh: string; auth: string };
+import { deliver as deliverTo, queuedMessages as queuedFrom, setupVapid, type Admin, type Payload } from "@/lib/pushSend";
 
 const BATCH = 100;
 // 途中で起きたエラー（呼び出し結果に入れて、原因を見つけやすくする）
@@ -23,35 +19,7 @@ const jstLabel = (iso: string, allDay: boolean) => {
   return allDay ? md : `${md} ${d.getUTCHours()}:${String(d.getUTCMinutes()).padStart(2, "0")}`;
 };
 
-/** 届け先ごとの通知を、その人の端末すべてに送る */
-async function deliver(admin: Admin, messages: { userId: string; payload: Payload }[]) {
-  if (!messages.length) return { sent: 0, removed: 0 };
-  const userIds = [...new Set(messages.map((m) => m.userId))];
-  const { data, error } = await admin.from("push_subscriptions").select("id, user_id, endpoint, p256dh, auth").in("user_id", userIds);
-  if (error) problems.push(`push_subscriptions: ${error.message}`);
-  const subs = (data ?? []) as Sub[];
-  let sent = 0;
-  const gone = new Set<string>();
-  await Promise.all(
-    messages.flatMap(({ userId, payload }) =>
-      subs
-        .filter((s) => s.user_id === userId)
-        .map(async (s) => {
-          try {
-            await webpush.sendNotification({ endpoint: s.endpoint, keys: { p256dh: s.p256dh, auth: s.auth } }, JSON.stringify(payload), {
-              TTL: 60 * 60 * 12,
-            });
-            sent++;
-          } catch (e) {
-            const status = (e as { statusCode?: number }).statusCode;
-            if (status === 404 || status === 410) gone.add(s.id); // 通知をやめた端末は消す
-          }
-        }),
-    ),
-  );
-  if (gone.size) await admin.from("push_subscriptions").delete().in("id", [...gone]);
-  return { sent, removed: gone.size };
-}
+const deliver = (admin: Admin, messages: { userId: string; payload: Payload }[]) => deliverTo(admin, messages, problems);
 
 /** 1) やること */
 async function todoMessages(admin: Admin, nowIso: string, staleIso: string) {
@@ -161,29 +129,8 @@ async function eventMessages(admin: Admin, nowIso: string, staleIso: string) {
   });
 }
 
-/** 3) 共有のお知らせ（データベースがためたもの） */
-async function queuedMessages(admin: Admin, nowIso: string, staleIso: string) {
-  type Q = { id: string; user_id: string; title: string; body: string; url: string; tag: string | null };
-  const { data, error } = await admin
-    .from("notification_queue")
-    .select("id, user_id, title, body, url, tag")
-    .is("sent_at", null)
-    .gte("created_at", staleIso)
-    .order("created_at")
-    .limit(BATCH);
-  if (error) problems.push(`notification_queue: ${error.message}`);
-  if (error || !data?.length) return [];
-  const { data: claimed } = await admin
-    .from("notification_queue")
-    .update({ sent_at: nowIso })
-    .in("id", data.map((q) => q.id))
-    .is("sent_at", null)
-    .select("id");
-  const ids = new Set((claimed ?? []).map((r: { id: string }) => r.id));
-  return (data as Q[])
-    .filter((q) => ids.has(q.id))
-    .map((q) => ({ userId: q.user_id, payload: { title: q.title, body: q.body, url: q.url || "/", tag: q.tag || `q-${q.id}` } }));
-}
+/** 3) 共有・コメント・スタンプのお知らせ（データベースがためたもの） */
+const queuedMessages = (admin: Admin, nowIso: string, staleIso: string) => queuedFrom(admin, nowIso, staleIso, problems);
 
 export async function POST(request: Request) {
   // 合言葉（CRON_SECRET）を知っている呼び出しだけ受け付ける
@@ -197,21 +144,17 @@ export async function POST(request: Request) {
   if (got !== secret) {
     return NextResponse.json({ error: "unauthorized", reason: "合言葉が Vercel の CRON_SECRET と一致しません" }, { status: 401 });
   }
-  const publicKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY?.trim();
-  const privateKey = process.env.VAPID_PRIVATE_KEY?.trim();
-  const subject = process.env.VAPID_SUBJECT?.trim() || "mailto:admin@example.com";
   const admin = createSupabaseAdmin();
-  if (!publicKey || !privateKey || !admin) {
-    return NextResponse.json({ error: "サーバーの設定（VAPIDの鍵・管理用の鍵）が足りません" }, { status: 500 });
+  if (!admin) {
+    return NextResponse.json({ error: "サーバーの設定（管理用の鍵）が足りません" }, { status: 500 });
   }
-  try {
-    webpush.setVapidDetails(subject, publicKey, privateKey);
-  } catch (e) {
+  const vapid = setupVapid();
+  if (!vapid.ok) {
     // 鍵の形が正しくないとき（< > が付いたまま・公開鍵と秘密鍵が逆・mailto: が無い など）。鍵の値は返さない
     return NextResponse.json(
       {
         error: "VAPID の設定が正しくありません",
-        reason: e instanceof Error ? e.message : String(e),
+        reason: vapid.reason,
         hint: "NEXT_PUBLIC_VAPID_PUBLIC_KEY（B で始まる長い方）・VAPID_PRIVATE_KEY・VAPID_SUBJECT（mailto:メールアドレス）を確認して Redeploy してください",
       },
       { status: 500 },
@@ -265,7 +208,7 @@ async function run(admin: Admin) {
   return NextResponse.json({
     todos: todos.length,
     events: events.length,
-    shares: queued.length,
+    queued: queued.length,
     ...result,
     adminKey: adminKeyKind(),
     ...(problems.length ? { problems } : {}),

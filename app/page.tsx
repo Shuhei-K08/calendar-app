@@ -10,6 +10,11 @@ import "react-big-calendar/lib/css/react-big-calendar.css";
 import "react-big-calendar/lib/addons/dragAndDrop/styles.css";
 import { supabase } from "@/lib/supabase";
 import { authFetch } from "@/lib/authFetch";
+
+// コメント・スタンプ・共有のお知らせを、10分ごとの確認を待たずにすぐ送る（失敗しても10分以内に届く）
+const flushNotifications = () => {
+  void authFetch("/api/notify/flush", { method: "POST" }).catch(() => undefined);
+};
 import { useLiveRefresh } from "@/lib/useLiveRefresh";
 import StoredImage from "@/app/components/StoredImage";
 import { DesktopNavigation, MobileNavigation, OPEN_ADD_EVENT, ShareCalLogo, ShareCalMark } from "@/app/components/AppNavigation";
@@ -1858,6 +1863,7 @@ export default function Home() {
       const { error: shareError } = await supabase
         .from("event_shares")
         .insert(shareRows);
+      if (!shareError) flushNotifications();
 
       if (shareError) {
         console.error("event_shares insert error:", {
@@ -2131,6 +2137,7 @@ export default function Home() {
     }
     setComments((current) => [...current, data as EventComment]);
     if (payload.body) setCommentDraft("");
+    flushNotifications();
   };
 
   const deleteComment = async (commentId: string) => {
@@ -2252,6 +2259,7 @@ export default function Home() {
             shared_with: userId,
           })),
         );
+        if (!shareError) flushNotifications();
 
         if (shareError) {
           console.error(shareError);
@@ -2301,6 +2309,7 @@ export default function Home() {
       const { error: shareError } = await supabase.from("event_shares").insert(
         shareDraftIds.map((userId) => ({ event_id: detailEvent.id, shared_with: userId })),
       );
+      if (!shareError) flushNotifications();
       if (shareError) {
         console.error(shareError);
         show(shareError.message, "error");
@@ -2447,6 +2456,7 @@ export default function Home() {
             shared_with: userId,
           })),
         );
+        if (!insertError) flushNotifications();
 
         if (insertError) {
           console.error(insertError);
@@ -2484,6 +2494,7 @@ export default function Home() {
           shared_with: userId,
         })),
       );
+      if (!insertError) flushNotifications();
 
       if (insertError) {
         console.error(insertError);
@@ -2672,6 +2683,30 @@ export default function Home() {
       }
     }
   }, [loading]);
+
+  // 通知（コメント・スタンプ）をタップして来たときは、その予定を開く（/?open=e:<id> または r:<繰り返しのid>）
+  const openedFromNotice = useRef(false);
+  const openDetailEventRef = useRef(openDetailEvent);
+  useEffect(() => {
+    openDetailEventRef.current = openDetailEvent;
+  });
+  useEffect(() => {
+    if (loading || openedFromNotice.current) return;
+    const key = new URLSearchParams(window.location.search).get("open");
+    if (!key) return;
+    const [kind, id] = key.split(":");
+    const matches = events.filter((e) => (kind === "r" ? e.recurringId === id : e.id === id && !e.recurringId));
+    if (!matches.length) return; // 読み込みが終わるまで待つ
+    openedFromNotice.current = true;
+    window.history.replaceState(null, "", window.location.pathname);
+    // 繰り返し予定は、これから来る一番近い回（なければ一番最近の回）
+    const nowMs = currentTimeMs();
+    const sorted = [...matches].sort((a, b) => a.start.getTime() - b.start.getTime());
+    const target = sorted.find((e) => e.end.getTime() >= nowMs) ?? sorted[sorted.length - 1];
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setCalendarDate(target.start);
+    openDetailEventRef.current(target);
+  }, [loading, events]);
 
   // 月表示の「何件まで表示するか」はウィンドウのリサイズ時にしか再計算されないため、
   // 下の予定パネルの開閉などでカレンダーの高さが変わったらリサイズを通知して数え直させる
