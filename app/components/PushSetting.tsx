@@ -38,6 +38,7 @@ export default function PushSetting({ show }: { show: (m: string, t?: "success" 
   const [busy, setBusy] = useState(false);
   const [prefs, setPrefs] = useState<Prefs>(ALL_ON);
   const [prefsReady, setPrefsReady] = useState<"loading" | "ok" | "unavailable">("loading");
+  const [prefsError, setPrefsError] = useState("");
 
   useEffect(() => {
     void getPushState().then(setState).catch(() => setState("unsupported"));
@@ -46,6 +47,8 @@ export default function PushSetting({ show }: { show: (m: string, t?: "success" 
       if (!auth.user) return;
       const { data, error } = await supabase.from("notification_prefs").select("*").eq("user_id", auth.user.id).maybeSingle();
       if (error) {
+        // 原因を見つけやすいように、エラーの番号と内容を出す
+        setPrefsError(`${error.code ?? ""} ${error.message ?? ""}`.trim());
         setPrefsReady("unavailable");
         return;
       }
@@ -108,7 +111,10 @@ export default function PushSetting({ show }: { show: (m: string, t?: "success" 
       {prefsReady === "unavailable" ? (
         <div className="st-row is-static is-sub">
           <span className="st-row-text">
-            <span className="st-row-sub">種類ごとの設定は、準備ができると使えます（supabase-notify-prefs.sql を実行してください）</span>
+            <span className="st-row-sub">
+              種類ごとの設定は、準備ができると使えます（supabase-notify-prefs.sql を実行してください）
+              {prefsError && <><br />エラー: {prefsError}</>}
+            </span>
           </span>
         </div>
       ) : (
