@@ -5,7 +5,7 @@ import { supabase } from "@/lib/supabase";
 
 export type PushState = "unsupported" | "ios-needs-install" | "denied" | "off" | "on" | "no-key";
 
-const VAPID_PUBLIC_KEY = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY ?? "";
+const VAPID_PUBLIC_KEY = (process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY ?? "").trim();
 
 const isIos = () => /iphone|ipad|ipod/i.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
 const isStandalone = () =>

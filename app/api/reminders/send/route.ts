@@ -172,14 +172,19 @@ async function queuedMessages(admin: Admin, nowIso: string, staleIso: string) {
 
 export async function POST(request: Request) {
   // 合言葉（CRON_SECRET）を知っている呼び出しだけ受け付ける
-  const secret = process.env.CRON_SECRET;
-  const got = request.headers.get("authorization")?.replace(/^Bearer\s+/i, "");
-  if (!secret || got !== secret) {
-    return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  // 貼り付けたときの前後の空白・改行は無視する
+  const secret = process.env.CRON_SECRET?.trim();
+  const got = request.headers.get("authorization")?.replace(/^Bearer\s+/i, "").trim();
+  if (!secret) {
+    // 値そのものは返さない。原因がわかる言葉だけ返す
+    return NextResponse.json({ error: "unauthorized", reason: "サーバーに CRON_SECRET がありません（Vercel に入れたあと Redeploy してください）" }, { status: 401 });
   }
-  const publicKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
-  const privateKey = process.env.VAPID_PRIVATE_KEY;
-  const subject = process.env.VAPID_SUBJECT || "mailto:admin@example.com";
+  if (got !== secret) {
+    return NextResponse.json({ error: "unauthorized", reason: "合言葉が Vercel の CRON_SECRET と一致しません" }, { status: 401 });
+  }
+  const publicKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY?.trim();
+  const privateKey = process.env.VAPID_PRIVATE_KEY?.trim();
+  const subject = process.env.VAPID_SUBJECT?.trim() || "mailto:admin@example.com";
   const admin = createSupabaseAdmin();
   if (!publicKey || !privateKey || !admin) {
     return NextResponse.json({ error: "サーバーの設定（VAPIDの鍵・管理用の鍵）が足りません" }, { status: 500 });
