@@ -18,6 +18,8 @@ create index if not exists event_reminders_due_idx on public.event_reminders(rem
 alter table public.event_reminders enable row level security;
 grant select, insert, update, delete on public.event_reminders to authenticated;
 grant select, insert, update, delete on public.event_reminders to service_role;
+-- 通知の送信（サーバー）が予定・つながり・名前を読む
+grant select on public.events, public.connections, public.profiles to service_role;
 
 drop policy if exists "own event reminders" on public.event_reminders;
 create policy "own event reminders" on public.event_reminders

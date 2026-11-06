@@ -27,7 +27,8 @@ const jstLabel = (iso: string, allDay: boolean) => {
 async function deliver(admin: Admin, messages: { userId: string; payload: Payload }[]) {
   if (!messages.length) return { sent: 0, removed: 0 };
   const userIds = [...new Set(messages.map((m) => m.userId))];
-  const { data } = await admin.from("push_subscriptions").select("id, user_id, endpoint, p256dh, auth").in("user_id", userIds);
+  const { data, error } = await admin.from("push_subscriptions").select("id, user_id, endpoint, p256dh, auth").in("user_id", userIds);
+  if (error) problems.push(`push_subscriptions: ${error.message}`);
   const subs = (data ?? []) as Sub[];
   let sent = 0;
   const gone = new Set<string>();
@@ -80,11 +81,12 @@ async function todoMessages(admin: Admin, nowIso: string, staleIso: string) {
   const partnersOf = new Map<string, string[]>();
   if (owners.length) {
     const list = owners.join(",");
-    const { data: conns } = await admin
+    const { data: conns, error: connError } = await admin
       .from("connections")
       .select("requester_id, receiver_id")
       .eq("status", "accepted")
       .or(`requester_id.in.(${list}),receiver_id.in.(${list})`);
+    if (connError) problems.push(`connections: ${connError.message}`);
     for (const c of (conns ?? []) as { requester_id: string; receiver_id: string }[]) {
       for (const [me, other] of [
         [c.requester_id, c.receiver_id],
@@ -133,10 +135,18 @@ async function eventMessages(admin: Admin, nowIso: string, staleIso: string) {
   }
   const targets = rems.filter((r) => claimedKeys.has(`${r.event_id}:${r.user_id}`));
   if (!targets.length) return [];
-  const { data: evs } = await admin
+  const { data: evs, error: evError } = await admin
     .from("events")
     .select("id, title, start_at, all_day")
     .in("id", [...new Set(targets.map((r) => r.event_id))]);
+  if (evError) {
+    // 予定を読めなかったら「送った扱い」を戻して、次の確認でもう一度送る
+    problems.push(`events: ${evError.message}`);
+    for (const r of targets) {
+      await admin.from("event_reminders").update({ reminded_at: null }).eq("event_id", r.event_id).eq("user_id", r.user_id);
+    }
+    return [];
+  }
   const byId = new Map(((evs ?? []) as { id: string; title: string; start_at: string; all_day: boolean | null }[]).map((e) => [e.id, e]));
   return targets.flatMap((r) => {
     const e = byId.get(r.event_id);
