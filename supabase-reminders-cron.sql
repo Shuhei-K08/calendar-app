@@ -1,4 +1,4 @@
--- リマインドを5分ごとに送る（Supabase から アプリの送信API を呼ぶ）
+-- リマインドを10分ごとに送る（Supabase から アプリの送信API を呼ぶ）
 -- ※ 先に Vercel に環境変数（VAPID の鍵・CRON_SECRET）を入れてデプロイしてから実行してください。
 -- ※ 下の 2か所 を書き換えてから実行：
 --    <アプリのURL>   … 例 https://sharecal.vercel.app
@@ -12,7 +12,7 @@ select cron.unschedule(jobid) from cron.job where jobname = 'sharecal-reminders'
 
 select cron.schedule(
   'sharecal-reminders',
-  '*/5 * * * *',
+  '*/10 * * * *',
   $$
   select net.http_post(
     url := '<アプリのURL>/api/reminders/send',

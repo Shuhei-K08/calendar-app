@@ -487,7 +487,8 @@ function MiniCalendar({
 }
 
 const TIME_CHOICES = ["08:00", "09:00", "12:00", "18:00", "20:00", "21:00"];
-const ALL_TIMES = Array.from({ length: 96 }, (_, i) => `${pad2(Math.floor(i / 4))}:${pad2((i % 4) * 15)}`);
+// 通知の確認は10分ごとなので、時刻も10分刻みにする（その時刻ちょうどに届く）
+const ALL_TIMES = Array.from({ length: 144 }, (_, i) => `${pad2(Math.floor(i / 6))}:${pad2((i % 6) * 10)}`);
 const fmtTime = (t: string) => `${Number(t.slice(0, 2))}:${t.slice(3, 5)}`;
 
 /* ── やることの追加・編集（スマホは下から・PCは中央） ── */
@@ -526,7 +527,7 @@ function TodoSheet({
   const [remindOn, setRemindOn] = useState(!!initialRemind);
   const [remindDay, setRemindDay] = useState(initialRemind ? ymd(initialRemind) : "");
   const [remindTime, setRemindTime] = useState(
-    initialRemind ? `${pad2(initialRemind.getHours())}:${pad2(Math.floor(initialRemind.getMinutes() / 15) * 15)}` : "20:00",
+    initialRemind ? `${pad2(initialRemind.getHours())}:${pad2(Math.floor(initialRemind.getMinutes() / 10) * 10)}` : "20:00",
   );
   const [remindCal, setRemindCal] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -581,7 +582,7 @@ function TodoSheet({
   };
   const inOneHour = () => {
     const d = new Date(now().getTime() + 60 * 60 * 1000);
-    const m = Math.ceil(d.getMinutes() / 15) * 15;
+    const m = Math.ceil(d.getMinutes() / 10) * 10;
     d.setMinutes(m, 0, 0);
     setRemindOn(true);
     setRemindDay(ymd(d));

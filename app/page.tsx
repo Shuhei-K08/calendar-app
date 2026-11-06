@@ -724,9 +724,8 @@ const createBlankForm = (date = new Date()): EventForm => {
 const REMIND_TIMED = [
   { value: "", label: "なし" },
   { value: "0", label: "予定の時間" },
-  { value: "5", label: "5分前" },
   { value: "10", label: "10分前" },
-  { value: "15", label: "15分前" },
+  { value: "20", label: "20分前" },
   { value: "30", label: "30分前" },
   { value: "60", label: "1時間前" },
   { value: "120", label: "2時間前" },
@@ -740,7 +739,9 @@ const REMIND_ALL_DAY = [
 ];
 
 function RemindSelect({ allDay, value, onChange, disabledReason }: { allDay: boolean; value: string; onChange: (v: string) => void; disabledReason?: string }) {
-  const options = allDay ? REMIND_ALL_DAY : REMIND_TIMED;
+  const base = allDay ? REMIND_ALL_DAY : REMIND_TIMED;
+  // 前に付けた「5分前」などは、選択肢に無くてもそのまま残す
+  const options = !allDay && value && Number(value) > 0 && !base.some((o) => o.value === value) ? [...base, { value, label: `${value}分前` }] : base;
   const current = options.some((o) => o.value === value) ? value : "";
   return (
     <label className="space-y-1.5 sm:col-span-2">
