@@ -61,6 +61,13 @@ const ClockIcon = () => (
   </svg>
 );
 
+const TodoIcon = () => (
+  <svg className="nav-svg" viewBox="0 0 24 24" aria-hidden="true">
+    <rect x="4" y="4" width="16" height="16" rx="4" />
+    <path d="m8.5 12 2.5 2.5 4.5-5" />
+  </svg>
+);
+
 const SettingsIcon = () => (
   <svg className="nav-svg" viewBox="0 0 24 24" aria-hidden="true">
     <circle cx="12" cy="12" r="3" />
@@ -91,6 +98,7 @@ const PlusIcon = () => (
 const items = [
   { href: "/", label: "カレンダー", icon: <CalendarIcon /> },
   { href: "/links", label: "スポット", icon: <SpotIcon /> },
+  { href: "/todos", label: "やること", icon: <TodoIcon /> },
   { href: "/kintai", label: "勤怠", icon: <ClockIcon /> },
   { href: "/settings", label: "設定", icon: <SettingsIcon /> },
 ];
@@ -107,6 +115,8 @@ const ADMIN_CACHE_KEY = "sharecal_is_admin";
 export const OPEN_ADD_EVENT = "sharecal:add";
 // 勤怠画面の＋: 今日の勤怠を記入する
 export const OPEN_KINTAI_ENTRY = "sharecal:kintai-entry";
+// やること画面の＋: やることを追加する
+export const OPEN_TODO_ADD = "sharecal:todo-add";
 // つながり申請を承認・却下したら、メニューの印を数え直す
 export const PENDING_CHANGED_EVENT = "sharecal:pending-changed";
 
@@ -236,7 +246,17 @@ export function MobileNavigation() {
   const navItems = useNavItems();
   const pathname = usePathname();
   const openAdd = useAddAction();
+  // 勤怠を使う人は下のメニューが5つ埋まるので、真ん中の＋は出さず右下に小さな＋を出す
+  const compact = navItems.length >= 5;
   const [left, right] = [navItems.slice(0, 2), navItems.slice(2)];
+
+  // ＋で何をするか（画面ごと）
+  const plus = pathname.startsWith("/kintai")
+    ? { label: "今日の勤怠を記入", run: () => window.dispatchEvent(new window.Event(OPEN_KINTAI_ENTRY)) }
+    : pathname.startsWith("/todos")
+      ? { label: "やることを追加", run: () => window.dispatchEvent(new window.Event(OPEN_TODO_ADD)) }
+      : { label: "予定を追加", run: openAdd };
+  const showFab = compact && (pathname === "/" || pathname.startsWith("/kintai") || pathname.startsWith("/todos"));
 
   const renderItem = (item: (typeof items)[number]) => (
     <Link
@@ -252,17 +272,25 @@ export function MobileNavigation() {
   );
 
   return (
-    <nav className={`mobile-nav sm:hidden ${navItems.length === 3 ? "is-three" : ""}`} aria-label="メニュー">
-      {left.map(renderItem)}
-      <button
-        type="button"
-        className="mobile-nav-add"
-        onClick={() => (pathname.startsWith("/kintai") ? window.dispatchEvent(new window.Event(OPEN_KINTAI_ENTRY)) : openAdd())}
-        aria-label={pathname.startsWith("/kintai") ? "今日の勤怠を記入" : "予定を追加"}
-      >
-        <PlusIcon />
-      </button>
-      {right.map(renderItem)}
-    </nav>
+    <>
+      {showFab && (
+        <button type="button" className="mobile-fab sm:hidden" onClick={plus.run} aria-label={plus.label}>
+          <PlusIcon />
+        </button>
+      )}
+      <nav className={`mobile-nav sm:hidden ${compact ? "is-five" : ""}`} aria-label="メニュー">
+        {compact ? (
+          navItems.map(renderItem)
+        ) : (
+          <>
+            {left.map(renderItem)}
+            <button type="button" className="mobile-nav-add" onClick={plus.run} aria-label={plus.label}>
+              <PlusIcon />
+            </button>
+            {right.map(renderItem)}
+          </>
+        )}
+      </nav>
+    </>
   );
 }

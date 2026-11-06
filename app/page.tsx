@@ -443,6 +443,7 @@ type EventForm = {
   categoryId: string;
   selectedUserIds: string[];
   shareType: EventVisibility;
+  remindMinutes?: string; // 通知（開始の何分前。空 = なし）
 };
 
 type RecurrenceRule = "none" | "weekly" | "monthly" | "yearly";
@@ -718,6 +719,50 @@ const createBlankForm = (date = new Date()): EventForm => {
     shareType: "together",
   };
 };
+
+// 予定の通知（アプリを閉じていても届く）
+const REMIND_TIMED = [
+  { value: "", label: "なし" },
+  { value: "0", label: "予定の時間" },
+  { value: "5", label: "5分前" },
+  { value: "10", label: "10分前" },
+  { value: "15", label: "15分前" },
+  { value: "30", label: "30分前" },
+  { value: "60", label: "1時間前" },
+  { value: "120", label: "2時間前" },
+  { value: "1440", label: "1日前" },
+];
+const REMIND_ALL_DAY = [
+  { value: "", label: "なし" },
+  { value: "-480", label: "当日の朝 8:00" },
+  { value: "240", label: "前日の夜 20:00" },
+  { value: "1680", label: "2日前の夜 20:00" },
+];
+
+function RemindSelect({ allDay, value, onChange, disabledReason }: { allDay: boolean; value: string; onChange: (v: string) => void; disabledReason?: string }) {
+  const options = allDay ? REMIND_ALL_DAY : REMIND_TIMED;
+  const current = options.some((o) => o.value === value) ? value : "";
+  return (
+    <label className="space-y-1.5 sm:col-span-2">
+      <span className="field-label">通知（アプリを閉じていても届く）</span>
+      <select
+        className="h-11 w-full rounded-xl border border-[#dfe4e2] bg-[var(--surface-alt)] px-3 text-sm outline-none transition focus:border-[var(--accent)] focus:ring-2 focus:ring-[var(--accent-ring)] disabled:opacity-50"
+        value={disabledReason ? "" : current}
+        disabled={!!disabledReason}
+        onChange={(event) => onChange(event.target.value)}
+      >
+        {options.map((o) => (
+          <option key={o.value} value={o.value}>
+            {o.label}
+          </option>
+        ))}
+      </select>
+      <span className="block text-xs text-[#66706c]">
+        {disabledReason ?? (current ? "自分にだけ届きます。設定 › 通知 をオンにした端末に届きます。" : "知らせてほしい予定にだけ付けてください。")}
+      </span>
+    </label>
+  );
+}
 
 const getDisplayKind = (
   isShared: boolean,
@@ -1359,9 +1404,37 @@ export default function Home() {
         categoryId: detailEvent.categoryId ?? "",
         selectedUserIds: detailEvent.sharedWith.map((user) => user.id),
         shareType: detailEvent.visibility === "private" ? "together" : detailEvent.visibility,
+        remindMinutes: "",
       });
     }
   }, [detailEvent]);
+
+  // 自分がこの予定に付けた通知を読む（表がまだ無ければ何もしない）
+  useEffect(() => {
+    if (!detailEvent?.id || detailEvent.recurringId) return;
+    let alive = true;
+    void supabase
+      .from("event_reminders")
+      .select("remind_minutes")
+      .eq("event_id", detailEvent.id)
+      .maybeSingle()
+      .then(({ data }) => {
+        if (alive && data) setEditForm((current) => ({ ...current, remindMinutes: String(data.remind_minutes) }));
+      });
+    return () => {
+      alive = false;
+    };
+  }, [detailEvent]);
+
+  // 予定の通知を保存（なしなら消す）
+  const saveEventReminder = async (eventId: string, userId: string, minutes: string | undefined) => {
+    const { error } = minutes
+      ? await supabase
+          .from("event_reminders")
+          .upsert({ event_id: eventId, user_id: userId, remind_minutes: Number(minutes) }, { onConflict: "event_id,user_id" })
+      : await supabase.from("event_reminders").delete().eq("event_id", eventId).eq("user_id", userId);
+    if (error && minutes) show("通知を保存するには supabase-event-notify.sql を実行してください", "error");
+  };
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -1797,6 +1870,8 @@ export default function Home() {
       }
     }
 
+    if (form.remindMinutes) await saveEventReminder(insertedEvent.id, user.id, form.remindMinutes);
+
     if (keepOpen) {
       // パネルを開いたまま翌日へ移動し、日付が変わったことを目立たせる
       const savedDate = new Date(form.start);
@@ -2229,6 +2304,13 @@ export default function Home() {
         show(shareError.message, "error");
         return;
       }
+    }
+
+    {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (user) await saveEventReminder(detailEvent.id, user.id, editForm.remindMinutes);
     }
 
     show("予定を更新しました", "success");
@@ -3578,6 +3660,11 @@ export default function Home() {
                   ))}
                 </select>
               </label>
+              <RemindSelect
+                allDay={eventForm.allDay}
+                value={eventForm.remindMinutes ?? ""}
+                onChange={(v) => setEventForm((current) => ({ ...current, remindMinutes: v }))}
+              />
               <label className="space-y-1">
                 <span className="text-xs font-semibold text-[#66706c]">開始</span>
                 <input
@@ -3913,6 +4000,12 @@ export default function Home() {
                     ))}
                   </select>
                 </label>
+                <RemindSelect
+                  allDay={editForm.allDay}
+                  value={editForm.remindMinutes ?? ""}
+                  onChange={(v) => setEditForm((current) => ({ ...current, remindMinutes: v }))}
+                  disabledReason={detailEvent?.recurringId ? "くり返しの予定には、今は通知を付けられません" : undefined}
+                />
                 <label className="space-y-1.5">
                   <span className="field-label">開始</span>
                   <input

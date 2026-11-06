@@ -6,6 +6,7 @@ import { supabase } from "@/lib/supabase";
 import { DesktopNavigation, MobileNavigation, PENDING_CHANGED_EVENT, ShareCalLogo } from "@/app/components/AppNavigation";
 import { applySavedTheme } from "@/app/components/ThemeApplier";
 import { setKintaiEnabled, useKintaiEnabled } from "@/lib/features";
+import PushSetting from "@/app/components/PushSetting";
 import { DESIGN_THEMES, EVENT_COLOR_DEFAULTS, findDesignTheme, resolveEventColor } from "@/lib/theme";
 
 /* ── Toast ── */
@@ -649,6 +650,10 @@ export default function SettingsPage() {
                     onChange={(e) => updateSettings({ notificationsEnabled: e.target.checked })}
                   />
                 </label>
+              </Group>
+
+              <Group title="通知" note="通知の設定は端末ごとです。スマホとPCの両方で受け取るなら、それぞれでオンにしてください。">
+                <PushSetting show={show} />
               </Group>
 
               <Group title="機能" note="勤怠は自分だけの機能です。オンにしても、つながっている相手には見えません。">
