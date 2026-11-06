@@ -108,7 +108,8 @@ export default function PushSetting({ show }: { show: (m: string, t?: "success" 
           onChange={(e) => void toggle(e.target.checked)}
         />
       </label>
-      {prefsReady === "unavailable" ? (
+      {/* この端末で受け取っていないときは、種類の選択は出さない（受け取っている端末から選ぶ） */}
+      {state !== "on" ? null : prefsReady === "unavailable" ? (
         <div className="st-row is-static is-sub">
           <span className="st-row-text">
             <span className="st-row-sub">
