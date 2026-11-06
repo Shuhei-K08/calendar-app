@@ -1,22 +1,7 @@
 -- やること（ふたりで共有／自分だけ）
 -- Supabase の SQL Editor で1回実行してください。何度実行しても大丈夫です。
 
--- ふたりがつながっているか（承認済み）。ポリシーの中で使う
-create or replace function public.are_connected(a uuid, b uuid)
-returns boolean
-language sql
-stable
-security definer
-set search_path = public
-as $$
-  select exists (
-    select 1 from public.connections c
-    where c.status = 'accepted'
-      and ((c.requester_id = a and c.receiver_id = b) or (c.requester_id = b and c.receiver_id = a))
-  );
-$$;
-revoke all on function public.are_connected(uuid, uuid) from public, anon;
-grant execute on function public.are_connected(uuid, uuid) to authenticated;
+-- ふたりがつながっているかは、予定の共有で作った public.are_connected をそのまま使います
 
 create table if not exists public.todo_items (
   id uuid primary key default gen_random_uuid(),
