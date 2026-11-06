@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { DesktopNavigation, MobileNavigation, ShareCalLogo } from "@/app/components/AppNavigation";
 import { supabase } from "@/lib/supabase";
+import SeasonCard from "@/app/admin/SeasonCard";
 
 type AdminUser = {
   id: string;
@@ -443,6 +444,8 @@ export default function AdminPage() {
             ))}
           </section>
         )}
+
+        {!message && <SeasonCard show={showToast} />}
 
         {!message && (
           <section className="glass-card p-4">

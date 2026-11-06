@@ -3008,3 +3008,48 @@ h1, h2, h3, .font-display { font-weight: 800; letter-spacing: -0.01em; }
 .td-empty-card p { margin: 0 0 6px; font-size: 13px; color: var(--fg-muted); }
 .td-empty-icon { width: 56px; height: 56px; border-radius: 16px; background: var(--accent-soft); color: var(--accent-strong); display: flex; align-items: center; justify-content: center; }
 .td-allclear { display: flex; flex-direction: column; gap: 2px; padding: 16px; border-radius: 14px; background: var(--accent-soft); color: var(--accent-strong); font-size: 13px; }
+
+/* ── 期間限定：クリスマス（html に data-season="xmas" が付いている間だけ） ── */
+:root[data-season="xmas"] {
+  --xmas-pine: #1f4d3a;
+  --xmas-gold: #c99a2e;
+}
+/* カレンダーの上に下がるガーランド */
+:root[data-season="xmas"] .calendar-card { position: relative; padding-top: 16px; }
+:root[data-season="xmas"] .calendar-card::before {
+  content: ""; position: absolute; left: 10px; right: 10px; top: 0; height: 18px; pointer-events: none; z-index: 1;
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='98' height='18' viewBox='0 0 98 18'%3E%3Cpath d='M0 2 Q24.5 16 49 2 Q73.5 16 98 2' fill='none' stroke='%232f6b4f' stroke-width='3.5' stroke-linecap='round'/%3E%3Cpath d='M0 2 Q24.5 16 49 2 Q73.5 16 98 2' fill='none' stroke='%234f9a73' stroke-width='1.2' stroke-dasharray='2 4'/%3E%3Ccircle cx='24.5' cy='11' r='3.6' fill='%23a3283a'/%3E%3Ccircle cx='73.5' cy='11' r='3.6' fill='%23e0b552'/%3E%3C/svg%3E") repeat-x;
+  background-size: 98px 18px;
+}
+/* 月の名前の横に星 */
+:root[data-season="xmas"] .cal-toolbar-month::after {
+  content: ""; display: inline-block; width: 15px; height: 15px; margin-left: 4px; vertical-align: 2px;
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M12 2.5l2.6 5.6 6.1.7-4.5 4.2 1.2 6-5.4-3-5.4 3 1.2-6L3.3 8.8l6.1-.7z' fill='%23c99a2e'/%3E%3C/svg%3E") no-repeat center / contain;
+}
+/* 12/24・12/25 に星と、うすい色 */
+:root[data-season="xmas"] .rbc-day-bg.is-xmas-day { background-color: #fdf3f4; position: relative; }
+:root[data-season="xmas"] .rbc-day-bg.is-xmas-day::after {
+  content: ""; position: absolute; right: 4px; bottom: 4px; width: 12px; height: 12px; pointer-events: none;
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M12 2.5l2.6 5.6 6.1.7-4.5 4.2 1.2 6-5.4-3-5.4 3 1.2-6L3.3 8.8l6.1-.7z' fill='%23c99a2e'/%3E%3C/svg%3E") no-repeat center / contain;
+}
+/* ふわっと降る雪（操作のじゃまをしない・動きを減らす設定の人には出さない） */
+.season-snow { position: fixed; inset: 0; pointer-events: none; z-index: 30; overflow: hidden; }
+.season-snow i {
+  position: absolute; top: -12px; border-radius: 50%; background: #b8cad6; opacity: 0.75;
+  animation-name: season-snow-fall; animation-timing-function: linear; animation-iteration-count: infinite;
+}
+@keyframes season-snow-fall {
+  0% { transform: translate3d(0, -12px, 0); }
+  100% { transform: translate3d(var(--drift, 12px), 105vh, 0); }
+}
+@media (prefers-reduced-motion: reduce) { .season-snow { display: none; } }
+
+/* 設定 › テーマ の期間限定カード */
+.st-season-banner {
+  position: relative; height: 84px; background: #1f4d3a; overflow: hidden;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='98' height='18' viewBox='0 0 98 18'%3E%3Cpath d='M0 2 Q24.5 16 49 2 Q73.5 16 98 2' fill='none' stroke='%233f8462' stroke-width='3.5' stroke-linecap='round'/%3E%3Ccircle cx='24.5' cy='11' r='3.6' fill='%23d9485c'/%3E%3Ccircle cx='73.5' cy='11' r='3.6' fill='%23e8c46a'/%3E%3C/svg%3E");
+  background-repeat: repeat-x; background-position: 0 58px; background-size: 98px 18px;
+}
+.st-season-dots { position: absolute; left: 16px; top: 16px; display: flex; gap: 6px; }
+.st-season-dots i { width: 22px; height: 22px; border-radius: 999px; border: 2px solid #fff; }
+.st-season-period { position: absolute; right: 14px; top: 14px; font-size: 11px; font-weight: 700; color: #1f4d3a; background: #fff; padding: 4px 9px; border-radius: 999px; }

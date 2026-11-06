@@ -2914,6 +2914,8 @@ export default function Home() {
     const dow = date.getDay();
     if (isJapaneseHoliday(date) || dow === 0) classes.push("is-holiday");
     else if (dow === 6) classes.push("is-saturday");
+    // クリスマス仕様の間だけ、CSS で星が付く
+    if (date.getMonth() === 11 && (date.getDate() === 24 || date.getDate() === 25)) classes.push("is-xmas-day");
     return { className: classes.join(" ") };
   };
 
