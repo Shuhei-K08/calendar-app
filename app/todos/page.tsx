@@ -38,12 +38,6 @@ const mdw = (key: string) => {
   const d = parseYmd(key);
   return `${d.getMonth() + 1}/${d.getDate()}（${DOW[d.getDay()]}）`;
 };
-/** datetime-local の値（ローカル時刻） */
-const toLocalInput = (iso: string | null) => {
-  if (!iso) return "";
-  const d = new Date(iso);
-  return `${ymd(d)}T${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
-};
 const remindLabel = (iso: string) => {
   const d = new Date(iso);
   const today = ymd(now());
@@ -69,7 +63,8 @@ export default function TodosPage() {
   const [missing, setMissing] = useState(false);
   const [filter, setFilter] = useState<Filter>("all");
   const [showDone, setShowDone] = useState(false);
-  const [editing, setEditing] = useState<Todo | null>(null);
+  const [editing, setEditing] = useState<Todo | "new" | null>(null); // "new" は新しく追加
+  const [newTitle, setNewTitle] = useState("");
   const [quick, setQuick] = useState("");
   const [quickShared, setQuickShared] = useState(true);
   const [adding, setAdding] = useState(false);
@@ -134,14 +129,14 @@ export default function TodosPage() {
     };
   }, [load]);
 
-  // スマホの＋（やることを追加）
+  // スマホの＋（やることを追加）→ 追加の画面を開く
   useEffect(() => {
-    const focus = () => {
-      window.scrollTo({ top: 0, behavior: "smooth" });
-      window.setTimeout(() => quickRef.current?.focus(), 150);
+    const open = () => {
+      setNewTitle("");
+      setEditing("new");
     };
-    window.addEventListener(OPEN_TODO_ADD, focus);
-    return () => window.removeEventListener(OPEN_TODO_ADD, focus);
+    window.addEventListener(OPEN_TODO_ADD, open);
+    return () => window.removeEventListener(OPEN_TODO_ADD, open);
   }, []);
 
   const whoLabel = (t: Todo) => {
@@ -330,6 +325,22 @@ export default function TodosPage() {
             <button type="submit" className="td-quick-add" disabled={!quick.trim() || adding}>
               追加
             </button>
+            <button
+              type="button"
+              className="td-quick-more"
+              onClick={() => {
+                setNewTitle(quick.trim());
+                setEditing("new");
+              }}
+              aria-label="期限やリマインドも決めて追加"
+              title="期限やリマインドも決めて追加"
+            >
+              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
+                <path d="M4 7h10M4 12h16M4 17h7" />
+                <circle cx="17" cy="7" r="2" />
+                <circle cx="14" cy="17" r="2" />
+              </svg>
+            </button>
           </form>
           {!partner && !loading && (
             <p className="kt-muted td-hint">相手とつながると、「ふたり」のやることを共有できます（設定 › ふたり）。</p>
@@ -385,14 +396,17 @@ export default function TodosPage() {
 
       {editing && (
         <TodoSheet
-          todo={editing}
+          todo={editing === "new" ? null : editing}
+          initialTitle={newTitle}
+          defaultShared={quickShared}
           userId={userId}
           partner={partner}
           onClose={() => setEditing(null)}
-          onSaved={(t) => {
-            setItems((p) => p.map((x) => (x.id === t.id ? t : x)));
+          onSaved={(t, isNew) => {
+            setItems((p) => (isNew ? [t, ...p] : p.map((x) => (x.id === t.id ? t : x))));
+            if (isNew && newTitle) setQuick("");
             setEditing(null);
-            show("保存しました");
+            show(isNew ? "追加しました" : "保存しました");
           }}
           onDeleted={(id) => {
             setItems((p) => p.filter((x) => x.id !== id));
@@ -413,9 +427,74 @@ export default function TodosPage() {
   );
 }
 
-/* ── 1件の編集（スマホは下から・PCは中央） ── */
+
+/* ── 小さなカレンダー（期限・リマインドの日を選ぶ） ── */
+function MiniCalendar({
+  value,
+  onPick,
+  minKey,
+  label,
+}: {
+  value: string;
+  onPick: (key: string) => void;
+  minKey?: string; // これより前は選べない
+  label: string;
+}) {
+  const base = value ? parseYmd(value) : now();
+  const [view, setView] = useState(new Date(base.getFullYear(), base.getMonth(), 1));
+  const todayKey = ymd(now());
+  const first = new Date(view.getFullYear(), view.getMonth(), 1);
+  const days = new Date(view.getFullYear(), view.getMonth() + 1, 0).getDate();
+  const cells: (Date | null)[] = [
+    ...Array.from({ length: first.getDay() }, () => null),
+    ...Array.from({ length: days }, (_, i) => new Date(view.getFullYear(), view.getMonth(), i + 1)),
+  ];
+  const move = (n: number) => setView(new Date(view.getFullYear(), view.getMonth() + n, 1));
+  return (
+    <div className="td-cal" role="group" aria-label={label}>
+      <div className="td-cal-head">
+        <button type="button" onClick={() => move(-1)} aria-label="前の月">‹</button>
+        <b>
+          {view.getFullYear()}年{view.getMonth() + 1}月
+        </b>
+        <button type="button" onClick={() => move(1)} aria-label="次の月">›</button>
+      </div>
+      <div className="td-cal-grid">
+        {DOW.map((d, i) => (
+          <span key={d} className={`td-cal-dow ${i === 0 ? "is-sun" : i === 6 ? "is-sat" : ""}`}>{d}</span>
+        ))}
+        {cells.map((d, i) => {
+          if (!d) return <span key={`e${i}`} />;
+          const key = ymd(d);
+          const disabled = !!minKey && key < minKey;
+          return (
+            <button
+              key={key}
+              type="button"
+              disabled={disabled}
+              aria-pressed={key === value}
+              aria-label={`${d.getMonth() + 1}月${d.getDate()}日`}
+              className={`td-cal-day ${key === todayKey ? "is-today" : ""} ${d.getDay() === 0 ? "is-sun" : d.getDay() === 6 ? "is-sat" : ""}`}
+              onClick={() => onPick(key)}
+            >
+              {d.getDate()}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+const TIME_CHOICES = ["08:00", "09:00", "12:00", "18:00", "20:00", "21:00"];
+const ALL_TIMES = Array.from({ length: 96 }, (_, i) => `${pad2(Math.floor(i / 4))}:${pad2((i % 4) * 15)}`);
+const fmtTime = (t: string) => `${Number(t.slice(0, 2))}:${t.slice(3, 5)}`;
+
+/* ── やることの追加・編集（スマホは下から・PCは中央） ── */
 function TodoSheet({
   todo,
+  initialTitle,
+  defaultShared,
   userId,
   partner,
   onClose,
@@ -423,64 +502,124 @@ function TodoSheet({
   onDeleted,
   show,
 }: {
-  todo: Todo;
+  todo: Todo | null; // null なら新しく追加
+  initialTitle: string;
+  defaultShared: boolean;
   userId: string;
   partner: Partner | null;
   onClose: () => void;
-  onSaved: (t: Todo) => void;
+  onSaved: (t: Todo, isNew: boolean) => void;
   onDeleted: (id: string) => void;
   show: (m: string, t?: "success" | "error" | "info") => void;
 }) {
-  const [title, setTitle] = useState(todo.title);
-  const [memo, setMemo] = useState(todo.memo ?? "");
-  const [shared, setShared] = useState(todo.is_shared);
-  const [assignee, setAssignee] = useState<string | null>(todo.assignee_id);
-  const [due, setDue] = useState(todo.due_date ?? "");
-  const [remind, setRemind] = useState(toLocalInput(todo.remind_at));
+  const isNew = !todo;
+  const today = now();
+  const todayKey = ymd(today);
+  const initialRemind = todo?.remind_at ? new Date(todo.remind_at) : null;
+
+  const [title, setTitle] = useState(todo?.title ?? initialTitle);
+  const [memo, setMemo] = useState(todo?.memo ?? "");
+  const [shared, setShared] = useState(todo ? todo.is_shared : defaultShared);
+  const [assignee, setAssignee] = useState<string | null>(todo?.assignee_id ?? null);
+  const [due, setDue] = useState(todo?.due_date ?? "");
+  const [dueCal, setDueCal] = useState(false);
+  const [remindOn, setRemindOn] = useState(!!initialRemind);
+  const [remindDay, setRemindDay] = useState(initialRemind ? ymd(initialRemind) : "");
+  const [remindTime, setRemindTime] = useState(
+    initialRemind ? `${pad2(initialRemind.getHours())}:${pad2(Math.floor(initialRemind.getMinutes() / 15) * 15)}` : "20:00",
+  );
+  const [remindCal, setRemindCal] = useState(false);
   const [saving, setSaving] = useState(false);
   const [confirmDel, setConfirmDel] = useState(false);
-  const isOwner = todo.owner_id === userId;
-  const today = now();
-  const weekend = addDays(today, (6 - today.getDay() + 7) % 7 || 7);
+  const titleRef = useRef<HTMLInputElement>(null);
+  const isOwner = !todo || todo.owner_id === userId;
+
+  // 新しく追加するときは、やることの欄にすぐ書けるように
+  useEffect(() => {
+    if (isNew) titleRef.current?.focus();
+  }, [isNew]);
+
+  // 期限の選択肢
+  const satOffset = (6 - today.getDay() + 7) % 7 || 7;
+  const monOffset = (8 - today.getDay()) % 7 || 7;
   const dueChoices = [
-    { label: "なし", value: "" },
-    { label: "今日", value: ymd(today) },
+    { label: "今日", value: todayKey },
     { label: "明日", value: ymd(addDays(today, 1)) },
-    { label: "週末", value: ymd(weekend) },
+    { label: "明後日", value: ymd(addDays(today, 2)) },
+    { label: "今週末", value: ymd(addDays(today, satOffset)) },
+    { label: "来週月曜", value: ymd(addDays(today, monOffset)) },
   ];
-  const at = (d: Date, h: number) => `${ymd(d)}T${pad2(h)}:00`;
-  const remindChoices = [
-    { label: "なし", value: "" },
-    { label: "今日 20:00", value: at(today, 20) },
-    { label: "明日 9:00", value: at(addDays(today, 1), 9) },
-    ...(due ? [{ label: "期限の前日 20:00", value: at(addDays(parseYmd(due), -1), 20) }] : []),
-  ];
-  const remindPast = remind && new Date(remind).getTime() < now().getTime();
+  const dueIsCustom = !!due && !dueChoices.some((c) => c.value === due);
+
+  // リマインドの日の選択肢（期限があれば「期限の日」「期限の前日」）
+  const dayChoices = [
+    ...(due && due >= todayKey ? [{ label: "期限の日", value: due }] : []),
+    ...(due && ymd(addDays(parseYmd(due), -1)) >= todayKey ? [{ label: "期限の前日", value: ymd(addDays(parseYmd(due), -1)) }] : []),
+    { label: "今日", value: todayKey },
+    { label: "明日", value: ymd(addDays(today, 1)) },
+  ].filter((c, i, a) => a.findIndex((x) => x.value === c.value) === i);
+  const dayIsCustom = !!remindDay && !dayChoices.some((c) => c.value === remindDay);
+
+  const remindDate = remindOn && remindDay ? new Date(`${remindDay}T${remindTime}:00`) : null;
+  const remindPast = !!remindDate && remindDate.getTime() <= now().getTime();
+
+  // 通知をオンにしたときの最初の日時：期限があれば前日20時、なければ今日20時（過ぎていれば明日9時）
+  const turnOnRemind = () => {
+    setRemindOn(true);
+    if (remindDay) return;
+    const prev = due ? ymd(addDays(parseYmd(due), -1)) : "";
+    if (prev && new Date(`${prev}T20:00:00`).getTime() > now().getTime()) {
+      setRemindDay(prev);
+      setRemindTime("20:00");
+    } else if (now().getHours() < 19) {
+      setRemindDay(todayKey);
+      setRemindTime("20:00");
+    } else {
+      setRemindDay(ymd(addDays(today, 1)));
+      setRemindTime("09:00");
+    }
+  };
+  const inOneHour = () => {
+    const d = new Date(now().getTime() + 60 * 60 * 1000);
+    const m = Math.ceil(d.getMinutes() / 15) * 15;
+    d.setMinutes(m, 0, 0);
+    setRemindOn(true);
+    setRemindDay(ymd(d));
+    setRemindTime(`${pad2(d.getHours())}:${pad2(d.getMinutes())}`);
+  };
 
   const save = async () => {
     if (!title.trim()) {
       show("やることを入れてください", "error");
+      titleRef.current?.focus();
+      return;
+    }
+    if (remindPast) {
+      show("リマインドの日時が過ぎています。未来の日時にしてください", "error");
       return;
     }
     setSaving(true);
-    const patch = {
+    const body = {
       title: title.trim(),
       memo: memo.trim() || null,
       is_shared: !!partner && shared,
       assignee_id: partner && shared ? assignee : null,
       due_date: due || null,
-      remind_at: remind ? new Date(remind).toISOString() : null,
+      remind_at: remindDate ? remindDate.toISOString() : null,
     };
-    const { data, error } = await supabase.from("todo_items").update(patch).eq("id", todo.id).select(COLS).single();
+    const res = todo
+      ? await supabase.from("todo_items").update(body).eq("id", todo.id).select(COLS).single()
+      : await supabase.from("todo_items").insert(body).select(COLS).single();
     setSaving(false);
-    if (error || !data) {
+    if (res.error || !res.data) {
       show("保存できませんでした", "error");
       return;
     }
-    onSaved(data as Todo);
+    onSaved(res.data as Todo, isNew);
   };
 
   const remove = async () => {
+    if (!todo) return;
     const { error } = await supabase.from("todo_items").delete().eq("id", todo.id);
     if (error) {
       show("削除できませんでした", "error");
@@ -489,26 +628,42 @@ function TodoSheet({
     onDeleted(todo.id);
   };
 
-  const createdBy = todo.owner_id === userId ? "自分" : partner?.name ?? "相手";
-  const created = new Date(todo.created_at);
+  const created = todo ? new Date(todo.created_at) : null;
+  const createdBy = todo ? (todo.owner_id === userId ? "自分" : partner?.name ?? "相手") : "";
 
   return (
     <div className="kt-overlay" onClick={onClose}>
-      <div className="kt-sheet td-sheet" role="dialog" aria-modal="true" aria-label="やることを編集" onClick={(e) => e.stopPropagation()}>
+      <form
+        className="kt-sheet td-sheet"
+        role="dialog"
+        aria-modal="true"
+        aria-label={isNew ? "やることを追加" : "やることを編集"}
+        onClick={(e) => e.stopPropagation()}
+        onSubmit={(e) => {
+          e.preventDefault();
+          void save();
+        }}
+      >
         <span className="kt-handle" aria-hidden="true" />
         <div className="kt-entry-head">
-          <h2>やることを編集</h2>
+          <h2>{isNew ? "やることを追加" : "やることを編集"}</h2>
           <button type="button" className="kt-close" onClick={onClose}>閉じる</button>
         </div>
 
-        <label className="kt-field">
-          <span className="kt-label">やること</span>
-          <input className="kt-input" value={title} maxLength={200} onChange={(e) => setTitle(e.target.value)} />
-        </label>
+        <input
+          ref={titleRef}
+          className="td-title-input"
+          value={title}
+          maxLength={200}
+          onChange={(e) => setTitle(e.target.value)}
+          placeholder="やること（例：洗剤を買う）"
+          aria-label="やること"
+          enterKeyHint="done"
+        />
 
         {partner && (
-          <div className="kt-field">
-            <span className="kt-label">だれのやること</span>
+          <section className="td-sec">
+            <h3 className="td-sec-title">だれのやること</h3>
             <div className="td-who">
               <button type="button" aria-pressed={shared} className={`td-who-btn ${shared ? "is-shared" : ""}`} onClick={() => setShared(true)}>
                 ふたり<small>{partner.name}にも見える</small>
@@ -518,78 +673,185 @@ function TodoSheet({
                 aria-pressed={!shared}
                 className={`td-who-btn ${!shared ? "is-mine" : ""}`}
                 onClick={() => setShared(false)}
-                disabled={!isOwner && todo.is_shared}
-                title={!isOwner && todo.is_shared ? "「自分だけ」に変えられるのは作った人だけです" : undefined}
+                disabled={!isOwner && !!todo?.is_shared}
+                title={!isOwner && todo?.is_shared ? "「自分だけ」に変えられるのは作った人だけです" : undefined}
               >
                 自分だけ<small>{partner.name}には見えない</small>
               </button>
             </div>
-          </div>
+            {shared && (
+              <div className="td-row">
+                <span className="td-row-label">担当</span>
+                <div className="td-seg" role="radiogroup" aria-label="担当">
+                  {[
+                    { label: "どちらでも", value: null },
+                    { label: "自分", value: userId },
+                    { label: partner.name, value: partner.id },
+                  ].map((c) => (
+                    <button key={c.label} type="button" role="radio" aria-checked={assignee === c.value} onClick={() => setAssignee(c.value)}>
+                      {c.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+          </section>
         )}
 
-        {partner && shared && (
-          <div className="kt-field">
-            <span className="kt-label">担当（リマインドが届く人）</span>
-            <div className="td-chips">
-              {[
-                { label: "どちらでも", value: null },
-                { label: "自分", value: userId },
-                { label: partner.name, value: partner.id },
-              ].map((c) => (
-                <button key={c.label} type="button" aria-pressed={assignee === c.value} className={`kt-chip ${assignee === c.value ? "is-on" : ""}`} onClick={() => setAssignee(c.value)}>
-                  {c.label}
-                </button>
-              ))}
-            </div>
+        <section className="td-sec">
+          <div className="td-sec-head">
+            <h3 className="td-sec-title">期限</h3>
+            {due ? (
+              <span className="td-pick">
+                {mdw(due)}
+                <button type="button" className="td-clear-x" onClick={() => setDue("")} aria-label="期限をなしにする">×</button>
+              </span>
+            ) : (
+              <span className="td-pick is-none">なし</span>
+            )}
           </div>
-        )}
-
-        <div className="kt-field">
-          <span className="kt-label">期限</span>
           <div className="td-chips">
             {dueChoices.map((c) => (
-              <button key={c.label} type="button" aria-pressed={due === c.value} className={`kt-chip ${due === c.value ? "is-on" : ""}`} onClick={() => setDue(c.value)}>
+              <button
+                key={c.label}
+                type="button"
+                aria-pressed={due === c.value}
+                className={`kt-chip ${due === c.value ? "is-on" : ""}`}
+                onClick={() => {
+                  setDue(due === c.value ? "" : c.value);
+                  setDueCal(false);
+                }}
+              >
                 {c.label}
               </button>
             ))}
-            <input className="kt-input td-date" type="date" value={due} onChange={(e) => setDue(e.target.value)} aria-label="期限の日付" />
+            <button type="button" aria-expanded={dueCal} className={`kt-chip ${dueIsCustom || dueCal ? "is-on" : ""}`} onClick={() => setDueCal((v) => !v)}>
+              日付を選ぶ
+            </button>
           </div>
-        </div>
-
-        <div className="kt-field">
-          <span className="kt-label">リマインド（スマホに通知）</span>
-          <div className="td-chips">
-            {remindChoices.map((c) => (
-              <button key={c.label} type="button" aria-pressed={remind === c.value} className={`kt-chip ${remind === c.value ? "is-on" : ""}`} onClick={() => setRemind(c.value)}>
-                {c.label}
-              </button>
-            ))}
-          </div>
-          <input className="kt-input" type="datetime-local" value={remind} onChange={(e) => setRemind(e.target.value)} aria-label="リマインドの日時" step={300} />
-          {remindPast && <small className="td-warn">過ぎた日時です。保存しても通知は届きません。</small>}
-          {remind && <small className="kt-muted">通知は設定 › 通知 をオンにした端末に届きます（最大5分ほど遅れることがあります）。</small>}
-        </div>
-
-        <label className="kt-field">
-          <span className="kt-label">メモ</span>
-          <textarea className="kt-input td-memo-input" value={memo} maxLength={2000} onChange={(e) => setMemo(e.target.value)} placeholder="なし" />
-        </label>
-
-        <p className="kt-muted td-meta">
-          {createdBy}が追加 · {created.getMonth() + 1}/{created.getDate()} {created.getHours()}:{pad2(created.getMinutes())}
-        </p>
-
-        <div className="kt-entry-actions">
-          {confirmDel ? (
-            <button type="button" className="kt-btn td-del is-confirm" onClick={() => void remove()}>本当に削除</button>
-          ) : (
-            <button type="button" className="kt-btn is-ghost td-del" onClick={() => setConfirmDel(true)}>削除</button>
+          {dueCal && (
+            <MiniCalendar
+              label="期限の日"
+              value={due}
+              onPick={(k) => {
+                setDue(k);
+                setDueCal(false);
+              }}
+            />
           )}
-          <button type="button" className="kt-btn is-primary" disabled={saving} onClick={() => void save()}>
-            {saving ? "保存中…" : "保存"}
+        </section>
+
+        <section className="td-sec">
+          <div className="td-sec-head">
+            <h3 className="td-sec-title">リマインド</h3>
+            <input
+              type="checkbox"
+              className="st-switch"
+              aria-label="リマインドを使う"
+              checked={remindOn}
+              onChange={(e) => (e.target.checked ? turnOnRemind() : setRemindOn(false))}
+            />
+          </div>
+          {!remindOn ? (
+            <div className="td-chips">
+              <button type="button" className="kt-chip" onClick={turnOnRemind}>
+                通知する
+              </button>
+              <button type="button" className="kt-chip" onClick={inOneHour}>
+                1時間後に通知
+              </button>
+            </div>
+          ) : (
+            <>
+              <div className="td-row">
+                <span className="td-row-label">日</span>
+                <div className="td-chips">
+                  {dayChoices.map((c) => (
+                    <button
+                      key={c.label}
+                      type="button"
+                      aria-pressed={remindDay === c.value}
+                      className={`kt-chip ${remindDay === c.value ? "is-on" : ""}`}
+                      onClick={() => {
+                        setRemindDay(c.value);
+                        setRemindCal(false);
+                      }}
+                    >
+                      {c.label}
+                    </button>
+                  ))}
+                  <button type="button" aria-expanded={remindCal} className={`kt-chip ${dayIsCustom || remindCal ? "is-on" : ""}`} onClick={() => setRemindCal((v) => !v)}>
+                    {dayIsCustom ? mdw(remindDay) : "日付を選ぶ"}
+                  </button>
+                </div>
+              </div>
+              {remindCal && (
+                <MiniCalendar
+                  label="リマインドの日"
+                  value={remindDay}
+                  minKey={todayKey}
+                  onPick={(k) => {
+                    setRemindDay(k);
+                    setRemindCal(false);
+                  }}
+                />
+              )}
+              <div className="td-row">
+                <span className="td-row-label">時刻</span>
+                <div className="td-chips">
+                  {TIME_CHOICES.map((t) => (
+                    <button key={t} type="button" aria-pressed={remindTime === t} className={`kt-chip ${remindTime === t ? "is-on" : ""}`} onClick={() => setRemindTime(t)}>
+                      {fmtTime(t)}
+                    </button>
+                  ))}
+                  <select
+                    className={`td-time-select ${TIME_CHOICES.includes(remindTime) ? "" : "is-on"}`}
+                    value={remindTime}
+                    onChange={(e) => setRemindTime(e.target.value)}
+                    aria-label="時刻を選ぶ"
+                  >
+                    {ALL_TIMES.map((t) => (
+                      <option key={t} value={t}>
+                        {fmtTime(t)}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+              <p className={`td-remind-summary ${remindPast ? "is-warn" : ""}`}>
+                {remindDay
+                  ? remindPast
+                    ? `${mdw(remindDay)} ${fmtTime(remindTime)} は過ぎています`
+                    : `${mdw(remindDay)} ${fmtTime(remindTime)} に通知します${partner && shared ? `（${assignee === null ? "ふたり" : assignee === userId ? "自分" : partner.name}に届きます）` : ""}`
+                  : "日を選んでください"}
+              </p>
+            </>
+          )}
+        </section>
+
+        <section className="td-sec">
+          <h3 className="td-sec-title">メモ</h3>
+          <textarea className="kt-input td-memo-input" value={memo} maxLength={2000} onChange={(e) => setMemo(e.target.value)} placeholder="なし" />
+        </section>
+
+        {todo && created && (
+          <p className="kt-muted td-meta">
+            {createdBy}が追加 · {created.getMonth() + 1}/{created.getDate()} {created.getHours()}:{pad2(created.getMinutes())}
+          </p>
+        )}
+
+        <div className="kt-entry-actions td-actions">
+          {todo &&
+            (confirmDel ? (
+              <button type="button" className="kt-btn td-del is-confirm" onClick={() => void remove()}>本当に削除</button>
+            ) : (
+              <button type="button" className="kt-btn is-ghost td-del" onClick={() => setConfirmDel(true)}>削除</button>
+            ))}
+          <button type="submit" className="kt-btn is-primary" disabled={saving || !title.trim()}>
+            {saving ? "保存中…" : isNew ? "追加する" : "保存"}
           </button>
         </div>
-      </div>
+      </form>
     </div>
   );
 }
