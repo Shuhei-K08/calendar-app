@@ -21,6 +21,7 @@ create index if not exists todo_items_owner_idx on public.todo_items(owner_id);
 
 alter table public.todo_items enable row level security;
 grant select, insert, update, delete on public.todo_items to authenticated;
+grant select, insert, update, delete on public.todo_items to service_role; -- 通知の送信（サーバー）が使う
 
 -- 見られる・直せる・消せるのは「作った本人」と「ふたりのやることなら、つながっている相手」
 drop policy if exists "todo read" on public.todo_items;
@@ -106,6 +107,7 @@ create table if not exists public.push_subscriptions (
 );
 alter table public.push_subscriptions enable row level security;
 grant select, insert, update, delete on public.push_subscriptions to authenticated;
+grant select, insert, update, delete on public.push_subscriptions to service_role;
 drop policy if exists "own push subscriptions" on public.push_subscriptions;
 create policy "own push subscriptions" on public.push_subscriptions
   for all to authenticated using (user_id = auth.uid()) with check (user_id = auth.uid());

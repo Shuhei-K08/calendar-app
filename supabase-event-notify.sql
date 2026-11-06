@@ -17,6 +17,7 @@ create index if not exists event_reminders_due_idx on public.event_reminders(rem
 
 alter table public.event_reminders enable row level security;
 grant select, insert, update, delete on public.event_reminders to authenticated;
+grant select, insert, update, delete on public.event_reminders to service_role;
 
 drop policy if exists "own event reminders" on public.event_reminders;
 create policy "own event reminders" on public.event_reminders
@@ -89,6 +90,7 @@ create table if not exists public.notification_queue (
 create index if not exists notification_queue_unsent_idx on public.notification_queue(created_at) where sent_at is null;
 alter table public.notification_queue enable row level security;
 revoke all on public.notification_queue from anon, authenticated;
+grant select, insert, update, delete on public.notification_queue to service_role;
 
 -- 共有の通知を1件ためる（予定を編集するたびに共有し直しても、同じ予定では二度送らない）
 create or replace function public.enqueue_share(p_user uuid, p_owner uuid, p_title text, p_start timestamptz, p_all_day boolean, p_tag text, p_recurring boolean)
