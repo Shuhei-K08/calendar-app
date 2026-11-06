@@ -11,6 +11,8 @@ type Payload = { title: string; body: string; url: string; tag: string };
 type Sub = { id: string; user_id: string; endpoint: string; p256dh: string; auth: string };
 
 const BATCH = 100;
+// 途中で起きたエラー（呼び出し結果に入れて、原因を見つけやすくする）
+let problems: string[] = [];
 const STALE_MS = 24 * 60 * 60 * 1000; // 1日以上前に過ぎたものは送らない（サーバーが止まっていた後などにまとめて届かないように）
 const DOW = ["日", "月", "火", "水", "木", "金", "土"];
 
@@ -62,6 +64,7 @@ async function todoMessages(admin: Admin, nowIso: string, staleIso: string) {
     .is("done_at", null)
     .order("remind_at")
     .limit(BATCH);
+  if (error) problems.push(`todo_items: ${error.message}`);
   if (error || !data?.length) return [];
   // 先に「知らせ済み」にする（同時に2回呼ばれても二重に送らない）
   const { data: claimed } = await admin
@@ -114,6 +117,7 @@ async function eventMessages(admin: Admin, nowIso: string, staleIso: string) {
     .is("reminded_at", null)
     .order("remind_at")
     .limit(BATCH);
+  if (error) problems.push(`event_reminders: ${error.message}`);
   if (error || !data?.length) return [];
   const rems = data as Rem[];
   const claimedKeys = new Set<string>();
@@ -157,6 +161,7 @@ async function queuedMessages(admin: Admin, nowIso: string, staleIso: string) {
     .gte("created_at", staleIso)
     .order("created_at")
     .limit(BATCH);
+  if (error) problems.push(`notification_queue: ${error.message}`);
   if (error || !data?.length) return [];
   const { data: claimed } = await admin
     .from("notification_queue")
@@ -210,16 +215,30 @@ export async function POST(request: Request) {
   }
 }
 
+/** 管理用の鍵の種類（値は出さない）。anon の鍵だと、ほかの人のデータが読めず 0件 になる */
+const adminKeyKind = () => {
+  const key = (process.env.SUPABASE_SERVICE_ROLE_KEY ?? "").trim();
+  if (key.startsWith("sb_secret_")) return "secret";
+  if (key.startsWith("sb_publishable_")) return "publishable（公開用の鍵です。service_role / secret の鍵に替えてください）";
+  try {
+    const role = JSON.parse(Buffer.from(key.split(".")[1] ?? "", "base64url").toString("utf8")).role;
+    return role === "service_role" ? "service_role" : `${role}（service_role の鍵に替えてください）`;
+  } catch {
+    return "不明（鍵の形が正しくないかもしれません）";
+  }
+};
+
 async function run(admin: Admin) {
+  problems = [];
   const now = Date.now();
   const nowIso = new Date(now).toISOString();
   const staleIso = new Date(now - STALE_MS).toISOString();
 
   // 表がまだ無いものは飛ばす（SQL を順番に実行している途中でも動くように）
   const [todos, events, queued] = await Promise.all([
-    todoMessages(admin, nowIso, staleIso).catch(() => []),
-    eventMessages(admin, nowIso, staleIso).catch(() => []),
-    queuedMessages(admin, nowIso, staleIso).catch(() => []),
+    todoMessages(admin, nowIso, staleIso).catch((e) => (problems.push(`todo: ${String(e)}`), [])),
+    eventMessages(admin, nowIso, staleIso).catch((e) => (problems.push(`event: ${String(e)}`), [])),
+    queuedMessages(admin, nowIso, staleIso).catch((e) => (problems.push(`queue: ${String(e)}`), [])),
   ]);
   const result = await deliver(admin, [...todos, ...events, ...queued]);
 
@@ -233,5 +252,12 @@ async function run(admin: Admin) {
       () => undefined,
     );
 
-  return NextResponse.json({ todos: todos.length, events: events.length, shares: queued.length, ...result });
+  return NextResponse.json({
+    todos: todos.length,
+    events: events.length,
+    shares: queued.length,
+    ...result,
+    adminKey: adminKeyKind(),
+    ...(problems.length ? { problems } : {}),
+  });
 }
