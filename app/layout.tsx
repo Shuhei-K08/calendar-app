@@ -13,6 +13,8 @@ const GOOGLE_FONTS_URL =
 export const metadata: Metadata = {
   title: "ShareCal",
   description: "勤務予定を共有できるカレンダーアプリ ShareCal",
+  // Google Search Console の所有権の確認（Google ログインの同意画面の審査に必要）
+  verification: { google: "OWkt6uq-Q87L4Jvcuunf22MP0Adl6d6wWYwSDXQVeoY" },
   applicationName: "ShareCal",
   manifest: "/manifest.webmanifest",
   appleWebApp: {
