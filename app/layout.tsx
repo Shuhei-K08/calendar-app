@@ -1,6 +1,8 @@
 import type { Metadata, Viewport } from "next";
 import ThemeApplier from "@/app/components/ThemeApplier";
 import ScrollLock from "@/app/components/ScrollLock";
+import CatVisitor from "@/app/components/CatVisitor";
+import NewYearGreeting from "@/app/components/NewYearGreeting";
 import "./globals.css";
 
 // 日本語フォントはファイル数がとても多く、next/font だとビルドで失敗することがあるため
@@ -67,6 +69,8 @@ export default function RootLayout({
       <body className="min-h-full flex flex-col">
         <ThemeApplier />
         <ScrollLock />
+        <CatVisitor />
+        <NewYearGreeting />
         {children}
       </body>
     </html>

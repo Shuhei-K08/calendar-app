@@ -445,7 +445,8 @@ export default function AdminPage() {
           </section>
         )}
 
-        {!message && <SeasonCard show={showToast} />}
+        {!message && <SeasonCard kind="xmas" show={showToast} />}
+        {!message && <SeasonCard kind="newyear" show={showToast} />}
 
         {!message && (
           <section className="glass-card p-4">

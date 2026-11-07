@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { findDesignTheme, resolveEventColor, type EventColorKey } from "@/lib/theme";
-import { fetchSeason, isSeasonActive, readCachedSeason, SEASON_CHANGED_EVENT, seasonalEnabled, XMAS_THEME } from "@/lib/season";
+import { activeSeason, fetchSeasons, SEASON_CHANGED_EVENT, SEASON_THEMES, seasonalEnabled, type SeasonKey } from "@/lib/season";
 
 const EVENT_KEYS: EventColorKey[] = [
   "ownEventBackground",
@@ -13,9 +13,10 @@ const EVENT_KEYS: EventColorKey[] = [
 ];
 
 // 設定画面で選んだ配色を、どのページでも同じように反映する
-// 期間限定のデザイン（クリスマス）の期間中で、本人が使う設定なら、そちらを優先する
-export function applySavedTheme() {
-  if (typeof window === "undefined") return false;
+// 期間限定のデザイン（クリスマス・年末年始）の期間中で、本人が使う設定なら、そちらを優先する
+// 戻り値：いま使っている期間限定デザイン（なければ null）
+export function applySavedTheme(): SeasonKey | null {
+  if (typeof window === "undefined") return null;
   let settings: Record<string, string | undefined> = {};
   try {
     settings = JSON.parse(window.localStorage.getItem("calendar_settings") ?? "{}");
@@ -24,14 +25,14 @@ export function applySavedTheme() {
   }
   const root = document.documentElement;
   const base = findDesignTheme(settings.designTheme);
-  const seasonal = seasonalEnabled(settings) && isSeasonActive(readCachedSeason());
-  const theme = seasonal ? XMAS_THEME : base;
+  const seasonal = seasonalEnabled(settings) ? activeSeason() : null;
+  const theme = seasonal ? SEASON_THEMES[seasonal] : base;
 
-  // 予定の色：期間中は、テーマのままの色ならクリスマスの色に。自分で変えた色はそのまま
+  // 予定の色：期間中は、テーマのままの色なら期間限定の色に。自分で変えた色はそのまま
   const eventColor = (key: EventColorKey, saved?: string) => {
     const resolved = resolveEventColor(key, saved, base.id);
     if (!seasonal) return resolved;
-    return resolved.trim().toLowerCase() === base.events[key].toLowerCase() ? XMAS_THEME.events[key] : resolved;
+    return resolved.trim().toLowerCase() === base.events[key].toLowerCase() ? theme.events[key] : resolved;
   };
   const saved: Record<EventColorKey, string | undefined> = {
     ownEventBackground: settings.ownEventBackground ?? settings.ownEvent,
@@ -56,7 +57,7 @@ export function applySavedTheme() {
   root.style.setProperty("--incoming-event-bg", colors.incomingEventBackground);
   root.style.setProperty("--shared-event-bg", colors.sharedEventBackground);
   root.style.setProperty("--uncategorized-event", colors.unclassifiedEvent);
-  if (seasonal) root.dataset.season = "xmas";
+  if (seasonal) root.dataset.season = seasonal;
   else delete root.dataset.season;
   return seasonal;
 }
@@ -71,12 +72,12 @@ const FLAKES = Array.from({ length: 18 }, (_, i) => ({
 }));
 
 export default function ThemeApplier() {
-  const [seasonal, setSeasonal] = useState(false);
+  const [seasonal, setSeasonal] = useState<SeasonKey | null>(null);
 
   useEffect(() => {
     const apply = () => setSeasonal(applySavedTheme());
     apply();
-    void fetchSeason().then(apply, () => undefined);
+    void fetchSeasons().then(apply, () => undefined);
     // 日付が変わったときにも合わせる（アプリに戻ったとき）
     const onVisible = () => {
       if (document.visibilityState === "visible") apply();
@@ -89,7 +90,7 @@ export default function ThemeApplier() {
     };
   }, []);
 
-  if (!seasonal) return null;
+  if (seasonal !== "xmas") return null; // 雪はクリスマスだけ
   return (
     <div className="season-snow" aria-hidden="true">
       {FLAKES.map((f, i) => (

@@ -2914,8 +2914,9 @@ export default function Home() {
     const dow = date.getDay();
     if (isJapaneseHoliday(date) || dow === 0) classes.push("is-holiday");
     else if (dow === 6) classes.push("is-saturday");
-    // クリスマス仕様の間だけ、CSS で星が付く
+    // 期間限定デザインの間だけ、CSS で飾りが付く（クリスマスは星、元日は日の出、三が日はうすい色）
     if (date.getMonth() === 11 && (date.getDate() === 24 || date.getDate() === 25)) classes.push("is-xmas-day");
+    if (date.getMonth() === 0 && date.getDate() <= 3) classes.push(date.getDate() === 1 ? "is-newyear-day" : "is-sanganichi");
     return { className: classes.join(" ") };
   };
 

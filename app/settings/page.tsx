@@ -8,7 +8,7 @@ import { applySavedTheme } from "@/app/components/ThemeApplier";
 import { setKintaiEnabled, useKintaiEnabled } from "@/lib/features";
 import PushSetting from "@/app/components/PushSetting";
 import { DESIGN_THEMES, EVENT_COLOR_DEFAULTS, findDesignTheme, resolveEventColor } from "@/lib/theme";
-import { fetchSeason, isSeasonActive, jstToday, periodLabel, readCachedSeason, SEASON_CHANGED_EVENT, XMAS_THEME, type SeasonPeriod } from "@/lib/season";
+import { activePeriod, activeSeason, fetchSeasons, periodLabel, SEASON_CHANGED_EVENT, SEASON_THEMES, type SeasonKey, type SeasonPeriod } from "@/lib/season";
 
 /* ── Toast ── */
 type ToastItem = { id: number; msg: string; type: "success" | "error" | "info" };
@@ -35,7 +35,7 @@ const defaultSettings = {
   sharedEventBackground: EVENT_COLOR_DEFAULTS.sharedEventBackground,
   unclassifiedEvent: EVENT_COLOR_DEFAULTS.unclassifiedEvent,
   notificationsEnabled: true,
-  seasonalTheme: true, // 期間限定のデザイン（クリスマスなど）を使う
+  seasonalTheme: true, // 期間限定のデザイン（クリスマス・年末年始）を使う
 };
 type CalendarSettings = typeof defaultSettings;
 
@@ -123,6 +123,7 @@ const Icons = {
   repeat: <Svg d="M17 2l3 3-3 3M4 11V9a4 4 0 0 1 4-4h12M7 22l-3-3 3-3M20 13v2a4 4 0 0 1-4 4H4" />,
   tag: <Svg d="M3 12V4a1 1 0 0 1 1-1h8l9 9-9 9-9-9Z"><circle cx="8" cy="8" r="1.5" /></Svg>,
   calendar: <Svg d="M8 3v4M16 3v4M3.5 10h17"><rect x="3.5" y="5" width="17" height="15" rx="3" /></Svg>,
+  cat: <Svg d="M5 9V4l4 3h6l4-3v5c1.3 1.4 2 3.2 2 5 0 4-4 7-9 7s-9-3-9-7c0-1.8.7-3.6 2-5Z"><circle cx="9" cy="13" r="0.9" /><circle cx="15" cy="13" r="0.9" /></Svg>,
   palette: <Svg d="M12 3a9 9 0 1 0 0 18c1.1 0 1.8-.8 1.8-1.8 0-.5-.2-.9-.5-1.3-.3-.3-.5-.8-.5-1.2 0-1 .8-1.7 1.8-1.7H17a4 4 0 0 0 4-4C21 6.5 17 3 12 3Z"><circle cx="7.5" cy="11" r="1" /><circle cx="10.5" cy="7" r="1" /><circle cx="15" cy="7.5" r="1" /></Svg>,
   clock: <Svg d="M12 7v5l3 2"><circle cx="12" cy="12" r="9" /></Svg>,
   bell: <Svg d="M6 9a6 6 0 0 1 12 0c0 6 2.5 7.5 2.5 7.5h-17S6 15 6 9ZM10 20a2 2 0 0 0 4 0" />,
@@ -172,15 +173,15 @@ export default function SettingsPage() {
   const [settings, setSettings] = useState<CalendarSettings>(defaultSettings);
   const { enabled: kintaiEnabled } = useKintaiEnabled();
   // 期間限定のデザイン（期間中だけテーマ画面に出す）
-  const [season, setSeason] = useState<{ period: SeasonPeriod; active: boolean } | null>(null);
+  const [season, setSeason] = useState<{ key: SeasonKey; period: SeasonPeriod } | null>(null);
   useEffect(() => {
     const read = () => {
-      const p = readCachedSeason();
       // 期間中だけ出す（期間外は選べない）
-      setSeason(p && isSeasonActive(p, jstToday()) ? { period: p, active: true } : null);
+      const key = activeSeason();
+      setSeason(key ? { key, period: activePeriod(key) } : null);
     };
     read();
-    void fetchSeason().then(read, () => undefined);
+    void fetchSeasons().then(read, () => undefined);
     window.addEventListener(SEASON_CHANGED_EVENT, read);
     return () => window.removeEventListener(SEASON_CHANGED_EVENT, read);
   }, []);
@@ -580,8 +581,9 @@ export default function SettingsPage() {
 
   const partnerSummary =
     connections.length === 0 ? "まだつながっていません" : connections.map((c) => c.username).join("、");
-  const seasonalOn = !!season?.active && settings.seasonalTheme !== false;
-  const themeName = seasonalOn ? XMAS_THEME.name : findDesignTheme(settings.designTheme).name;
+  const seasonalOn = !!season && settings.seasonalTheme !== false;
+  const seasonName = season ? SEASON_THEMES[season.key].name : "";
+  const themeName = seasonalOn ? seasonName : findDesignTheme(settings.designTheme).name;
 
   /* ── 画面 ── */
   return (
@@ -653,6 +655,13 @@ export default function SettingsPage() {
                   </div>
                 </div>
                 <Row icon={Icons.palette} tone="purple" title="テーマカラーと予定の色" value={themeName} onClick={() => go("theme")} />
+                <Row
+                  icon={Icons.cat}
+                  tone="orange"
+                  title="ねこ図鑑"
+                  sub="期間限定デザインのとき、ごく稀に遊びに来たねこ"
+                  onClick={() => router.push("/cats")}
+                />
                 <label className="st-row is-static">
                   <span className="st-icon tone-orange">{Icons.bell}</span>
                   <span className="st-row-text">
@@ -1004,21 +1013,19 @@ export default function SettingsPage() {
                   title="期間限定"
                   note={`期間が終わると、自動で下のテーマ（${findDesignTheme(settings.designTheme).name}）に戻ります。設定は端末ごとです。`}
                 >
-                  <div className="st-season-banner" aria-hidden="true">
+                  <div className="st-season-banner" data-kind={season.key} aria-hidden="true">
                     <span className="st-season-dots">
-                      {XMAS_THEME.preview.map((c) => <i key={c} style={{ background: c }} />)}
+                      {SEASON_THEMES[season.key].preview.map((c) => <i key={c} style={{ background: c }} />)}
                     </span>
                     <span className="st-season-period">{periodLabel(season.period)}</span>
                   </div>
                   <label className="st-row is-static">
                     <span className="st-row-text">
-                      <span className="st-row-title">クリスマス</span>
+                      <span className="st-row-title">{seasonName}</span>
                       <span className="st-row-sub" style={{ whiteSpace: "normal" }}>
-                        {!season.active
-                          ? `${periodLabel(season.period)} の間、クリスマスのデザインになります`
-                          : settings.seasonalTheme !== false
-                            ? "いまクリスマスのデザインです"
-                            : "オンにすると、期間中だけクリスマスのデザインになります"}
+                        {settings.seasonalTheme !== false
+                          ? `いま${seasonName}のデザインです`
+                          : `オンにすると、期間中だけ${seasonName}のデザインになります`}
                       </span>
                     </span>
                     <input
@@ -1029,7 +1036,7 @@ export default function SettingsPage() {
                         updateSettings({ seasonalTheme: e.target.checked });
                         window.dispatchEvent(new Event(SEASON_CHANGED_EVENT));
                       }}
-                      aria-label="期間中はクリスマスのデザインにする"
+                      aria-label={`期間中は${seasonName}のデザインにする`}
                     />
                   </label>
                 </Group>
@@ -1039,7 +1046,7 @@ export default function SettingsPage() {
                 title={seasonalOn ? "いつものテーマ" : "テーマカラー"}
                 note={
                   seasonalOn
-                    ? "いまはクリスマスのデザインです。ここで選んだテーマは、期間が終わってから使われます。"
+                    ? `いまは${seasonName}のデザインです。ここで選んだテーマは、期間が終わってから使われます。`
                     : "変えるとすぐに反映されます。予定の色もテーマに合わせた色に変わります。"
                 }
               >
