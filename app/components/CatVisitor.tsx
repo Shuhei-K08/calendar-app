@@ -4,9 +4,10 @@
 //  - アプリを開いたとき／アプリに戻ったとき、1日1回まで APPEAR_RATE の確率
 //  - 20秒でいなくなる。タップすると「にゃ！」と鳴いて、ねこ図鑑に記録
 //  - 試すとき：URL に ?cat=1 を付けると必ず現れる。?cat=24 のように番号を付けると、その絵で現れる
+//  - 管理画面の「ねこのお試し」からも出せる（お試しは図鑑に記録しない）
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
-import { APPEAR_RATE, CAT_NAMES, CAT_SPRITES, catImage, markShown, pickSprite, recordFound, shownToday, type CatSprite } from "@/lib/catVisitor";
+import { APPEAR_RATE, CAT_NAMES, CAT_PREVIEW_EVENT, CAT_SPRITES, catImage, markShown, pickSprite, readFound, recordFound, shownToday, type CatSprite } from "@/lib/catVisitor";
 import { jstToday } from "@/lib/season";
 
 type Spot = "left" | "right";
@@ -26,7 +27,7 @@ function choosePlace(): Place {
 const STAY_MS = 20_000;
 
 export default function CatVisitor() {
-  const [visit, setVisit] = useState<{ sprite: CatSprite; place: Place } | null>(null);
+  const [visit, setVisit] = useState<{ sprite: CatSprite; place: Place; preview: boolean } | null>(null);
   const [leaving, setLeaving] = useState(false);
   const [found, setFound] = useState<{ name: string; label: string; total: number; isNew: boolean } | null>(null);
   const timers = useRef<number[]>([]);
@@ -36,16 +37,16 @@ export default function CatVisitor() {
       timers.current.forEach((t) => window.clearTimeout(t));
       timers.current = [];
     };
-    const tryVisit = (force: boolean, forcedId?: string) => {
+    const tryVisit = (force: boolean, forcedId?: string, preview = false) => {
       const today = jstToday();
       const seasonal = !!document.documentElement.dataset.season;
       if (!force && (!seasonal || shownToday(today) || Math.random() >= APPEAR_RATE)) return;
-      markShown(today);
+      if (!preview) markShown(today);
       clearTimers();
       setLeaving(false);
       setFound(null);
       const forced = forcedId ? CAT_SPRITES.find((s) => s.id === forcedId.padStart(2, "0")) : undefined;
-      setVisit({ sprite: forced ?? pickSprite(document.documentElement.dataset.season), place: choosePlace() });
+      setVisit({ sprite: forced ?? pickSprite(document.documentElement.dataset.season), place: choosePlace(), preview });
       timers.current.push(window.setTimeout(() => setLeaving(true), STAY_MS));
       timers.current.push(window.setTimeout(() => setVisit(null), STAY_MS + 700));
     };
@@ -62,21 +63,25 @@ export default function CatVisitor() {
       }
     };
     document.addEventListener("visibilitychange", onVisible);
+    const onPreview = (e: Event) => tryVisit(true, (e as CustomEvent<{ id?: string }>).detail?.id, true);
+    window.addEventListener(CAT_PREVIEW_EVENT, onPreview);
     return () => {
       clearTimers();
       document.removeEventListener("visibilitychange", onVisible);
+      window.removeEventListener(CAT_PREVIEW_EVENT, onPreview);
     };
   }, []);
 
   if (!visit) return null;
-  const { sprite, place } = visit;
+  const { sprite, place, preview } = visit;
   const name = CAT_NAMES[sprite.cat];
 
   const tap = () => {
     if (found) return;
-    const log = recordFound(sprite.id, jstToday());
+    // お試しのときは図鑑に記録しない
+    const log = preview ? readFound() : recordFound(sprite.id, jstToday());
     const total = CAT_SPRITES.filter((s) => log[s.id]).length;
-    setFound({ name, label: sprite.label, total, isNew: log[sprite.id].count === 1 });
+    setFound({ name, label: sprite.label, total, isNew: !preview && log[sprite.id].count === 1 });
     // 鳴いたあと、少ししてから帰る
     timers.current.forEach((t) => window.clearTimeout(t));
     timers.current = [window.setTimeout(() => setLeaving(true), 6000), window.setTimeout(() => setVisit(null), 6700)];
@@ -98,7 +103,7 @@ export default function CatVisitor() {
           <span className="cat-visitor-toast-text">
             <strong>{sprite.cat === "both" ? "2匹で遊びに来た！" : `${name}が遊びに来た！`}</strong>
             <span>
-              {found.isNew ? "はじめての" : ""}「{found.label}」・ねこ図鑑 {found.total}/{CAT_SPRITES.length}
+              {preview ? `お試し「${found.label}」・図鑑には記録しません` : `${found.isNew ? "はじめての" : ""}「${found.label}」・ねこ図鑑 ${found.total}/${CAT_SPRITES.length}`}
             </span>
           </span>
           <Link href="/cats" className="cat-visitor-toast-link">

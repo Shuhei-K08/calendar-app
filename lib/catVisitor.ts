@@ -98,3 +98,9 @@ export function pickSprite(season: string | undefined, rand: () => number = Math
   }
   return CAT_SPRITES[0];
 }
+
+/** 管理画面の「お試し」：この端末に、いますぐねこを出す（図鑑には記録しない）。id なしはランダム */
+export const CAT_PREVIEW_EVENT = "sharecal-cat-preview";
+export function previewCat(id?: string) {
+  window.dispatchEvent(new CustomEvent<{ id?: string }>(CAT_PREVIEW_EVENT, { detail: { id } }));
+}

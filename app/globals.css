@@ -3288,6 +3288,14 @@ h1, h2, h3, .font-display { font-weight: 800; letter-spacing: -0.01em; }
 }
 
 /* ねこ図鑑 */
+/* 管理画面：ねこのお試し */
+.cat-try-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(92px, 1fr)); gap: 8px; }
+.cat-try { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 8px 4px; border: 1px solid transparent; border-radius: 12px; background: #fbf5ec; text-align: center; cursor: pointer; }
+.cat-try:hover { border-color: var(--accent); }
+.cat-try:active { transform: scale(0.97); }
+.cat-try img { width: 76px; height: 62px; object-fit: contain; }
+.cat-try-label { font-size: 12px; font-weight: 800; line-height: 1.3; overflow-wrap: anywhere; }
+.cat-try-meta { font-size: 10.5px; color: var(--fg-muted, #6b625a); }
 .cats-summary { display: flex; align-items: center; gap: 16px; padding: 16px 18px; border-radius: 18px; background: #2f2a26; color: #fff; }
 .cats-summary small { display: block; font-size: 12px; font-weight: 700; color: #ddd4c9; }
 .cats-summary b { font-size: 30px; font-weight: 900; line-height: 1.1; }

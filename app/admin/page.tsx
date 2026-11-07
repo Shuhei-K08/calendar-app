@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { DesktopNavigation, MobileNavigation, ShareCalLogo } from "@/app/components/AppNavigation";
 import { supabase } from "@/lib/supabase";
 import SeasonCard from "@/app/admin/SeasonCard";
+import CatPreviewCard from "@/app/admin/CatPreviewCard";
 
 type AdminUser = {
   id: string;
@@ -447,6 +448,7 @@ export default function AdminPage() {
 
         {!message && <SeasonCard kind="xmas" show={showToast} />}
         {!message && <SeasonCard kind="newyear" show={showToast} />}
+        {!message && <CatPreviewCard />}
 
         {!message && (
           <section className="glass-card p-4">
