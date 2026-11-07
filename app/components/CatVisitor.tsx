@@ -1,14 +1,14 @@
 "use client";
 
 // ごく稀に小さくねこが現れる（季節限定の絵は、その期間限定デザインの間だけ）
-//  - アプリを開いたとき／アプリに戻ったとき、1日1回まで APPEAR_RATE の確率
+//  - アプリを開いたとき／アプリに戻ったとき、1日1回まで APPEAR_RATE の確率（まだ1匹も見つけていなければ必ず）
 //  - 20秒でいなくなる。タップすると「にゃ！」と鳴いて、ねこ図鑑に記録
 //  - 試すとき：URL に ?cat=1 を付けると必ず現れる。?cat=24 のように番号を付けると、その絵で現れる
 //  - 管理画面の「ねこのお試し」からも出せる（お試しは図鑑に記録しない）
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
-import { APPEAR_RATE, CAT_NAMES, CAT_PREVIEW_EVENT, CAT_SPRITES, catImage, markShown, pickSprite, readFound, recordFound, shownToday, type CatSprite } from "@/lib/catVisitor";
+import { APPEAR_RATE, CAT_NAMES, FIRST_APPEAR_RATE, CAT_PREVIEW_EVENT, CAT_SPRITES, catImage, markShown, pickSprite, readFound, recordFound, shownToday, type CatSprite } from "@/lib/catVisitor";
 import { jstToday } from "@/lib/season";
 
 type Spot = "left" | "right";
@@ -66,7 +66,9 @@ export default function CatVisitor() {
     };
     const tryVisit = (force: boolean, forcedId?: string, preview = false) => {
       const today = jstToday();
-      if (!force && (shownToday(today) || Math.random() >= APPEAR_RATE)) return;
+      // まだ1匹も見つけていなければ、最初の1匹にはすぐ出会える
+      const rate = Object.keys(readFound()).length ? APPEAR_RATE : FIRST_APPEAR_RATE;
+      if (!force && (shownToday(today) || Math.random() >= rate)) return;
       if (!preview) markShown(today);
       clearTimers();
       setLeaving(false);

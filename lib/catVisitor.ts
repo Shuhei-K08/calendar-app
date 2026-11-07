@@ -43,6 +43,8 @@ export const catImage = (id: string) => `/cats/cat${id}.png`;
 
 /** アプリを開いたとき（1日1回まで）に現れる確率 */
 export const APPEAR_RATE = 0.03;
+/** まだ1匹も見つけていない人は、すぐ出会えるように必ず現れる（1日1回までは同じ） */
+export const FIRST_APPEAR_RATE = 1;
 
 const FOUND_KEY = "sharecal_cats_found";
 const LAST_KEY = "sharecal_cat_last";
