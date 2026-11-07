@@ -3309,7 +3309,12 @@ h1, h2, h3, .font-display { font-weight: 800; letter-spacing: -0.01em; }
 .cats-card { display: flex; flex-direction: column; align-items: center; gap: 3px; padding: 8px 4px 8px; border-radius: 12px; background: #fbf5ec; text-align: center; }
 .cats-card img { width: 84px; height: 70px; object-fit: contain; }
 .cats-card.is-hidden { background: #f3f0eb; }
-.cats-card.is-hidden img { filter: brightness(0) opacity(0.13); }
+.cats-card img { -webkit-touch-callout: none; user-select: none; -webkit-user-drag: none; }
+.cats-silhouette {
+  display: block; width: 84px; height: 70px; background: rgba(47, 42, 38, 0.13); pointer-events: none;
+  -webkit-mask-repeat: no-repeat; mask-repeat: no-repeat; -webkit-mask-position: center; mask-position: center;
+  -webkit-mask-size: contain; mask-size: contain;
+}
 .cats-card-label { font-size: 12px; font-weight: 800; }
 .cats-card.is-hidden .cats-card-label { color: #8a8178; }
 .cats-card-meta { font-size: 10.5px; color: var(--fg-muted, #6b625a); }

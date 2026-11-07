@@ -55,8 +55,18 @@ export default function CatsPage() {
                   const f = log?.[s.id];
                   return (
                     <div key={s.id} className={`cats-card${f ? "" : " is-hidden"}`}>
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img src={catImage(s.id)} alt={f ? s.label : "まだ見つけていないねこ"} loading="lazy" />
+                      {f ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img src={catImage(s.id)} alt={s.label} loading="lazy" draggable={false} />
+                      ) : (
+                        // まだ見つけていない子は、画像ではなく形だけ（長押しや保存で中身が見えないように）
+                        <span
+                          className="cats-silhouette"
+                          role="img"
+                          aria-label="まだ見つけていないねこ"
+                          style={{ WebkitMaskImage: `url(${catImage(s.id)})`, maskImage: `url(${catImage(s.id)})` }}
+                        />
+                      )}
                       <span className="cats-card-label">{f ? s.label : "？？？"}</span>
                       {f && <span className="cats-card-meta">{f.count}回 ・ {f.first.slice(5).replace("-", "/")}〜</span>}
                       {s.season && <span className="cats-card-season">{s.season === "xmas" ? "クリスマス限定" : "お正月限定"}</span>}
