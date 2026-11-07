@@ -4,6 +4,7 @@ import { useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { useRouter } from "next/navigation";
 import { ShareCalLogo } from "@/app/components/AppNavigation";
+import GoogleSignInButton from "@/app/components/GoogleSignInButton";
 
 const productionUrl = "https://calendar-app-alpha-nine.vercel.app";
 
@@ -154,6 +155,14 @@ export default function SignupPage() {
           </div>
 
           <div className="space-y-4">
+            <GoogleSignInButton label="Googleで登録" />
+
+            <div className="relative flex items-center gap-3">
+              <span className="h-px flex-1 bg-[#e2e8f0]" />
+              <span className="text-xs font-bold text-[#94a3b8]">またはメールアドレスで</span>
+              <span className="h-px flex-1 bg-[#e2e8f0]" />
+            </div>
+
             <label className="block space-y-2">
               <span className="text-sm font-bold text-[#334155]">メールアドレス</span>
               <input

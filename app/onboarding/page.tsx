@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import { ShareCalLogo } from "@/app/components/AppNavigation";
@@ -28,6 +28,14 @@ export default function OnboardingPage() {
 
   // Step 1 — username
   const [username, setUsername] = useState("");
+  // Google でログインした人は、Google の名前を最初から入れておく（変えられる）
+  useEffect(() => {
+    void supabase.auth.getUser().then(({ data }) => {
+      const meta = (data.user?.user_metadata ?? {}) as { name?: string; full_name?: string };
+      const name = (meta.name || meta.full_name || "").trim();
+      if (name) setUsername((v) => v || name);
+    });
+  }, []);
 
   // Step 2 — first category (optional)
   const [categoryName, setCategoryName] = useState("");
