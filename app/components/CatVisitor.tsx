@@ -6,6 +6,7 @@
 //  - 試すとき：URL に ?cat=1 を付けると必ず現れる。?cat=24 のように番号を付けると、その絵で現れる
 //  - 管理画面の「ねこのお試し」からも出せる（お試しは図鑑に記録しない）
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { APPEAR_RATE, CAT_NAMES, CAT_PREVIEW_EVENT, CAT_SPRITES, catImage, markShown, pickSprite, readFound, recordFound, shownToday, type CatSprite } from "@/lib/catVisitor";
 import { jstToday } from "@/lib/season";
@@ -14,15 +15,40 @@ type Spot = "left" | "right";
 type Place = { spot: Spot; bottom: number };
 
 // 下のメニュー（スマホ）のふちの上にちょこんと乗る。PC は画面の下のふち
-function choosePlace(): Place {
-  const nav = document.querySelector<HTMLElement>(".mobile-nav");
-  // fixed の要素は offsetParent が null になるので、大きさで「表示中か」を見る
-  const shown = (el: HTMLElement | null) => !!el && el.getBoundingClientRect().height > 0;
-  const navTop = shown(nav) ? nav!.getBoundingClientRect().top : window.innerHeight;
-  // 右下に＋の浮きボタンがあるときは左にだけ出る
-  const fab = document.querySelector<HTMLElement>(".mobile-fab");
-  const spots: Spot[] = shown(fab) ? ["left"] : ["left", "right"];
-  return { spot: spots[Math.floor(Math.random() * spots.length)], bottom: Math.max(0, Math.round(window.innerHeight - navTop - 1)) };
+// ＋ボタン（右下の浮きボタン・メニューの真ん中の＋）と重なる側には出ない
+const CAT_W = 72;
+const CAT_H = 80; // 絵（56px）＋「にゃ！」の吹き出し
+const GAP = 8;
+
+// fixed の要素は offsetParent が null になるので、大きさで「表示中か」を見る
+const shown = (el: Element | null): el is HTMLElement => !!el && el.getBoundingClientRect().height > 0;
+
+function spotBox(spot: Spot, bottom: number) {
+  const w = window.innerWidth;
+  const wide = w >= 640; // globals.css の .cat-visitor.is-left / is-right と同じ位置
+  const left = spot === "left" ? (wide ? 236 : 18) : w - (wide ? 24 : 18) - CAT_W;
+  const bottomY = window.innerHeight - bottom;
+  return { left, right: left + CAT_W, top: bottomY - CAT_H, bottom: bottomY };
+}
+
+function spotIsFree(spot: Spot, bottom: number) {
+  const box = spotBox(spot, bottom);
+  const buttons = Array.from(document.querySelectorAll(".mobile-fab, .mobile-nav-add")).filter(shown);
+  return buttons.every((el) => {
+    const r = el.getBoundingClientRect();
+    return r.right + GAP <= box.left || r.left - GAP >= box.right || r.bottom + GAP <= box.top || r.top - GAP >= box.bottom;
+  });
+}
+
+function choosePlace(keep?: Spot): Place {
+  const nav = document.querySelector(".mobile-nav");
+  const navTop = shown(nav) ? nav.getBoundingClientRect().top : window.innerHeight;
+  const bottom = Math.max(0, Math.round(window.innerHeight - navTop - 1));
+  // いまの側が空いていれば動かさない
+  if (keep && spotIsFree(keep, bottom)) return { spot: keep, bottom };
+  const free = (["left", "right"] as Spot[]).filter((s) => spotIsFree(s, bottom));
+  const spots: Spot[] = free.length ? free : ["left"];
+  return { spot: spots[Math.floor(Math.random() * spots.length)], bottom };
 }
 const STAY_MS = 20_000;
 
@@ -31,6 +57,7 @@ export default function CatVisitor() {
   const [leaving, setLeaving] = useState(false);
   const [found, setFound] = useState<{ name: string; label: string; total: number; isNew: boolean } | null>(null);
   const timers = useRef<number[]>([]);
+  const pathname = usePathname();
 
   useEffect(() => {
     const clearTimers = () => {
@@ -71,6 +98,25 @@ export default function CatVisitor() {
       window.removeEventListener(CAT_PREVIEW_EVENT, onPreview);
     };
   }, []);
+
+  // 出ている間も、画面を移ったり＋ボタンが出てきたりしたら、重ならない側へ移る
+  const visible = !!visit;
+  useEffect(() => {
+    if (!visible) return;
+    const recheck = () =>
+      setVisit((v) => {
+        if (!v) return v;
+        const next = choosePlace(v.place.spot);
+        return next.spot === v.place.spot && next.bottom === v.place.bottom ? v : { ...v, place: next };
+      });
+    recheck();
+    const timer = window.setInterval(recheck, 800);
+    window.addEventListener("resize", recheck);
+    return () => {
+      window.clearInterval(timer);
+      window.removeEventListener("resize", recheck);
+    };
+  }, [visible, pathname]);
 
   if (!visit) return null;
   const { sprite, place, preview } = visit;
