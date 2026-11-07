@@ -123,7 +123,6 @@ const Icons = {
   repeat: <Svg d="M17 2l3 3-3 3M4 11V9a4 4 0 0 1 4-4h12M7 22l-3-3 3-3M20 13v2a4 4 0 0 1-4 4H4" />,
   tag: <Svg d="M3 12V4a1 1 0 0 1 1-1h8l9 9-9 9-9-9Z"><circle cx="8" cy="8" r="1.5" /></Svg>,
   calendar: <Svg d="M8 3v4M16 3v4M3.5 10h17"><rect x="3.5" y="5" width="17" height="15" rx="3" /></Svg>,
-  cake: <Svg d="M4 21h16M5 21v-7a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v7M5 16c1.5 1 3 1 4.5 0s3-1 4.5 0 3 1 4.5 0M12 12V8M12 4.5c.8.7.8 1.8 0 2.5-.8-.7-.8-1.8 0-2.5Z" />,
   cat: <Svg d="M5 9V4l4 3h6l4-3v5c1.3 1.4 2 3.2 2 5 0 4-4 7-9 7s-9-3-9-7c0-1.8.7-3.6 2-5Z"><circle cx="9" cy="13" r="0.9" /><circle cx="15" cy="13" r="0.9" /></Svg>,
   palette: <Svg d="M12 3a9 9 0 1 0 0 18c1.1 0 1.8-.8 1.8-1.8 0-.5-.2-.9-.5-1.3-.3-.3-.5-.8-.5-1.2 0-1 .8-1.7 1.8-1.7H17a4 4 0 0 0 4-4C21 6.5 17 3 12 3Z"><circle cx="7.5" cy="11" r="1" /><circle cx="10.5" cy="7" r="1" /><circle cx="15" cy="7.5" r="1" /></Svg>,
   clock: <Svg d="M12 7v5l3 2"><circle cx="12" cy="12" r="9" /></Svg>,
@@ -656,13 +655,6 @@ export default function SettingsPage() {
                   </div>
                 </div>
                 <Row icon={Icons.palette} tone="purple" title="テーマカラーと予定の色" value={themeName} onClick={() => go("theme")} />
-                <Row
-                  icon={Icons.cake}
-                  tone="orange"
-                  title="誕生日ページ"
-                  sub="誕生日と写真を入れると、約1か月前からカウントダウン"
-                  onClick={() => router.push("/birthday")}
-                />
                 <Row
                   icon={Icons.cat}
                   tone="orange"
