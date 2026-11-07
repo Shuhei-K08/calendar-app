@@ -8,7 +8,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
-import { APPEAR_RATE, CAT_NAMES, FIRST_APPEAR_RATE, CAT_PREVIEW_EVENT, CAT_SPRITES, catImage, markShown, pickSprite, readFound, recordFound, shownToday, type CatSprite } from "@/lib/catVisitor";
+import { APPEAR_RATE, CAT_NAMES, FIRST_APPEAR_RATE, CAT_PREVIEW_EVENT, CAT_SPRITES, catImage, markShown, pickSprite, readFound, recordFound, shownToday, syncFound, type CatSprite } from "@/lib/catVisitor";
 import { jstToday } from "@/lib/season";
 
 type Spot = "left" | "right";
@@ -80,8 +80,14 @@ export default function CatVisitor() {
     };
     const q = new URLSearchParams(window.location.search).get("cat");
     const force = !!q && q !== "0";
-    // 着せ替えが反映されるのを少し待ってから
-    timers.current.push(window.setTimeout(() => tryVisit(force, q && q !== "1" ? q : undefined), 2500));
+    // 着せ替えが反映されるのを少し待ってから。図鑑はアカウントの記録と合わせてから判定する（最初の1匹かどうか）
+    timers.current.push(
+      window.setTimeout(() => {
+        void syncFound()
+          .catch(() => undefined)
+          .then(() => tryVisit(force, q && q !== "1" ? q : undefined));
+      }, 2500),
+    );
     let hiddenAt = 0;
     const onVisible = () => {
       if (document.visibilityState === "hidden") {

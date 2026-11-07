@@ -3,7 +3,7 @@
 // ねこ図鑑：これまでに見つけたねこ（この端末の記録）
 import { useEffect, useState } from "react";
 import { DesktopNavigation, MobileNavigation, ShareCalLogo } from "@/app/components/AppNavigation";
-import { CAT_NAMES, CAT_SPRITES, catImage, readFound, type CatKey, type FoundLog } from "@/lib/catVisitor";
+import { CAT_NAMES, CAT_SPRITES, catImage, readFound, syncFound, type CatKey, type FoundLog } from "@/lib/catVisitor";
 
 const GROUPS: { key: CatKey; title: string }[] = [
   { key: "a", title: CAT_NAMES.a },
@@ -14,8 +14,18 @@ const GROUPS: { key: CatKey; title: string }[] = [
 export default function CatsPage() {
   const [log, setLog] = useState<FoundLog | null>(null);
   useEffect(() => {
+    // まず端末の控えを出し、アカウントの記録と合わせたら出し直す（どの端末でも同じ図鑑）
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setLog(readFound());
+    let alive = true;
+    void syncFound()
+      .then((merged) => {
+        if (alive) setLog(merged);
+      })
+      .catch(() => undefined);
+    return () => {
+      alive = false;
+    };
   }, []);
   const total = log ? CAT_SPRITES.filter((s) => log[s.id]).length : 0;
 
@@ -77,7 +87,7 @@ export default function CatsPage() {
             </section>
           );
         })}
-        <p className="cats-note">記録はこの端末に残ります。</p>
+        <p className="cats-note">記録はアカウントに保存されるので、どの端末でも同じ図鑑です。</p>
       </div>
       <MobileNavigation />
     </main>

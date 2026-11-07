@@ -1,5 +1,7 @@
-// うちのねこ：期間限定のデザインの間だけ、ごく稀に画面に遊びに来る
-// 見つけた記録は、この端末に残す（ねこ図鑑）
+// うちのねこ：ごく稀に画面に遊びに来る
+// 見つけた記録（ねこ図鑑）はアカウントごとに保存（cat_finds）。端末にも控えを置き、開いたときに合わせる
+import { supabase } from "@/lib/supabase";
+
 export type CatKey = "a" | "b" | "both";
 
 // 名前を変えるときはここだけ
@@ -60,15 +62,65 @@ export function readFound(): FoundLog {
   }
 }
 
-export function recordFound(id: string, today: string): FoundLog {
-  const log = readFound();
-  const prev = log[id];
-  log[id] = { count: (prev?.count ?? 0) + 1, first: prev?.first ?? today };
+function writeFound(log: FoundLog) {
   try {
     window.localStorage.setItem(FOUND_KEY, JSON.stringify(log));
   } catch {
     /* 記録できなくても遊べる */
   }
+}
+
+async function myUserId() {
+  const { data } = await supabase.auth.getSession();
+  return data.session?.user.id ?? null;
+}
+
+type FindRow = { sprite_id: string; count: number; first_found: string; last_found?: string | null };
+
+/** アカウントの図鑑と、この端末の控えを合わせる（回数は多いほう、はじめての日は早いほう）。端末にだけある記録は送る */
+export async function syncFound(): Promise<FoundLog> {
+  const local = readFound();
+  const uid = await myUserId();
+  if (!uid) return local;
+  const { data, error } = await supabase.from("cat_finds").select("sprite_id, count, first_found").eq("user_id", uid);
+  if (error) return local; // 表がまだ無い（supabase-cat-finds.sql 未実行）
+  const merged: FoundLog = { ...local };
+  const remote = new Map(((data ?? []) as FindRow[]).map((r) => [r.sprite_id, r]));
+  remote.forEach((r, id) => {
+    const l = merged[id];
+    merged[id] = {
+      count: Math.max(l?.count ?? 0, r.count),
+      first: l?.first && l.first < r.first_found ? l.first : r.first_found,
+    };
+  });
+  writeFound(merged);
+  const upload = Object.entries(merged)
+    .filter(([id, f]) => {
+      const r = remote.get(id);
+      return !r || r.count < f.count || f.first < r.first_found;
+    })
+    .map(([id, f]) => ({ user_id: uid, sprite_id: id, count: f.count, first_found: f.first, updated_at: new Date().toISOString() }));
+  if (upload.length) await supabase.from("cat_finds").upsert(upload, { onConflict: "user_id,sprite_id" });
+  return merged;
+}
+
+export function recordFound(id: string, today: string): FoundLog {
+  const log = readFound();
+  const prev = log[id];
+  log[id] = { count: (prev?.count ?? 0) + 1, first: prev?.first ?? today };
+  writeFound(log);
+  // アカウントにも保存（失敗しても端末の控えから、次に開いたときに送り直す）
+  const entry = log[id];
+  void myUserId().then((uid) => {
+    if (!uid) return;
+    void supabase
+      .from("cat_finds")
+      .upsert(
+        { user_id: uid, sprite_id: id, count: entry.count, first_found: entry.first, last_found: today, updated_at: new Date().toISOString() },
+        { onConflict: "user_id,sprite_id" },
+      )
+      .then(() => undefined);
+  });
   return log;
 }
 
