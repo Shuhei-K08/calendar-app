@@ -19,6 +19,8 @@ import { useLiveRefresh } from "@/lib/useLiveRefresh";
 import StoredImage from "@/app/components/StoredImage";
 import { DesktopNavigation, MobileNavigation, OPEN_ADD_EVENT, ShareCalLogo, ShareCalMark } from "@/app/components/AppNavigation";
 import * as HolidayJp from "@holiday-jp/holiday_jp";
+import BirthdayBanner from "@/app/components/BirthdayBanner";
+import { useBirthdayPeople } from "@/lib/birthday";
 
 const locales = { ja };
 type CalendarWeekStart = "monday" | "sunday";
@@ -955,6 +957,8 @@ export default function Home() {
   );
   const [confirmDeleteEvent, setConfirmDeleteEvent] = useState<CalendarEvent | null>(null);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  // 誕生日（自分とつながっている相手）：カレンダーの上のカウントダウンと、誕生日のマスの印
+  const birthdayPeople = useBirthdayPeople(currentUserId, connections.map((c) => c.id));
   // 予定のコメント・リアクション（詳細画面を開いたときに読み込む）
   const [comments, setComments] = useState<EventComment[]>([]);
   const [commentsState, setCommentsState] = useState<"idle" | "loading" | "ready" | "unavailable">("idle");
@@ -2917,6 +2921,8 @@ export default function Home() {
     // 期間限定デザインの間だけ、CSS で飾りが付く（クリスマスは星、元日は日の出、三が日はうすい色）
     if (date.getMonth() === 11 && (date.getDate() === 24 || date.getDate() === 25)) classes.push("is-xmas-day");
     if (date.getMonth() === 0 && date.getDate() <= 3) classes.push(date.getDate() === 1 ? "is-newyear-day" : "is-sanganichi");
+    const md = `${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+    if (birthdayPeople.some((p) => p.birthday.slice(5) === md)) classes.push("is-birthday");
     return { className: classes.join(" ") };
   };
 
@@ -3142,6 +3148,8 @@ export default function Home() {
           </div>
         )}
 
+        {!bulkMode && !loading && <BirthdayBanner people={birthdayPeople} me={currentUserId} />}
+
         {!bulkMode && !loading && connections.length === 0 && !connectHintDismissed && (
           <div className="connect-hint">
             <a href="/settings?p=partner" className="connect-hint-link">
@@ -3308,6 +3316,8 @@ export default function Home() {
             </button>
           </div>
         )}
+
+        {!bulkMode && !loading && <BirthdayBanner people={birthdayPeople} me={currentUserId} />}
 
         {!bulkMode && !loading && connections.length === 0 && !connectHintDismissed && (
           <div className="connect-hint">
