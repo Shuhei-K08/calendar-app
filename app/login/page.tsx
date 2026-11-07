@@ -210,6 +210,9 @@ export default function LoginPage() {
             >
               新規登録へ
             </button>
+            <p className="text-center text-xs">
+              <a href="/privacy" className="font-bold text-[#64748b] underline">プライバシーポリシー</a>
+            </p>
           </div>
         </section>
       </div>

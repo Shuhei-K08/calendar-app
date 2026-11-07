@@ -10,7 +10,7 @@ import { OPEN_ADD_EVENT } from "@/app/components/AppNavigation";
 import { jstToday, NY_GREETED_KEY, readSeasonPreview, SEASON_CHANGED_EVENT } from "@/lib/season";
 
 const ETO = ["子", "丑", "寅", "卯", "辰", "巳", "午", "未", "申", "酉", "戌", "亥"];
-const SKIP_PATHS = ["/login", "/signup", "/auth", "/onboarding", "/account-deleted"];
+const SKIP_PATHS = ["/login", "/signup", "/auth", "/onboarding", "/account-deleted", "/privacy"];
 
 function closeGreeting(year: number, setYear: (y: number | null) => void) {
   try {
