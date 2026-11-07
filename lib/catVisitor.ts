@@ -5,7 +5,7 @@ export type CatKey = "a" | "b" | "both";
 // 名前を変えるときはここだけ
 export const CAT_NAMES: Record<CatKey, string> = { a: "おこげ", b: "るる", both: "2匹" };
 
-// season：その期間限定デザインのときだけ出る絵（なしはいつでも）
+// season：その期間限定デザインを使っている間だけ出る絵（なしはいつでも出る）
 export type CatSprite = { id: string; cat: CatKey; label: string; season?: "xmas" | "newyear" };
 
 export const CAT_SPRITES: CatSprite[] = [

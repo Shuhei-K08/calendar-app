@@ -38,7 +38,7 @@ export default function CatsPage() {
               <em> / {CAT_SPRITES.length}</em>
             </b>
           </span>
-          <p>クリスマスやお正月などの期間限定デザインのとき、ごく稀に画面のすみっこに遊びに来ます。見つけたらタップ！</p>
+          <p>ごく稀に画面のすみっこに遊びに来ます。クリスマス・お正月限定の子は、その期間限定デザインのときだけ。見つけたらタップ！</p>
         </section>
 
         {GROUPS.map((g) => {

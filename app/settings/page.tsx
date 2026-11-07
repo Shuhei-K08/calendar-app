@@ -659,7 +659,7 @@ export default function SettingsPage() {
                   icon={Icons.cat}
                   tone="orange"
                   title="ねこ図鑑"
-                  sub="期間限定デザインのとき、ごく稀に遊びに来たねこ"
+                  sub="ごく稀に遊びに来たねこ"
                   onClick={() => router.push("/cats")}
                 />
                 <label className="st-row is-static">

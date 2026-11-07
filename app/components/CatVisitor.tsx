@@ -1,6 +1,6 @@
 "use client";
 
-// 期間限定のデザイン（クリスマスなど）の間だけ、ごく稀に小さくねこが現れる
+// ごく稀に小さくねこが現れる（季節限定の絵は、その期間限定デザインの間だけ）
 //  - アプリを開いたとき／アプリに戻ったとき、1日1回まで APPEAR_RATE の確率
 //  - 20秒でいなくなる。タップすると「にゃ！」と鳴いて、ねこ図鑑に記録
 //  - 試すとき：URL に ?cat=1 を付けると必ず現れる。?cat=24 のように番号を付けると、その絵で現れる
@@ -66,8 +66,7 @@ export default function CatVisitor() {
     };
     const tryVisit = (force: boolean, forcedId?: string, preview = false) => {
       const today = jstToday();
-      const seasonal = !!document.documentElement.dataset.season;
-      if (!force && (!seasonal || shownToday(today) || Math.random() >= APPEAR_RATE)) return;
+      if (!force && (shownToday(today) || Math.random() >= APPEAR_RATE)) return;
       if (!preview) markShown(today);
       clearTimers();
       setLeaving(false);
