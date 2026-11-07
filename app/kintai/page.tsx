@@ -387,7 +387,13 @@ export default function KintaiPage() {
     const [proj, tpl, prof] = await Promise.all([
       loadProjects(),
       supabase.from("work_templates").select("id, label, start_time, end_time, break_min, sort_order").order("sort_order").order("created_at"),
-      supabase.from("profiles").select("username").eq("id", user.id).maybeSingle(),
+      // 勤怠表には名前（本名）。まだ無ければニックネーム
+      supabase
+        .from("profiles")
+        .select("username, full_name")
+        .eq("id", user.id)
+        .maybeSingle()
+        .then((r) => (r.error ? supabase.from("profiles").select("username").eq("id", user.id).maybeSingle() : r)),
     ]);
     if (isMissingTable(proj.error?.code) || isMissingTable(tpl.error?.code)) {
       setMissing(true);
@@ -396,7 +402,8 @@ export default function KintaiPage() {
     }
     setProjects(((proj.data ?? []) as WorkProject[]).map((p) => ({ ...p, range_min: Number(p.range_min), range_max: Number(p.range_max) })));
     setTemplates((tpl.data ?? []) as WorkTemplate[]);
-    setUserName(prof.data?.username ?? "");
+    const profile = prof.data as { username?: string | null; full_name?: string | null } | null;
+    setUserName(profile?.full_name?.trim() || profile?.username || "");
     // 作業内容のテンプレート（表がまだ無ければ使わないだけ）
     const memo = await supabase.from("work_memo_templates").select("id, text, sort_order").order("sort_order").order("created_at");
     setMemoMissing(!!memo.error);

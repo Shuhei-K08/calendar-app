@@ -190,6 +190,9 @@ export default function SettingsPage() {
   const [email, setEmail] = useState("");
   const [username, setUsername] = useState("");
   const [savedUsername, setSavedUsername] = useState("");
+  // 名前（本名）：勤怠表などに記入する。null = 列がまだ無い（SQL 未実行）
+  const [fullName, setFullName] = useState("");
+  const [savedFullName, setSavedFullName] = useState<string | null>("");
   const [shareCode, setShareCode] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [showNewPassword, setShowNewPassword] = useState(false);
@@ -254,10 +257,15 @@ export default function SettingsPage() {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
     setEmail(user.email ?? "");
-    const { data } = await supabase.from("profiles").select("username, share_code").eq("id", user.id).maybeSingle();
+    let res = await supabase.from("profiles").select("username, share_code, full_name").eq("id", user.id).maybeSingle();
+    const hasFullName = !res.error;
+    if (res.error) res = await supabase.from("profiles").select("username, share_code").eq("id", user.id).maybeSingle();
+    const data = res.data as { username?: string | null; share_code?: string | null; full_name?: string | null } | null;
     setUsername(data?.username ?? "");
     setSavedUsername(data?.username ?? "");
     setShareCode(data?.share_code ?? "");
+    setFullName(data?.full_name ?? "");
+    setSavedFullName(hasFullName ? data?.full_name ?? "" : null);
   }, []);
 
   const fetchCategories = useCallback(async () => {
@@ -352,7 +360,23 @@ export default function SettingsPage() {
     setSavingProfile(false);
     if (error) { show(error.message, "error"); return; }
     setSavedUsername(username.trim());
-    show("名前を変更しました");
+    show("ニックネームを変更しました");
+  };
+
+  const saveFullName = async () => {
+    setSavingProfile(true);
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) { setSavingProfile(false); return; }
+    const value = fullName.trim();
+    const { error } = await supabase.from("profiles").update({ full_name: value || null }).eq("id", user.id);
+    setSavingProfile(false);
+    if (error) {
+      show(/full_name/.test(error.message) ? "名前をしまう場所がまだありません（supabase-profile-fullname.sql を実行してください）" : error.message, "error");
+      return;
+    }
+    setFullName(value);
+    setSavedFullName(value);
+    show(value ? "名前を保存しました" : "名前を消しました（勤怠表にはニックネームが入ります）");
   };
 
   const updatePassword = async () => {
@@ -714,10 +738,35 @@ export default function SettingsPage() {
           {/* ───────── プロフィール ───────── */}
           {page === "profile" && (
             <>
-              <Group title="名前" note="相手のカレンダーやコメントに表示される名前です。">
+              <Group title="ニックネーム" note="ふだん表示される名前です。相手のカレンダーやコメント、やることなどに出ます。">
                 <div className="st-field-row">
-                  <input className="st-input" value={username} onChange={(e) => setUsername(e.target.value)} onKeyDown={(e) => e.key === "Enter" && saveUsername()} aria-label="名前" />
+                  <input className="st-input" value={username} onChange={(e) => setUsername(e.target.value)} onKeyDown={(e) => e.key === "Enter" && saveUsername()} aria-label="ニックネーム" />
                   <button type="button" className="st-btn" disabled={savingProfile || !username.trim() || username.trim() === savedUsername} onClick={() => void saveUsername()}>
+                    {savingProfile ? "保存中" : "保存"}
+                  </button>
+                </div>
+              </Group>
+
+              <Group
+                title="名前（本名）"
+                note={
+                  savedFullName === null
+                    ? "使うには supabase-profile-fullname.sql の実行が必要です。"
+                    : "勤怠表など、書類に記入される名前です。ふだんの画面には出ません。空のときはニックネームが入ります。"
+                }
+              >
+                <div className="st-field-row">
+                  <input
+                    className="st-input"
+                    value={fullName}
+                    placeholder="例：山田 太郎"
+                    autoComplete="name"
+                    disabled={savedFullName === null}
+                    onChange={(e) => setFullName(e.target.value)}
+                    onKeyDown={(e) => e.key === "Enter" && saveFullName()}
+                    aria-label="名前（本名）"
+                  />
+                  <button type="button" className="st-btn" disabled={savingProfile || savedFullName === null || fullName.trim() === (savedFullName ?? "")} onClick={() => void saveFullName()}>
                     {savingProfile ? "保存中" : "保存"}
                   </button>
                 </div>
