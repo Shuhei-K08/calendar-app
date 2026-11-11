@@ -2923,6 +2923,8 @@ h1, h2, h3, .font-display { font-weight: 800; letter-spacing: -0.01em; }
 .td-seg button[aria-checked="true"] { background: var(--accent); color: #fff; }
 .td-time-select { height: 34px; padding: 0 8px; border: 1px solid var(--border-strong); border-radius: 8px; background: #fff; font-size: 12px; font-weight: 700; color: var(--fg); }
 .td-time-select.is-on { background: var(--accent); border-color: var(--accent); color: #fff; }
+.td-time-select:disabled { opacity: 0.45; }
+.td-date-btn { display: inline-flex; align-items: center; gap: 6px; }
 .td-remind-summary { margin: 0; padding: 10px 12px; border-radius: 10px; background: #fff1e0; color: #8a4b00; font-size: 13px; font-weight: 700; }
 .td-remind-summary.is-warn { background: #fde4e1; color: #b42318; }
 .td-switch { position: relative; display: inline-flex; width: 48px; height: 28px; cursor: pointer; }

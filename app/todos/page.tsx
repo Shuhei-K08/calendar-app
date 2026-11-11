@@ -15,6 +15,7 @@ type Todo = {
   is_shared: boolean;
   assignee_id: string | null;
   due_date: string | null;
+  due_time?: string | null; // "18:00:00"（null = 時刻なし）
   remind_at: string | null;
   done_at: string | null;
   done_by: string | null;
@@ -24,7 +25,11 @@ type Partner = { id: string; name: string };
 type Filter = "all" | "shared" | "mine" | "assigned";
 type Toast = { id: number; message: string; tone: "success" | "error" | "info" };
 
-const COLS = "id, owner_id, title, memo, is_shared, assignee_id, due_date, remind_at, done_at, done_by, created_at";
+const COLS_BASE = "id, owner_id, title, memo, is_shared, assignee_id, due_date, remind_at, done_at, done_by, created_at";
+const COLS_WITH_TIME = `${COLS_BASE}, due_time`;
+// 期限の時刻の列（supabase-todo-due-time.sql）がまだ無いときは、時刻なしで動かす
+let dueTimeReady = true;
+const cols = () => (dueTimeReady ? COLS_WITH_TIME : COLS_BASE);
 const DOW = ["日", "月", "火", "水", "木", "金", "土"];
 
 const pad2 = (n: number) => String(n).padStart(2, "0");
@@ -46,6 +51,7 @@ const remindLabel = (iso: string) => {
   const day = key === today ? "今日" : key === ymd(addDays(now(), 1)) ? "明日" : `${d.getMonth() + 1}/${d.getDate()}`;
   return `${day} ${d.getHours()}:${pad2(d.getMinutes())}`;
 };
+const hm = (t?: string | null) => (t ? t.slice(0, 5) : "");
 const isMissingTable = (code?: string) => code === "42P01" || code === "PGRST205" || code === "42703";
 
 const BellIcon = () => (
@@ -89,6 +95,9 @@ export default function TodosPage() {
   const [confirmClear, setConfirmClear] = useState(false);
   const [toasts, setToasts] = useState<Toast[]>([]);
   const todayKey = useMemo(() => ymd(now()), []);
+  const nowHM = useMemo(() => `${pad2(now().getHours())}:${pad2(now().getMinutes())}`, []);
+  // 期限切れ：日が過ぎた／今日で時刻が過ぎた
+  const isLate = (t: Todo) => !!t.due_date && (t.due_date < todayKey || (t.due_date === todayKey && !!t.due_time && hm(t.due_time) < nowHM));
 
   const show = useCallback((message: string, tone: Toast["tone"] = "success") => {
     const id = Date.now() + Math.random();
@@ -105,8 +114,9 @@ export default function TodosPage() {
       return;
     }
     setUserId(user.id);
-    const [todos, conns] = await Promise.all([
-      supabase.from("todo_items").select(COLS).order("created_at", { ascending: false }),
+    const listTodos = () => supabase.from("todo_items").select(cols()).order("created_at", { ascending: false });
+    const [first, conns] = await Promise.all([
+      listTodos(),
       supabase
         .from("connections")
         .select("requester_id, receiver_id")
@@ -114,12 +124,17 @@ export default function TodosPage() {
         .or(`requester_id.eq.${user.id},receiver_id.eq.${user.id}`)
         .limit(1),
     ]);
+    let todos = first;
+    if (dueTimeReady && todos.error?.code && ["42703", "PGRST204"].includes(todos.error.code)) {
+      dueTimeReady = false;
+      todos = await listTodos();
+    }
     if (isMissingTable(todos.error?.code)) {
       setMissing(true);
       setLoading(false);
       return;
     }
-    setItems((todos.data ?? []) as Todo[]);
+    setItems((todos.data ?? []) as unknown as Todo[]);
     const c = (conns.data ?? [])[0] as { requester_id: string; receiver_id: string } | undefined;
     if (c) {
       const pid = c.requester_id === user.id ? c.receiver_id : c.requester_id;
@@ -162,10 +177,12 @@ export default function TodosPage() {
   });
   const open = visible.filter((t) => !t.done_at);
   const done = visible.filter((t) => t.done_at).sort((a, b) => ((a.done_at ?? "") < (b.done_at ?? "") ? 1 : -1));
-  const byDue = (a: Todo, b: Todo) => ((a.due_date ?? "") < (b.due_date ?? "") ? -1 : (a.due_date ?? "") > (b.due_date ?? "") ? 1 : a.created_at < b.created_at ? 1 : -1);
+  // 期限の早い順（同じ日なら時刻のあるものが先、時刻なしはその日の最後）
+  const dueKey = (t: Todo) => `${t.due_date ?? ""} ${hm(t.due_time) || "99"}`;
+  const byDue = (a: Todo, b: Todo) => (dueKey(a) < dueKey(b) ? -1 : dueKey(a) > dueKey(b) ? 1 : a.created_at < b.created_at ? 1 : -1);
   const sections = [
-    { key: "late", title: "期限切れ", tone: "danger", list: open.filter((t) => t.due_date && t.due_date < todayKey).sort(byDue) },
-    { key: "today", title: "今日", tone: "", list: open.filter((t) => t.due_date === todayKey).sort(byDue) },
+    { key: "late", title: "期限切れ", tone: "danger", list: open.filter(isLate).sort(byDue) },
+    { key: "today", title: "今日", tone: "", list: open.filter((t) => t.due_date === todayKey && !isLate(t)).sort(byDue) },
     { key: "soon", title: "これから", tone: "", list: open.filter((t) => t.due_date && t.due_date > todayKey).sort(byDue) },
     { key: "none", title: "期限なし", tone: "", list: open.filter((t) => !t.due_date).sort(byDue) },
   ].filter((s) => s.list.length > 0);
@@ -219,8 +236,8 @@ export default function TodosPage() {
     );
   }
 
-  const lateCount = open.filter((t) => t.due_date && t.due_date < todayKey).length;
-  const todayCount = open.filter((t) => t.due_date === todayKey).length;
+  const lateCount = open.filter(isLate).length;
+  const todayCount = open.filter((t) => t.due_date === todayKey && !isLate(t)).length;
   const openAll = items.filter((t) => !t.done_at);
   const countOf = (f: Filter) =>
     openAll.filter((t) =>
@@ -281,7 +298,9 @@ export default function TodosPage() {
               {t.due_date && (
                 <span className={`td-meta ${late ? "is-danger" : isToday ? "is-today" : ""}`}>
                   <CalIcon />
-                  {isToday ? "今日まで" : late ? `${mdw(t.due_date)}まで` : mdw(t.due_date)}
+                  {isToday ? "今日" : mdw(t.due_date)}
+                  {t.due_time ? ` ${fmtTime(hm(t.due_time))}` : ""}
+                  {isToday || late ? "まで" : ""}
                 </span>
               )}
               {t.remind_at && !t.done_at && (
@@ -496,7 +515,6 @@ function MiniCalendar({
   );
 }
 
-const TIME_CHOICES = ["08:00", "09:00", "12:00", "18:00", "20:00", "21:00"];
 // 通知の確認は10分ごとなので、時刻も10分刻みにする（その時刻ちょうどに届く）
 const ALL_TIMES = Array.from({ length: 144 }, (_, i) => `${pad2(Math.floor(i / 6))}:${pad2((i % 6) * 10)}`);
 const fmtTime = (t: string) => `${Number(t.slice(0, 2))}:${t.slice(3, 5)}`;
@@ -533,6 +551,7 @@ function TodoSheet({
   const [shared, setShared] = useState(todo ? todo.is_shared : defaultShared);
   const [assignee, setAssignee] = useState<string | null>(todo?.assignee_id ?? null);
   const [due, setDue] = useState(todo?.due_date ?? "");
+  const [dueTime, setDueTime] = useState(hm(todo?.due_time)); // "" = 時刻なし
   const [dueCal, setDueCal] = useState(false);
   const [remindOn, setRemindOn] = useState(!!initialRemind);
   const [remindDay, setRemindDay] = useState(initialRemind ? ymd(initialRemind) : "");
@@ -549,27 +568,6 @@ function TodoSheet({
   useEffect(() => {
     if (isNew) titleRef.current?.focus();
   }, [isNew]);
-
-  // 期限の選択肢
-  const satOffset = (6 - today.getDay() + 7) % 7 || 7;
-  const monOffset = (8 - today.getDay()) % 7 || 7;
-  const dueChoices = [
-    { label: "今日", value: todayKey },
-    { label: "明日", value: ymd(addDays(today, 1)) },
-    { label: "明後日", value: ymd(addDays(today, 2)) },
-    { label: "今週末", value: ymd(addDays(today, satOffset)) },
-    { label: "来週月曜", value: ymd(addDays(today, monOffset)) },
-  ];
-  const dueIsCustom = !!due && !dueChoices.some((c) => c.value === due);
-
-  // リマインドの日の選択肢（期限があれば「期限の日」「期限の前日」）
-  const dayChoices = [
-    ...(due && due >= todayKey ? [{ label: "期限の日", value: due }] : []),
-    ...(due && ymd(addDays(parseYmd(due), -1)) >= todayKey ? [{ label: "期限の前日", value: ymd(addDays(parseYmd(due), -1)) }] : []),
-    { label: "今日", value: todayKey },
-    { label: "明日", value: ymd(addDays(today, 1)) },
-  ].filter((c, i, a) => a.findIndex((x) => x.value === c.value) === i);
-  const dayIsCustom = !!remindDay && !dayChoices.some((c) => c.value === remindDay);
 
   const remindDate = remindOn && remindDay ? new Date(`${remindDay}T${remindTime}:00`) : null;
   const remindPast = !!remindDate && remindDate.getTime() <= now().getTime();
@@ -590,15 +588,6 @@ function TodoSheet({
       setRemindTime("09:00");
     }
   };
-  const inOneHour = () => {
-    const d = new Date(now().getTime() + 60 * 60 * 1000);
-    const m = Math.ceil(d.getMinutes() / 10) * 10;
-    d.setMinutes(m, 0, 0);
-    setRemindOn(true);
-    setRemindDay(ymd(d));
-    setRemindTime(`${pad2(d.getHours())}:${pad2(d.getMinutes())}`);
-  };
-
   const save = async () => {
     if (!title.trim()) {
       show("やることを入れてください", "error");
@@ -616,17 +605,18 @@ function TodoSheet({
       is_shared: !!partner && shared,
       assignee_id: partner && shared ? assignee : null,
       due_date: due || null,
+      ...(dueTimeReady ? { due_time: due && dueTime ? dueTime : null } : {}),
       remind_at: remindDate ? remindDate.toISOString() : null,
     };
     const res = todo
-      ? await supabase.from("todo_items").update(body).eq("id", todo.id).select(COLS).single()
-      : await supabase.from("todo_items").insert(body).select(COLS).single();
+      ? await supabase.from("todo_items").update(body).eq("id", todo.id).select(cols()).single()
+      : await supabase.from("todo_items").insert(body).select(cols()).single();
     setSaving(false);
     if (res.error || !res.data) {
       show("保存できませんでした", "error");
       return;
     }
-    onSaved(res.data as Todo, isNew);
+    onSaved(res.data as unknown as Todo, isNew);
   };
 
   const remove = async () => {
@@ -715,29 +705,25 @@ function TodoSheet({
             {due ? (
               <span className="td-pick">
                 {mdw(due)}
-                <button type="button" className="td-clear-x" onClick={() => setDue("")} aria-label="期限をなしにする">×</button>
+                {dueTime ? ` ${fmtTime(dueTime)}` : ""}
+                <button
+                  type="button"
+                  className="td-clear-x"
+                  onClick={() => {
+                    setDue("");
+                    setDueTime("");
+                    setDueCal(false);
+                  }} aria-label="期限をなしにする">×</button>
               </span>
             ) : (
               <span className="td-pick is-none">なし</span>
             )}
           </div>
-          <div className="td-chips">
-            {dueChoices.map((c) => (
-              <button
-                key={c.label}
-                type="button"
-                aria-pressed={due === c.value}
-                className={`kt-chip ${due === c.value ? "is-on" : ""}`}
-                onClick={() => {
-                  setDue(due === c.value ? "" : c.value);
-                  setDueCal(false);
-                }}
-              >
-                {c.label}
-              </button>
-            ))}
-            <button type="button" aria-expanded={dueCal} className={`kt-chip ${dueIsCustom || dueCal ? "is-on" : ""}`} onClick={() => setDueCal((v) => !v)}>
-              日付を選ぶ
+          <div className="td-row">
+            <span className="td-row-label">日</span>
+            <button type="button" aria-expanded={dueCal} className={`kt-chip td-date-btn ${due || dueCal ? "is-on" : ""}`} onClick={() => setDueCal((v) => !v)}>
+              <CalIcon />
+              {due ? mdw(due) : "カレンダーで選ぶ"}
             </button>
           </div>
           {dueCal && (
@@ -749,6 +735,25 @@ function TodoSheet({
                 setDueCal(false);
               }}
             />
+          )}
+          {dueTimeReady && (
+            <div className="td-row">
+              <span className="td-row-label">時刻</span>
+              <select
+                className={`td-time-select ${due && dueTime ? "is-on" : ""}`}
+                value={dueTime}
+                onChange={(e) => setDueTime(e.target.value)}
+                disabled={!due}
+                aria-label="期限の時刻"
+              >
+                <option value="">時刻なし</option>
+                {ALL_TIMES.map((t) => (
+                  <option key={t} value={t}>
+                    {fmtTime(t)}
+                  </option>
+                ))}
+              </select>
+            </div>
           )}
         </section>
 
@@ -764,37 +769,15 @@ function TodoSheet({
             />
           </div>
           {!remindOn ? (
-            <div className="td-chips">
-              <button type="button" className="kt-chip" onClick={turnOnRemind}>
-                通知する
-              </button>
-              <button type="button" className="kt-chip" onClick={inOneHour}>
-                1時間後に通知
-              </button>
-            </div>
+            <p className="kt-muted td-remind-summary">オンにすると、選んだ日時に通知します</p>
           ) : (
             <>
               <div className="td-row">
                 <span className="td-row-label">日</span>
-                <div className="td-chips">
-                  {dayChoices.map((c) => (
-                    <button
-                      key={c.label}
-                      type="button"
-                      aria-pressed={remindDay === c.value}
-                      className={`kt-chip ${remindDay === c.value ? "is-on" : ""}`}
-                      onClick={() => {
-                        setRemindDay(c.value);
-                        setRemindCal(false);
-                      }}
-                    >
-                      {c.label}
-                    </button>
-                  ))}
-                  <button type="button" aria-expanded={remindCal} className={`kt-chip ${dayIsCustom || remindCal ? "is-on" : ""}`} onClick={() => setRemindCal((v) => !v)}>
-                    {dayIsCustom ? mdw(remindDay) : "日付を選ぶ"}
-                  </button>
-                </div>
+                <button type="button" aria-expanded={remindCal} className={`kt-chip td-date-btn ${remindDay || remindCal ? "is-on" : ""}`} onClick={() => setRemindCal((v) => !v)}>
+                  <CalIcon />
+                  {remindDay ? mdw(remindDay) : "カレンダーで選ぶ"}
+                </button>
               </div>
               {remindCal && (
                 <MiniCalendar
@@ -809,25 +792,13 @@ function TodoSheet({
               )}
               <div className="td-row">
                 <span className="td-row-label">時刻</span>
-                <div className="td-chips">
-                  {TIME_CHOICES.map((t) => (
-                    <button key={t} type="button" aria-pressed={remindTime === t} className={`kt-chip ${remindTime === t ? "is-on" : ""}`} onClick={() => setRemindTime(t)}>
+                <select className="td-time-select is-on" value={remindTime} onChange={(e) => setRemindTime(e.target.value)} aria-label="リマインドの時刻">
+                  {ALL_TIMES.map((t) => (
+                    <option key={t} value={t}>
                       {fmtTime(t)}
-                    </button>
+                    </option>
                   ))}
-                  <select
-                    className={`td-time-select ${TIME_CHOICES.includes(remindTime) ? "" : "is-on"}`}
-                    value={remindTime}
-                    onChange={(e) => setRemindTime(e.target.value)}
-                    aria-label="時刻を選ぶ"
-                  >
-                    {ALL_TIMES.map((t) => (
-                      <option key={t} value={t}>
-                        {fmtTime(t)}
-                      </option>
-                    ))}
-                  </select>
-                </div>
+                </select>
               </div>
               <p className={`td-remind-summary ${remindPast ? "is-warn" : ""}`}>
                 {remindDay

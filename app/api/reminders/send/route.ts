@@ -23,27 +23,32 @@ const deliver = (admin: Admin, messages: Message[]) => deliverTo(admin, messages
 
 /** 1) やること */
 async function todoMessages(admin: Admin, nowIso: string, staleIso: string): Promise<Message[]> {
-  type Todo = { id: string; owner_id: string; title: string; is_shared: boolean; assignee_id: string | null; due_date: string | null };
-  const { data, error } = await admin
-    .from("todo_items")
-    .select("id, owner_id, title, is_shared, assignee_id, due_date")
-    .lte("remind_at", nowIso)
-    .gte("remind_at", staleIso)
-    .is("reminded_at", null)
-    .is("done_at", null)
-    .order("remind_at")
-    .limit(BATCH);
+  type Todo = { id: string; owner_id: string; title: string; is_shared: boolean; assignee_id: string | null; due_date: string | null; due_time?: string | null };
+  const due = (cols: string) =>
+    admin
+      .from("todo_items")
+      .select(cols)
+      .lte("remind_at", nowIso)
+      .gte("remind_at", staleIso)
+      .is("reminded_at", null)
+      .is("done_at", null)
+      .order("remind_at")
+      .limit(BATCH);
+  const base = "id, owner_id, title, is_shared, assignee_id, due_date";
+  let { data, error } = await due(`${base}, due_time`);
+  // 期限の時刻の列（supabase-todo-due-time.sql）がまだ無いとき
+  if (error && ["42703", "PGRST204"].includes(error.code ?? "")) ({ data, error } = await due(base));
   if (error) problems.push(`todo_items: ${error.message}`);
   if (error || !data?.length) return [];
   // 先に「知らせ済み」にする（同時に2回呼ばれても二重に送らない）
   const { data: claimed } = await admin
     .from("todo_items")
     .update({ reminded_at: nowIso })
-    .in("id", data.map((t) => t.id))
+    .in("id", (data as unknown as Todo[]).map((t) => t.id))
     .is("reminded_at", null)
     .select("id");
   const ids = new Set((claimed ?? []).map((r: { id: string }) => r.id));
-  const todos = (data as Todo[]).filter((t) => ids.has(t.id));
+  const todos = (data as unknown as Todo[]).filter((t) => ids.has(t.id));
 
   const owners = [...new Set(todos.filter((t) => t.is_shared && !t.assignee_id).map((t) => t.owner_id))];
   const partnersOf = new Map<string, string[]>();
@@ -68,7 +73,9 @@ async function todoMessages(admin: Admin, nowIso: string, staleIso: string): Pro
     const to = !t.is_shared ? [t.owner_id] : t.assignee_id ? [t.assignee_id] : [t.owner_id, ...(partnersOf.get(t.owner_id) ?? [])];
     const payload: Payload = {
       title: "やることのリマインド",
-      body: t.due_date ? `${t.title}（期限 ${Number(t.due_date.slice(5, 7))}/${Number(t.due_date.slice(8, 10))}）` : t.title,
+      body: t.due_date
+        ? `${t.title}（期限 ${Number(t.due_date.slice(5, 7))}/${Number(t.due_date.slice(8, 10))}${t.due_time ? ` ${Number(t.due_time.slice(0, 2))}:${t.due_time.slice(3, 5)}` : ""}）`
+        : t.title,
       url: "/todos",
       tag: `todo-${t.id}`,
     };
