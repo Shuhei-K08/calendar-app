@@ -5,7 +5,7 @@
 //  - 「止める」と出なくなり、図鑑からも隠れる（見つけた記録は残る）
 import { useEffect, useRef, useState } from "react";
 import { supabase } from "@/lib/supabase";
-import { CAT_NAMES, CAT_SPRITE_BUCKET, previewCat, type CatKey } from "@/lib/catVisitor";
+import { CAT_NAMES, CAT_SPRITE_BUCKET, loadCustomSprites, nextCustomNo, previewCat, spriteNoLabel, type CatKey } from "@/lib/catVisitor";
 import { CAT_SPRITES_CHANGED, useCatSprites } from "@/lib/useCatSprites";
 
 type Season = "" | "xmas" | "newyear";
@@ -135,11 +135,106 @@ function finish(img: ImageData): HTMLCanvasElement | null {
   return out;
 }
 
+type Rect = { x: number; y: number; w: number; h: number };
+type Handle = "move" | "new" | "nw" | "ne" | "sw" | "se";
+const MIN_CROP = 12;
+
+/** 切り取る範囲を決める：ドラッグで囲む／枠をドラッグで動かす／四隅で大きさを変える */
+function CropBox({ url, width, height, value, onChange }: { url: string; width: number; height: number; value: Rect; onChange: (r: Rect) => void }) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [draft, setDraft] = useState<Rect>(value);
+  const drag = useRef<{ mode: Handle; sx: number; sy: number; start: Rect } | null>(null);
+  const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
+  const toPx = (clientX: number, clientY: number) => {
+    const b = ref.current?.getBoundingClientRect();
+    if (!b) return { x: 0, y: 0 };
+    return { x: clamp(((clientX - b.left) / b.width) * width, 0, width), y: clamp(((clientY - b.top) / b.height) * height, 0, height) };
+  };
+  const begin = (e: React.PointerEvent, handle: Handle) => {
+    // 範囲が絵の全体のとき（最初）は、枠の中をドラッグしても新しく囲む
+    const mode: Handle = handle === "move" && draft.w >= width - 1 && draft.h >= height - 1 ? "new" : handle;
+    e.preventDefault();
+    e.stopPropagation();
+    ref.current?.setPointerCapture(e.pointerId);
+    const p = toPx(e.clientX, e.clientY);
+    drag.current = { mode, sx: p.x, sy: p.y, start: mode === "new" ? { x: p.x, y: p.y, w: 0, h: 0 } : draft };
+  };
+  const move = (e: React.PointerEvent) => {
+    const d = drag.current;
+    if (!d) return;
+    const p = toPx(e.clientX, e.clientY);
+    const dx = p.x - d.sx;
+    const dy = p.y - d.sy;
+    const st = d.start;
+    if (d.mode === "move") {
+      setDraft({ ...st, x: clamp(st.x + dx, 0, width - st.w), y: clamp(st.y + dy, 0, height - st.h) });
+      return;
+    }
+    if (d.mode === "new") {
+      setDraft({ x: Math.min(d.sx, p.x), y: Math.min(d.sy, p.y), w: Math.abs(dx), h: Math.abs(dy) });
+      return;
+    }
+    let left = st.x;
+    let top = st.y;
+    let right = st.x + st.w;
+    let bottom = st.y + st.h;
+    if (d.mode === "nw" || d.mode === "sw") left = clamp(left + dx, 0, right - MIN_CROP);
+    if (d.mode === "ne" || d.mode === "se") right = clamp(right + dx, left + MIN_CROP, width);
+    if (d.mode === "nw" || d.mode === "ne") top = clamp(top + dy, 0, bottom - MIN_CROP);
+    if (d.mode === "sw" || d.mode === "se") bottom = clamp(bottom + dy, top + MIN_CROP, height);
+    setDraft({ x: left, y: top, w: right - left, h: bottom - top });
+  };
+  const end = () => {
+    const d = drag.current;
+    drag.current = null;
+    if (!d) return;
+    // ちょっと押しただけ（囲んでいない）なら、元の範囲のまま
+    if (draft.w < MIN_CROP || draft.h < MIN_CROP) {
+      setDraft(value);
+      return;
+    }
+    const r = { x: Math.round(draft.x), y: Math.round(draft.y), w: Math.round(draft.w), h: Math.round(draft.h) };
+    setDraft(r);
+    onChange(r);
+  };
+  const pct = (v: number, of: number) => `${(v / of) * 100}%`;
+  return (
+    <div className="cat-crop-wrap">
+      <div
+        ref={ref}
+        className="cat-crop"
+        style={{ aspectRatio: `${width} / ${height}`, width: `min(100%, ${(300 * width) / height}px)` }}
+        onPointerDown={(e) => begin(e, "new")}
+        onPointerMove={move}
+        onPointerUp={end}
+        onPointerCancel={end}
+      >
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src={url} alt="もとの絵" draggable={false} />
+        <div
+          className="cat-crop-box"
+          style={{ left: pct(draft.x, width), top: pct(draft.y, height), width: pct(draft.w, width), height: pct(draft.h, height) }}
+          onPointerDown={(e) => begin(e, "move")}
+        >
+          {(["nw", "ne", "sw", "se"] as const).map((h) => (
+            <span key={h} className={`cat-crop-h is-${h}`} onPointerDown={(e) => begin(e, h)} />
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 const newId = () => `u${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
 
 export default function CatUploadCard({ show }: { show: (message: string, tone?: "success" | "error" | "info") => void }) {
   const sprites = useCatSprites(true).filter((s) => s.custom);
   const [source, setSource] = useState<ImageData | null>(null);
+  const [sourceUrl, setSourceUrl] = useState("");
+  const [crop, setCrop] = useState<Rect | null>(null); // 切り取る範囲（もとの絵の上の位置）
+  const [cropKey, setCropKey] = useState(0);
+  const [srcSize, setSrcSize] = useState<{ w: number; h: number } | null>(null);
+  const srcCanvas = useRef<HTMLCanvasElement | null>(null);
   const [fileName, setFileName] = useState("");
   const [removeBg, setRemoveBg] = useState(true);
   const [tolerance, setTolerance] = useState(40);
@@ -165,11 +260,13 @@ export default function CatUploadCard({ show }: { show: (message: string, tone?:
   useEffect(() => {
     if (!source) return;
     const t = window.setTimeout(() => {
-      const canvas = finish(removeBg ? removeBackground(source, tolerance) : source);
+      const ctx = srcCanvas.current?.getContext("2d", { willReadFrequently: true });
+      const part = crop && ctx ? ctx.getImageData(crop.x, crop.y, crop.w, crop.h) : source;
+      const canvas = finish(removeBg ? removeBackground(part, tolerance) : part);
       setPreview(canvas ? { url: canvas.toDataURL("image/png"), canvas } : null);
     }, 120);
     return () => window.clearTimeout(t);
-  }, [source, removeBg, tolerance]);
+  }, [source, crop, removeBg, tolerance]);
 
   const pick = async (file: File | undefined) => {
     if (!file) return;
@@ -190,6 +287,11 @@ export default function CatUploadCard({ show }: { show: (message: string, tone?:
       const data = ctx.getImageData(0, 0, c.width, c.height);
       const transparent = data.data[3] < 16 && data.data[data.data.length - 1] < 16;
       setRemoveBg(!transparent);
+      srcCanvas.current = c;
+      setSrcSize({ w: c.width, h: c.height });
+      setSourceUrl(c.toDataURL("image/png"));
+      setCrop({ x: 0, y: 0, w: c.width, h: c.height });
+      setCropKey((k) => k + 1);
       setSource(data);
       setFileName(file.name);
       if (!label) setLabel(file.name.replace(/\.[^.]+$/, "").slice(0, 20));
@@ -200,6 +302,10 @@ export default function CatUploadCard({ show }: { show: (message: string, tone?:
 
   const reset = () => {
     setSource(null);
+    setSourceUrl("");
+    setCrop(null);
+    srcCanvas.current = null;
+    setSrcSize(null);
     setPreview(null);
     setFileName("");
     setLabel("");
@@ -225,14 +331,27 @@ export default function CatUploadCard({ show }: { show: (message: string, tone?:
       show(`アップロードできませんでした（${up.error.message}）`, "error");
       return;
     }
-    const { error } = await supabase.from("cat_sprites").insert({ id, cat, label: label.trim(), season: season || null, image_path: path });
+    // 番号はもとからの絵の続き。ほかの追加とかぶったら、読み直して付け直す
+    let error: { message: string; code?: string } | null = null;
+    let no = 0;
+    for (let tries = 0; tries < 3; tries++) {
+      await loadCustomSprites(true);
+      no = nextCustomNo();
+      ({ error } = await supabase.from("cat_sprites").insert({ id, no, cat, label: label.trim(), season: season || null, image_path: path }));
+      if (error?.code === "42703" || error?.code === "PGRST204") {
+        // 番号の列がまだ無い（SQL を実行し直していない）ときは、番号なしで
+        no = 0;
+        ({ error } = await supabase.from("cat_sprites").insert({ id, cat, label: label.trim(), season: season || null, image_path: path }));
+      }
+      if (error?.code !== "23505") break;
+    }
     setSaving(false);
     if (error) {
       void supabase.storage.from(CAT_SPRITE_BUCKET).remove([path]);
       show(`登録できませんでした（${error.message}）`, "error");
       return;
     }
-    show(`「${label.trim()}」を追加しました`);
+    show(`${no ? `No.${no}` : ""}「${label.trim()}」を追加しました`);
     reset();
     changed();
   };
@@ -281,6 +400,31 @@ export default function CatUploadCard({ show }: { show: (message: string, tone?:
             </label>
           ) : (
             <div className="cat-up-edit">
+              {sourceUrl && srcSize && crop && (
+                <div className="cat-up-step">
+                  <div className="cat-up-step-head">
+                    <b>切り取る</b>
+                    <span>ドラッグで囲む・枠を動かす・四隅で大きさを変える</span>
+                    {(crop.x > 0 || crop.y > 0 || crop.w < srcSize.w || crop.h < srcSize.h) && (
+                      <button
+                        type="button"
+                        className="kt-text-btn"
+                        onClick={() => {
+                          setCrop({ x: 0, y: 0, w: srcSize.w, h: srcSize.h });
+                          setCropKey((k) => k + 1);
+                        }}
+                      >
+                        全体に戻す
+                      </button>
+                    )}
+                  </div>
+                  <CropBox key={cropKey} url={sourceUrl} width={srcSize.w} height={srcSize.h} value={crop} onChange={setCrop} />
+                </div>
+              )}
+              <div className="cat-up-step-head">
+                <b>できあがり</b>
+                <span>市松模様のところが透明になります</span>
+              </div>
               <div className="cat-up-previews">
                 <figure className="cat-up-canvas" aria-label="できあがり（市松模様のところが透明）">
                   {preview ? (
@@ -358,7 +502,10 @@ export default function CatUploadCard({ show }: { show: (message: string, tone?:
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img src={s.src} alt="" />
                     <div className="cat-up-item-body">
-                      <b>{s.label}</b>
+                      <b>
+                        <small className="cat-up-no">{spriteNoLabel(s)}</small>
+                        {s.label}
+                      </b>
                       <span>
                         {s.cat === "both" ? "2匹いっしょ" : CAT_NAMES[s.cat]}
                         {s.season ? `・${SEASON_LABEL[s.season]}` : ""}

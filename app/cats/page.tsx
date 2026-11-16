@@ -3,7 +3,7 @@
 // ねこ図鑑：これまでに見つけたねこ（アカウントの記録）。見つけた子はタップで大きく見られる
 import { useEffect, useRef, useState } from "react";
 import { DesktopNavigation, MobileNavigation, ShareCalLogo } from "@/app/components/AppNavigation";
-import { CAT_NAMES, catImage, readFound, syncFound, type CatKey, type CatSprite, type FoundLog } from "@/lib/catVisitor";
+import { CAT_NAMES, catImage, readFound, spriteNoLabel, syncFound, type CatKey, type CatSprite, type FoundLog } from "@/lib/catVisitor";
 import { useCatSprites } from "@/lib/useCatSprites";
 
 const GROUPS: { key: CatKey; title: string }[] = [
@@ -143,7 +143,7 @@ function CatZoom({ id, log, sprites, onMove, onClose }: { id: string; log: Found
         <div className="cats-zoom-head">
           <span className="cats-zoom-who">{s.cat === "both" ? "おこげ と るる" : CAT_NAMES[s.cat]}</span>
           <span className="cats-zoom-no">
-            {i + 1} / {found.length}
+            {spriteNoLabel(s)} ・ {i + 1} / {found.length}
           </span>
         </div>
         <div className="cats-zoom-art">

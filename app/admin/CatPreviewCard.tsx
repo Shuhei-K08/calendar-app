@@ -1,7 +1,7 @@
 "use client";
 
 // 管理画面：ねこの訪問をお試しで出す（この端末だけ。図鑑には記録しない）
-import { CAT_NAMES, catImage, previewCat, type CatKey } from "@/lib/catVisitor";
+import { CAT_NAMES, catImage, previewCat, spriteNoLabel, type CatKey } from "@/lib/catVisitor";
 import { useCatSprites } from "@/lib/useCatSprites";
 
 const GROUPS: CatKey[] = ["a", "b", "both"];
@@ -35,7 +35,8 @@ export default function CatPreviewCard() {
                 <img src={catImage(s.id)} alt="" />
                 <span className="cat-try-label">{s.label}</span>
                 <span className="cat-try-meta">
-                  {s.custom ? (s.enabled === false ? "追加・停止中" : "追加") : `No.${s.id}`}
+                  {spriteNoLabel(s)}
+                  {s.custom ? (s.enabled === false ? "・追加・停止中" : "・追加") : ""}
                   {s.season ? `・${SEASON_LABEL[s.season]}` : ""}
                 </span>
               </button>

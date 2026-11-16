@@ -9,7 +9,7 @@ export const CAT_NAMES: Record<CatKey, string> = { a: "おこげ", b: "るる", 
 
 // season：その期間限定デザインを使っている間だけ出る絵（なしはいつでも出る）
 // src / custom / enabled：管理画面で追加した絵（cat_sprites 表と Storage の cat-sprites）
-export type CatSprite = { id: string; cat: CatKey; label: string; season?: "xmas" | "newyear"; src?: string; custom?: boolean; enabled?: boolean };
+export type CatSprite = { id: string; cat: CatKey; label: string; season?: "xmas" | "newyear"; src?: string; custom?: boolean; enabled?: boolean; no?: number };
 
 export const CAT_SPRITES: CatSprite[] = [
   { id: "01", cat: "a", label: "おすわり" },
@@ -50,13 +50,18 @@ export const CAT_SPRITES: CatSprite[] = [
 export const CAT_SPRITE_BUCKET = "cat-sprites";
 let customSprites: CatSprite[] = [];
 let customLoad: Promise<CatSprite[]> | null = null;
-type SpriteRow = { id: string; cat: CatKey; label: string; season: "xmas" | "newyear" | null; image_path: string; enabled: boolean };
+type SpriteRow = { id: string; no?: number | null; cat: CatKey; label: string; season: "xmas" | "newyear" | null; image_path: string; enabled: boolean };
+const SPRITE_COLS = "id, cat, label, season, image_path, enabled";
 
 /** 追加した絵を読み込む（1回だけ。force で読み直し）。表がまだ無ければ、もとからの絵だけ */
 export function loadCustomSprites(force = false): Promise<CatSprite[]> {
   if (customLoad && !force) return customLoad;
   customLoad = (async () => {
-    const { data, error } = await supabase.from("cat_sprites").select("id, cat, label, season, image_path, enabled").order("created_at");
+    type Res = { data: unknown[] | null; error: { code?: string } | null };
+    let res: Res = await supabase.from("cat_sprites").select(`${SPRITE_COLS}, no`).order("created_at");
+    // 番号の列がまだ無い（supabase-cat-sprites.sql を実行し直していない）
+    if (res.error && ["42703", "PGRST204"].includes(res.error.code ?? "")) res = await supabase.from("cat_sprites").select(SPRITE_COLS).order("created_at");
+    const { data, error } = res;
     if (error) return customSprites;
     customSprites = ((data ?? []) as SpriteRow[]).map((r) => ({
       id: r.id,
@@ -66,6 +71,7 @@ export function loadCustomSprites(force = false): Promise<CatSprite[]> {
       src: supabase.storage.from(CAT_SPRITE_BUCKET).getPublicUrl(r.image_path).data.publicUrl,
       custom: true,
       enabled: r.enabled,
+      no: r.no ?? undefined,
     }));
     return customSprites;
   })().catch(() => customSprites);
@@ -76,6 +82,11 @@ export function loadCustomSprites(force = false): Promise<CatSprite[]> {
 export const allSprites = (): CatSprite[] => [...CAT_SPRITES, ...customSprites.filter((s) => s.enabled !== false)];
 /** 番号から絵を探す（止めている追加の絵も。管理画面のお試し用） */
 export const findSprite = (id: string): CatSprite | undefined => CAT_SPRITES.find((s) => s.id === id) ?? customSprites.find((s) => s.id === id);
+/** 図鑑の番号（もとからの絵はファイルの番号、追加した絵は 41 から） */
+export const spriteNo = (s: CatSprite) => s.no ?? (Number(s.id) || 0);
+export const spriteNoLabel = (s: CatSprite) => (spriteNo(s) ? `No.${String(spriteNo(s)).padStart(2, "0")}` : "No.--");
+/** 次に追加する絵の番号 */
+export const nextCustomNo = () => Math.max(...CAT_SPRITES.map((s) => Number(s.id) || 0), ...customSprites.map((s) => s.no ?? 0)) + 1;
 /** 管理画面の一覧（止めているものも） */
 export const customSpriteList = () => customSprites;
 

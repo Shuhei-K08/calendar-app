@@ -13,6 +13,13 @@ create table if not exists public.cat_sprites (
   created_at timestamptz not null default now()
 );
 
+-- 図鑑の番号（もとからの絵の続き：41, 42, …）
+alter table public.cat_sprites add column if not exists no integer;
+create unique index if not exists cat_sprites_no_key on public.cat_sprites (no);
+with base as (select greatest(40, coalesce(max(no), 0)) as m from public.cat_sprites),
+     pending as (select id, row_number() over (order by created_at) as rn from public.cat_sprites where no is null)
+update public.cat_sprites c set no = base.m + pending.rn from base, pending where c.id = pending.id;
+
 alter table public.cat_sprites enable row level security;
 grant select, insert, update, delete on public.cat_sprites to authenticated;
 
