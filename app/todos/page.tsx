@@ -210,10 +210,9 @@ export default function TodosPage() {
   const visible = items.filter((t) => whoOk(t, filter) && catOk(t, catFilter));
   const open = visible.filter((t) => !t.done_at);
   const done = visible.filter((t) => t.done_at).sort((a, b) => ((a.done_at ?? "") < (b.done_at ?? "") ? 1 : -1));
-  // 優先度の高い順 → 期限の早い順（同じ日なら時刻のあるものが先）→ 新しい順
+  // 期限の近い順（同じ日なら時刻のあるものが先、時刻なしはその日の最後）→ 新しい順。優先度では並べ替えない
   const dueKey = (t: Todo) => `${t.due_date ?? "9999"} ${hm(t.due_time) || "99"}`;
-  const order = (a: Todo, b: Todo) =>
-    (b.priority ?? 0) - (a.priority ?? 0) || (dueKey(a) < dueKey(b) ? -1 : dueKey(a) > dueKey(b) ? 1 : a.created_at < b.created_at ? 1 : -1);
+  const order = (a: Todo, b: Todo) => (dueKey(a) < dueKey(b) ? -1 : dueKey(a) > dueKey(b) ? 1 : a.created_at < b.created_at ? 1 : -1);
   const sections = [
     { key: "late", title: "期限切れ", list: open.filter(isLate).sort(order) },
     { key: "today", title: "今日", list: open.filter((t) => t.due_date === todayKey && !isLate(t)).sort(order) },
