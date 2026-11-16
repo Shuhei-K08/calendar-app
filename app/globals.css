@@ -3390,3 +3390,24 @@ h1, h2, h3, .font-display { font-weight: 800; letter-spacing: -0.01em; }
 .td-allclear span { font-size: 13px; color: var(--fg-muted); }
 .td-catbar .td-catchip:not([style]), .td-chips .td-catchip:not([style]) { --cat: var(--accent); }
 .td-catform-row .kt-text-btn { flex: none; align-self: center; line-height: 1; height: 40px; display: inline-flex; align-items: center; margin: 0; padding: 0 4px; }
+
+/* ねこ図鑑：タップで大きく */
+.cats-card-zoom { display: block; padding: 0; border: 0; background: transparent; cursor: zoom-in; border-radius: 10px; }
+.cats-card-zoom:focus-visible { outline: 2px solid #c98a4a; outline-offset: 2px; }
+.cats-card-zoom:active img { transform: scale(0.96); }
+.cats-zoom { position: fixed; inset: 0; z-index: 70; display: flex; align-items: center; justify-content: center; padding: 20px; background: rgba(32, 26, 22, 0.6); animation: cats-zoom-fade 0.18s ease-out; }
+.cats-zoom-card { width: 100%; max-width: 360px; display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 16px 18px 18px; border-radius: 24px; background: #fffaf2; box-shadow: 0 24px 60px rgba(0, 0, 0, 0.3); animation: cats-zoom-pop 0.22s cubic-bezier(0.2, 0.9, 0.3, 1.2); }
+.cats-zoom-head { width: 100%; display: flex; justify-content: space-between; align-items: center; font-size: 12px; font-weight: 800; color: #8a7a6b; }
+.cats-zoom-who { padding: 3px 10px; border-radius: 999px; background: #f3e4d2; color: #7a4e2a; }
+.cats-zoom-art { width: 100%; aspect-ratio: 1 / 0.85; display: flex; align-items: center; justify-content: center; border-radius: 18px; background: radial-gradient(circle at 50% 60%, #fff 0%, #f8eedf 70%); }
+.cats-zoom-art img { width: 86%; height: 86%; object-fit: contain; -webkit-touch-callout: none; user-select: none; -webkit-user-drag: none; animation: cats-zoom-pop 0.22s ease-out; }
+.cats-zoom-title { margin: 4px 0 0; font-size: 20px; font-weight: 900; color: #3a2f27; }
+.cats-zoom-meta { margin: 0; font-size: 12px; color: #6b625a; }
+.cats-zoom-meta b { color: #3a2f27; }
+.cats-zoom-actions { width: 100%; display: grid; grid-template-columns: 48px 1fr 48px; gap: 8px; margin-top: 6px; }
+.cats-zoom-nav { height: 46px; border: 1px solid #e6d8c6; border-radius: 14px; background: #fff; font-size: 24px; color: #7a4e2a; cursor: pointer; }
+.cats-zoom-nav:disabled { opacity: 0.35; cursor: default; }
+.cats-zoom-close { height: 46px; border: 0; border-radius: 14px; background: #3a2f27; color: #fff; font-size: 14px; font-weight: 800; cursor: pointer; }
+@keyframes cats-zoom-fade { from { opacity: 0; } }
+@keyframes cats-zoom-pop { from { transform: scale(0.9); opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .cats-zoom, .cats-zoom-card, .cats-zoom-art img { animation: none; } }
