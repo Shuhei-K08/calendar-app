@@ -8,7 +8,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
-import { APPEAR_RATE, CAT_NAMES, FIRST_APPEAR_RATE, CAT_PREVIEW_EVENT, CAT_SPRITES, catImage, markShown, pickSprite, readFound, recordFound, shownToday, syncFound, type CatSprite } from "@/lib/catVisitor";
+import { APPEAR_RATE, CAT_NAMES, FIRST_APPEAR_RATE, CAT_PREVIEW_EVENT, allSprites, catImage, findSprite, loadCustomSprites, markShown, pickSprite, readFound, recordFound, shownToday, syncFound, type CatSprite } from "@/lib/catVisitor";
 import { jstToday } from "@/lib/season";
 
 type Spot = "left" | "right";
@@ -73,7 +73,7 @@ export default function CatVisitor() {
       clearTimers();
       setLeaving(false);
       setFound(null);
-      const forced = forcedId ? CAT_SPRITES.find((s) => s.id === forcedId.padStart(2, "0")) : undefined;
+      const forced = forcedId ? findSprite(forcedId.padStart(2, "0")) : undefined;
       setVisit({ sprite: forced ?? pickSprite(document.documentElement.dataset.season), place: choosePlace(), preview });
       timers.current.push(window.setTimeout(() => setLeaving(true), STAY_MS));
       timers.current.push(window.setTimeout(() => setVisit(null), STAY_MS + 700));
@@ -83,9 +83,7 @@ export default function CatVisitor() {
     // 着せ替えが反映されるのを少し待ってから。図鑑はアカウントの記録と合わせてから判定する（最初の1匹かどうか）
     timers.current.push(
       window.setTimeout(() => {
-        void syncFound()
-          .catch(() => undefined)
-          .then(() => tryVisit(force, q && q !== "1" ? q : undefined));
+        void Promise.all([syncFound().catch(() => undefined), loadCustomSprites()]).then(() => tryVisit(force, q && q !== "1" ? q : undefined));
       }, 2500),
     );
     let hiddenAt = 0;
@@ -133,7 +131,7 @@ export default function CatVisitor() {
     if (found) return;
     // お試しのときは図鑑に記録しない
     const log = preview ? readFound() : recordFound(sprite.id, jstToday());
-    const total = CAT_SPRITES.filter((s) => log[s.id]).length;
+    const total = allSprites().filter((s) => log[s.id]).length;
     setFound({ name, label: sprite.label, total, isNew: !preview && log[sprite.id].count === 1 });
     // 鳴いたあと、少ししてから帰る
     timers.current.forEach((t) => window.clearTimeout(t));
@@ -156,7 +154,7 @@ export default function CatVisitor() {
           <span className="cat-visitor-toast-text">
             <strong>{sprite.cat === "both" ? "2匹で遊びに来た！" : `${name}が遊びに来た！`}</strong>
             <span>
-              {preview ? `お試し「${found.label}」・図鑑には記録しません` : `${found.isNew ? "はじめての" : ""}「${found.label}」・ねこ図鑑 ${found.total}/${CAT_SPRITES.length}`}
+              {preview ? `お試し「${found.label}」・図鑑には記録しません` : `${found.isNew ? "はじめての" : ""}「${found.label}」・ねこ図鑑 ${found.total}/${allSprites().length}`}
             </span>
           </span>
           <Link href="/cats" className="cat-visitor-toast-link">

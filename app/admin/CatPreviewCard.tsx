@@ -1,12 +1,14 @@
 "use client";
 
 // 管理画面：ねこの訪問をお試しで出す（この端末だけ。図鑑には記録しない）
-import { CAT_NAMES, CAT_SPRITES, catImage, previewCat, type CatKey } from "@/lib/catVisitor";
+import { CAT_NAMES, catImage, previewCat, type CatKey } from "@/lib/catVisitor";
+import { useCatSprites } from "@/lib/useCatSprites";
 
 const GROUPS: CatKey[] = ["a", "b", "both"];
 const SEASON_LABEL = { xmas: "クリスマス", newyear: "お正月" } as const;
 
 export default function CatPreviewCard() {
+  const sprites = useCatSprites(true);
   return (
     <section className="glass-card p-4">
       <p className="eyebrow">うちのねこ</p>
@@ -27,13 +29,13 @@ export default function CatPreviewCard() {
         <div key={g} className="mt-3">
           <p className="text-sm font-black">{CAT_NAMES[g]}</p>
           <div className="cat-try-grid mt-2">
-            {CAT_SPRITES.filter((s) => s.cat === g).map((s) => (
+            {sprites.filter((s) => s.cat === g).map((s) => (
               <button key={s.id} type="button" className="cat-try" onClick={() => previewCat(s.id)} aria-label={`${CAT_NAMES[s.cat]}「${s.label}」を出す`}>
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img src={catImage(s.id)} alt="" />
                 <span className="cat-try-label">{s.label}</span>
                 <span className="cat-try-meta">
-                  No.{s.id}
+                  {s.custom ? (s.enabled === false ? "追加・停止中" : "追加") : `No.${s.id}`}
                   {s.season ? `・${SEASON_LABEL[s.season]}` : ""}
                 </span>
               </button>

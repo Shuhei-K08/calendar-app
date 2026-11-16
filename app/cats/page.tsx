@@ -3,7 +3,8 @@
 // ねこ図鑑：これまでに見つけたねこ（アカウントの記録）。見つけた子はタップで大きく見られる
 import { useEffect, useRef, useState } from "react";
 import { DesktopNavigation, MobileNavigation, ShareCalLogo } from "@/app/components/AppNavigation";
-import { CAT_NAMES, CAT_SPRITES, catImage, readFound, syncFound, type CatKey, type CatSprite, type FoundLog } from "@/lib/catVisitor";
+import { CAT_NAMES, catImage, readFound, syncFound, type CatKey, type CatSprite, type FoundLog } from "@/lib/catVisitor";
+import { useCatSprites } from "@/lib/useCatSprites";
 
 const GROUPS: { key: CatKey; title: string }[] = [
   { key: "a", title: CAT_NAMES.a },
@@ -14,6 +15,7 @@ const GROUPS: { key: CatKey; title: string }[] = [
 export default function CatsPage() {
   const [log, setLog] = useState<FoundLog | null>(null);
   const [zoom, setZoom] = useState<string | null>(null); // 大きく見ている子の id
+  const sprites = useCatSprites();
   useEffect(() => {
     // まず端末の控えを出し、アカウントの記録と合わせたら出し直す（どの端末でも同じ図鑑）
     // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -28,7 +30,7 @@ export default function CatsPage() {
       alive = false;
     };
   }, []);
-  const total = log ? CAT_SPRITES.filter((s) => log[s.id]).length : 0;
+  const total = log ? sprites.filter((s) => log[s.id]).length : 0;
 
   return (
     <main className="page-shell min-h-screen px-4 pb-28 pt-4 sm:px-6 sm:pb-6">
@@ -46,14 +48,14 @@ export default function CatsPage() {
             <small>見つけたねこ</small>
             <b>
               {total}
-              <em> / {CAT_SPRITES.length}</em>
+              <em> / {sprites.length}</em>
             </b>
           </span>
           <p>ごく稀に画面のすみっこに遊びに来ます。クリスマス・お正月限定の子は、その期間限定デザインのときだけ。見つけたらタップ！</p>
         </section>
 
         {GROUPS.map((g) => {
-          const items = CAT_SPRITES.filter((s) => s.cat === g.key);
+          const items = sprites.filter((s) => s.cat === g.key);
           const count = items.reduce((n, s) => n + (log?.[s.id]?.count ?? 0), 0);
           return (
             <section key={g.key} className="cats-group">
@@ -92,15 +94,15 @@ export default function CatsPage() {
         })}
         <p className="cats-note">記録はアカウントに保存されるので、どの端末でも同じ図鑑です。見つけた子はタップすると大きく見られます。</p>
       </div>
-      {zoom && log && <CatZoom id={zoom} log={log} onMove={setZoom} onClose={() => setZoom(null)} />}
+      {zoom && log && <CatZoom id={zoom} log={log} sprites={sprites} onMove={setZoom} onClose={() => setZoom(null)} />}
       <MobileNavigation />
     </main>
   );
 }
 
 /* 見つけた子を大きく見る（左右で、見つけたほかの子へ） */
-function CatZoom({ id, log, onMove, onClose }: { id: string; log: FoundLog; onMove: (id: string) => void; onClose: () => void }) {
-  const found = CAT_SPRITES.filter((s) => log[s.id]);
+function CatZoom({ id, log, sprites, onMove, onClose }: { id: string; log: FoundLog; sprites: CatSprite[]; onMove: (id: string) => void; onClose: () => void }) {
+  const found = sprites.filter((s) => log[s.id]);
   const i = Math.max(0, found.findIndex((s) => s.id === id));
   const s: CatSprite | undefined = found[i];
   const closeRef = useRef<HTMLButtonElement>(null);

@@ -8,7 +8,8 @@ export type CatKey = "a" | "b" | "both";
 export const CAT_NAMES: Record<CatKey, string> = { a: "おこげ", b: "るる", both: "2匹" };
 
 // season：その期間限定デザインを使っている間だけ出る絵（なしはいつでも出る）
-export type CatSprite = { id: string; cat: CatKey; label: string; season?: "xmas" | "newyear" };
+// src / custom / enabled：管理画面で追加した絵（cat_sprites 表と Storage の cat-sprites）
+export type CatSprite = { id: string; cat: CatKey; label: string; season?: "xmas" | "newyear"; src?: string; custom?: boolean; enabled?: boolean };
 
 export const CAT_SPRITES: CatSprite[] = [
   { id: "01", cat: "a", label: "おすわり" },
@@ -45,7 +46,40 @@ export const CAT_SPRITES: CatSprite[] = [
   { id: "33", cat: "both", label: "毛布にくるまる" },
 ];
 
-export const catImage = (id: string) => `/cats/cat${id}.png`;
+// ── 管理画面で追加した絵 ──
+export const CAT_SPRITE_BUCKET = "cat-sprites";
+let customSprites: CatSprite[] = [];
+let customLoad: Promise<CatSprite[]> | null = null;
+type SpriteRow = { id: string; cat: CatKey; label: string; season: "xmas" | "newyear" | null; image_path: string; enabled: boolean };
+
+/** 追加した絵を読み込む（1回だけ。force で読み直し）。表がまだ無ければ、もとからの絵だけ */
+export function loadCustomSprites(force = false): Promise<CatSprite[]> {
+  if (customLoad && !force) return customLoad;
+  customLoad = (async () => {
+    const { data, error } = await supabase.from("cat_sprites").select("id, cat, label, season, image_path, enabled").order("created_at");
+    if (error) return customSprites;
+    customSprites = ((data ?? []) as SpriteRow[]).map((r) => ({
+      id: r.id,
+      cat: r.cat,
+      label: r.label,
+      season: r.season ?? undefined,
+      src: supabase.storage.from(CAT_SPRITE_BUCKET).getPublicUrl(r.image_path).data.publicUrl,
+      custom: true,
+      enabled: r.enabled,
+    }));
+    return customSprites;
+  })().catch(() => customSprites);
+  return customLoad;
+}
+
+/** 出てくる絵のすべて（もとからの絵＋追加して公開中の絵） */
+export const allSprites = (): CatSprite[] => [...CAT_SPRITES, ...customSprites.filter((s) => s.enabled !== false)];
+/** 番号から絵を探す（止めている追加の絵も。管理画面のお試し用） */
+export const findSprite = (id: string): CatSprite | undefined => CAT_SPRITES.find((s) => s.id === id) ?? customSprites.find((s) => s.id === id);
+/** 管理画面の一覧（止めているものも） */
+export const customSpriteList = () => customSprites;
+
+export const catImage = (id: string) => customSprites.find((s) => s.id === id)?.src ?? `/cats/cat${id}.png`;
 
 /** アプリを開いたとき（1日1回まで）に現れる確率 */
 export const APPEAR_RATE = 0.03;
@@ -147,14 +181,15 @@ export function markShown(today: string) {
 
 /** どの絵が出るか（2匹いっしょの絵はちょっとレア。季節の絵はその期間だけ） */
 export function pickSprite(season: string | undefined, rand: () => number = Math.random): CatSprite {
-  const weights: number[] = CAT_SPRITES.map((s) => (s.season && s.season !== season ? 0 : s.cat === "both" ? 0.35 : 1));
+  const list = allSprites();
+  const weights: number[] = list.map((s) => (s.season && s.season !== season ? 0 : s.cat === "both" ? 0.35 : 1));
   const total = weights.reduce((a, b) => a + b, 0);
   let r = rand() * total;
-  for (let i = 0; i < CAT_SPRITES.length; i++) {
+  for (let i = 0; i < list.length; i++) {
     r -= weights[i];
-    if (r <= 0) return CAT_SPRITES[i];
+    if (r <= 0) return list[i];
   }
-  return CAT_SPRITES[0];
+  return list[0];
 }
 
 /** 管理画面の「お試し」：この端末に、いますぐねこを出す（図鑑には記録しない）。id なしはランダム */

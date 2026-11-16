@@ -3411,3 +3411,41 @@ h1, h2, h3, .font-display { font-weight: 800; letter-spacing: -0.01em; }
 @keyframes cats-zoom-fade { from { opacity: 0; } }
 @keyframes cats-zoom-pop { from { transform: scale(0.9); opacity: 0; } }
 @media (prefers-reduced-motion: reduce) { .cats-zoom, .cats-zoom-card, .cats-zoom-art img { animation: none; } }
+
+/* 管理画面：ねこの絵を追加 */
+.cat-up-note { margin: 10px 0 0; font-size: 12px; color: var(--fg-muted, #6b625a); }
+.cat-up-drop { margin-top: 12px; display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 22px 12px; border: 2px dashed #d9c7b1; border-radius: 14px; background: #fffaf2; color: #7a4e2a; cursor: pointer; text-align: center; }
+.cat-up-drop b { font-size: 15px; }
+.cat-up-drop span { font-size: 12px; color: #8a7a6b; }
+.cat-up-drop:hover { border-color: #c98a4a; }
+.cat-up-edit { margin-top: 12px; display: flex; flex-direction: column; gap: 12px; }
+.cat-up-previews { display: grid; grid-template-columns: 1fr 108px; gap: 10px; align-items: stretch; }
+.cat-up-canvas { margin: 0; min-height: 180px; display: flex; align-items: center; justify-content: center; padding: 10px; border-radius: 14px; border: 1px solid var(--border, #e5ded3);
+  background-color: #fff; background-image: linear-gradient(45deg, #ece7df 25%, transparent 25%), linear-gradient(-45deg, #ece7df 25%, transparent 25%), linear-gradient(45deg, transparent 75%, #ece7df 75%), linear-gradient(-45deg, transparent 75%, #ece7df 75%);
+  background-size: 16px 16px; background-position: 0 0, 0 8px, 8px -8px, -8px 0; }
+.cat-up-canvas img { max-width: 100%; max-height: 220px; object-fit: contain; }
+.cat-up-empty { font-size: 12px; font-weight: 700; color: #b42318; text-align: center; }
+.cat-up-sample { margin: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; padding: 8px 4px; border-radius: 12px; background: #fbf5ec; }
+.cat-up-sample img { width: 84px; height: 70px; object-fit: contain; }
+.cat-up-sample figcaption { font-size: 12px; font-weight: 800; text-align: center; overflow-wrap: anywhere; }
+.cat-up-file { margin: -6px 0 0; font-size: 11px; color: var(--fg-muted, #6b625a); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cat-up-check { display: inline-flex; align-items: center; gap: 8px; font-size: 14px; font-weight: 800; cursor: pointer; }
+.cat-up-check input { width: 18px; height: 18px; accent-color: var(--accent); }
+.cat-up-range { display: grid; grid-template-columns: 64px 1fr 40px; align-items: center; gap: 8px; font-size: 12px; font-weight: 700; color: var(--fg-muted, #6b625a); }
+.cat-up-range input { width: 100%; accent-color: var(--accent); }
+.cat-up-field { display: flex; flex-direction: column; gap: 6px; font-size: 12px; font-weight: 800; color: var(--fg-muted, #6b625a); }
+.cat-up-field .kt-input { color: var(--fg); }
+.cat-up-seg { display: flex; flex-wrap: wrap; gap: 6px; }
+.cat-up-seg button { height: 36px; padding: 0 12px; border-radius: 10px; border: 1px solid var(--border-strong, #d6cfc4); background: #fff; color: var(--fg); font-size: 13px; font-weight: 700; cursor: pointer; }
+.cat-up-seg button[aria-checked="true"] { background: #3a2f27; border-color: #3a2f27; color: #fff; }
+.cat-up-actions { display: grid; grid-template-columns: auto auto 1fr; gap: 8px; }
+.cat-up-again { display: inline-flex; align-items: center; justify-content: center; cursor: pointer; }
+.cat-up-list { list-style: none; margin: 8px 0 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.cat-up-item { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 12px; background: #fbf5ec; }
+.cat-up-item.is-off { opacity: 0.55; }
+.cat-up-item img { flex: none; width: 56px; height: 48px; object-fit: contain; }
+.cat-up-item-body { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.cat-up-item-body b { font-size: 14px; }
+.cat-up-item-body span { font-size: 11px; color: var(--fg-muted, #6b625a); }
+.cat-up-item-actions { flex: none; display: flex; gap: 10px; font-size: 12px; }
+@media (max-width: 420px) { .cat-up-item { flex-wrap: wrap; } .cat-up-item-actions { width: 100%; justify-content: flex-end; } }

@@ -6,6 +6,7 @@ import { DesktopNavigation, MobileNavigation, ShareCalLogo } from "@/app/compone
 import { supabase } from "@/lib/supabase";
 import SeasonCard from "@/app/admin/SeasonCard";
 import CatPreviewCard from "@/app/admin/CatPreviewCard";
+import CatUploadCard from "@/app/admin/CatUploadCard";
 
 type AdminUser = {
   id: string;
@@ -448,6 +449,7 @@ export default function AdminPage() {
 
         {!message && <SeasonCard kind="xmas" show={showToast} />}
         {!message && <SeasonCard kind="newyear" show={showToast} />}
+        {!message && <CatUploadCard show={showToast} />}
         {!message && <CatPreviewCard />}
 
         {!message && (
