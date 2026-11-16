@@ -21,35 +21,10 @@ const jstLabel = (iso: string, allDay: boolean) => {
 
 const deliver = (admin: Admin, messages: Message[]) => deliverTo(admin, messages, problems);
 
-/** 1) やること */
-async function todoMessages(admin: Admin, nowIso: string, staleIso: string): Promise<Message[]> {
-  type Todo = { id: string; owner_id: string; title: string; is_shared: boolean; assignee_id: string | null; due_date: string | null; due_time?: string | null };
-  const due = (cols: string) =>
-    admin
-      .from("todo_items")
-      .select(cols)
-      .lte("remind_at", nowIso)
-      .gte("remind_at", staleIso)
-      .is("reminded_at", null)
-      .is("done_at", null)
-      .order("remind_at")
-      .limit(BATCH);
-  const base = "id, owner_id, title, is_shared, assignee_id, due_date";
-  let { data, error } = await due(`${base}, due_time`);
-  // 期限の時刻の列（supabase-todo-due-time.sql）がまだ無いとき
-  if (error && ["42703", "PGRST204"].includes(error.code ?? "")) ({ data, error } = await due(base));
-  if (error) problems.push(`todo_items: ${error.message}`);
-  if (error || !data?.length) return [];
-  // 先に「知らせ済み」にする（同時に2回呼ばれても二重に送らない）
-  const { data: claimed } = await admin
-    .from("todo_items")
-    .update({ reminded_at: nowIso })
-    .in("id", (data as unknown as Todo[]).map((t) => t.id))
-    .is("reminded_at", null)
-    .select("id");
-  const ids = new Set((claimed ?? []).map((r: { id: string }) => r.id));
-  const todos = (data as unknown as Todo[]).filter((t) => ids.has(t.id));
+type TodoRow = { id: string; owner_id: string; title: string; is_shared: boolean; assignee_id: string | null; due_date: string | null; due_time?: string | null };
 
+/** やることを届ける相手（担当者。どちらでもならふたり）と、知らせの中身 */
+async function todoPayloads(admin: Admin, todos: TodoRow[]): Promise<Message[]> {
   const owners = [...new Set(todos.filter((t) => t.is_shared && !t.assignee_id).map((t) => t.owner_id))];
   const partnersOf = new Map<string, string[]>();
   if (owners.length) {
@@ -81,6 +56,68 @@ async function todoMessages(admin: Admin, nowIso: string, staleIso: string): Pro
     };
     return [...new Set(to)].map((userId) => ({ userId, payload, kind: "todo_remind" as const }));
   });
+}
+
+/** 1) やること：リマインドは何回でも登録できる（todo_reminders）。完了したやることには送らない */
+async function todoMessages(admin: Admin, nowIso: string, staleIso: string): Promise<Message[]> {
+  const { data, error } = await admin
+    .from("todo_reminders")
+    .select("id, todo:todo_items!inner(id, owner_id, title, is_shared, assignee_id, due_date, due_time, done_at)")
+    .lte("remind_at", nowIso)
+    .gte("remind_at", staleIso)
+    .is("reminded_at", null)
+    .is("todo.done_at", null)
+    .order("remind_at")
+    .limit(BATCH);
+  // 表がまだ無い（supabase-todo-extras.sql 未実行）ときは、これまでの1回だけのリマインドで送る
+  if (error && ["42P01", "PGRST205", "PGRST200", "42703"].includes(error.code ?? "")) return legacyTodoMessages(admin, nowIso, staleIso);
+  if (error) problems.push(`todo_reminders: ${error.message}`);
+  if (error || !data?.length) return [];
+  type Row = { id: string; todo: TodoRow | TodoRow[] | null };
+  const rows = data as unknown as Row[];
+  // 先に「知らせ済み」にする（同時に2回呼ばれても二重に送らない）
+  const { data: claimed } = await admin
+    .from("todo_reminders")
+    .update({ reminded_at: nowIso })
+    .in("id", rows.map((r) => r.id))
+    .is("reminded_at", null)
+    .select("id");
+  const ids = new Set((claimed ?? []).map((r: { id: string }) => r.id));
+  // 同じやることのリマインドが同時に来たら1回だけ
+  const todos = new Map<string, TodoRow>();
+  for (const r of rows) {
+    const t = Array.isArray(r.todo) ? r.todo[0] : r.todo;
+    if (ids.has(r.id) && t) todos.set(t.id, t);
+  }
+  return todoPayloads(admin, [...todos.values()]);
+}
+
+/** これまでの1回だけのリマインド（todo_items.remind_at） */
+async function legacyTodoMessages(admin: Admin, nowIso: string, staleIso: string): Promise<Message[]> {
+  const due = (cols: string) =>
+    admin
+      .from("todo_items")
+      .select(cols)
+      .lte("remind_at", nowIso)
+      .gte("remind_at", staleIso)
+      .is("reminded_at", null)
+      .is("done_at", null)
+      .order("remind_at")
+      .limit(BATCH);
+  const base = "id, owner_id, title, is_shared, assignee_id, due_date";
+  let { data, error } = await due(`${base}, due_time`);
+  if (error && ["42703", "PGRST204"].includes(error.code ?? "")) ({ data, error } = await due(base));
+  if (error) problems.push(`todo_items: ${error.message}`);
+  if (error || !data?.length) return [];
+  const list = data as unknown as TodoRow[];
+  const { data: claimed } = await admin
+    .from("todo_items")
+    .update({ reminded_at: nowIso })
+    .in("id", list.map((t) => t.id))
+    .is("reminded_at", null)
+    .select("id");
+  const ids = new Set((claimed ?? []).map((r: { id: string }) => r.id));
+  return todoPayloads(admin, list.filter((t) => ids.has(t.id)));
 }
 
 /** 2) 予定の前のリマインド */
